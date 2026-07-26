@@ -211,7 +211,7 @@ export const TabVisibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     return true;
-  }, [settings, user, isSuperAdmin]);
+  }, [settings, user, isSuperAdmin, features.playoffs]);
 
   return (
     <TabVisibilityContext.Provider value={{ isTabVisible, loading }}>
