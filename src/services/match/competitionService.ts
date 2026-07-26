@@ -20,6 +20,7 @@ import {
   hasSufficientSameWeekDayGap,
   type PackFailureSuggestion,
 } from "@/lib/competitionWeekPacking";
+import { scopeSlotsByPreferredDayDistance } from "@/lib/competitionPreferredDayScope";
 import { matchDateFromWeekMonday } from "@/lib/cupBracketPlan";
 import type { CompetitionFormat } from "@/services/competitionDataService";
 import {
@@ -1296,16 +1297,15 @@ export const competitionService = {
             return !(typeof dow === "number" && dow === cupDay);
           });
 
-        // Als er genoeg slots op de voorkeurs-competitiedag zijn: alleen die gebruiken
-        // (voorkomt dat ma/di vol raken terwijl do/vr leeg blijven).
+        // Competitiedag eerst (bv. vrijdag); bij tekort geleidelijk dichterbij
+        // uitbreiden (donderdag vóór dinsdag) — niet meteen alle weekdagen openzetten.
         if (compDay != null && m > 0) {
-          const preferredDaySlots = availableSlots.filter((idx) => {
-            const dow = slotCtx.slotDetails[idx]?.timeslot?.day_of_week;
-            return typeof dow === "number" && dow === compDay;
-          });
-          if (preferredDaySlots.length >= m) {
-            availableSlots = preferredDaySlots;
-          }
+          availableSlots = scopeSlotsByPreferredDayDistance(
+            availableSlots,
+            compDay,
+            m,
+            (idx) => slotCtx.slotDetails[idx]?.timeslot?.day_of_week,
+          );
         }
 
         if (m > availableSlots.length) {
