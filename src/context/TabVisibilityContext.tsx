@@ -22,9 +22,14 @@ const TabVisibilityContext = createContext<TabVisibilityContextProps | undefined
 export const TabVisibilityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { settings, loading } = useTabVisibilitySettings();
+  const { organizationSlug } = useOrganization();
+  const features = getOrganizationFeatures(organizationSlug);
   const isSuperAdmin = user?.isSuperAdmin === true || user?.id === -1;
 
   const isTabVisible = useCallback((tab: TabName | string): boolean => {
+    if (!features.playoffs && PLAYOFF_TAB_KEYS.has(tab)) {
+      return false;
+    }
     const userRole = resolveVisibilityRole(user, isSuperAdmin);
     const adminToPublicMapping: Record<string, string> = {
       'competition': 'competitie',
