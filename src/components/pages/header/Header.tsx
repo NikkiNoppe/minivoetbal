@@ -377,25 +377,26 @@ const Header: React.FC<HeaderProps> = ({
             <div className="hidden lg:block shrink-0">
               <Logo onClick={handleLogoClick} />
             </div>
-            {visiblePublicItems.length > 0 && (
-              <nav
-                className="hidden lg:flex items-center gap-1 min-w-0 overflow-x-auto"
-                aria-label="Hoofdnavigatie"
-              >
-                {visiblePublicItems.map((item) => (
-                  <NavLinkButton
-                    key={item.key}
-                    item={item}
-                    isActive={activeTab === item.key}
-                    onNavigate={navigateToTab}
-                    variant="desktop"
-                    animate={false}
-                  />
-                ))}
-              </nav>
-            )}
             {/* Ingelogde snelkoppelingen zijn beschikbaar via de zijbalk — niet meer duplicaat in de header op desktop. */}
           </div>
+
+          {visiblePublicItems.length > 0 && (
+            <nav
+              className="hidden lg:flex absolute left-1/2 -translate-x-1/2 items-center gap-1"
+              aria-label="Hoofdnavigatie"
+            >
+              {visiblePublicItems.map((item) => (
+                <NavLinkButton
+                  key={item.key}
+                  item={item}
+                  isActive={activeTab === item.key}
+                  onNavigate={navigateToTab}
+                  variant="desktop"
+                  animate={false}
+                />
+              ))}
+            </nav>
+          )}
 
           <div className="absolute left-1/2 -translate-x-1/2 lg:hidden">
             <Logo onClick={handleLogoClick} />
