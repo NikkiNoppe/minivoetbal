@@ -1,7 +1,16 @@
 
 import React, { createContext, useContext, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrganization } from '@/hooks/useOrganization';
+import { getOrganizationFeatures } from '@/config/organizationFeatures';
 import { useTabVisibilitySettings, RoleKey } from '@/hooks/useTabVisibilitySettings';
+
+const PLAYOFF_TAB_KEYS = new Set([
+  'playoff',
+  'playoffs',
+  'match-forms-playoffs',
+  'format-playoffs',
+]);
 
 interface TabVisibilityContextProps {
   isTabVisible: (tab: TabName | string) => boolean;
