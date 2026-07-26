@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppAlertModal, InfoConfirmDescription } from "@/components/modals";
-import { AppModal } from "@/components/modals/base/app-modal";
 import { Loader2, Trophy, AlertCircle, CheckCircle, Archive, Award } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import ArchiveCupModal from "@/components/modals/admin/ArchiveCupModal";
@@ -17,9 +16,17 @@ import AdminTeamSelector from "@/components/pages/admin/common/components/AdminT
 import { supabase } from "@/integrations/supabase/client";
 import { seasonService } from "@/services";
 import { describeCupPlan, getCupBracketPlan } from "@/lib/cupBracketPlan";
+import {
+  buildSeasonSlotGrids,
+  buildSlotDetailsFromSeasonData,
+  listSeasonPlayableWeeks,
+  resolveEffectiveSlotsPerWeek,
+} from "@/lib/seasonCalendar";
+import { filterActiveSlotUnavailability } from "@/services/slotUnavailabilityService";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
+import { cn } from "@/lib/utils";
 
-const BekerPage: React.FC = () => {
+const BekerPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { toast } = useToast();
   const { organizationId, orgQueryEnabled } = useOrgQueryScope();
   const [showDateSelector, setShowDateSelector] = useState(false);
@@ -30,6 +37,7 @@ const BekerPage: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [existingCup, setExistingCup] = useState<null | {
+    voorronde: any[];
     achtste_finales: any[];
     kwartfinales: any[];
     halve_finales: any[];
@@ -37,6 +45,7 @@ const BekerPage: React.FC = () => {
   }>(null);
   const [byeTeamId, setByeTeamId] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [dateRationale, setDateRationale] = useState<string[]>([]);
   const [previewPlan, setPreviewPlan] = useState<Array<{
     unique_number: string;
     speeldag: string;
@@ -75,6 +84,7 @@ const BekerPage: React.FC = () => {
         setPreviewPlan(null);
         setPreviewTotal(null);
         setByeTeamId(null);
+        setDateRationale([]);
 
         const [teamsData, cupData, seasonData] = await Promise.all([
           teamService.getAllTeams(),
@@ -83,8 +93,32 @@ const BekerPage: React.FC = () => {
         ]);
         setTeams(teamsData);
         if (cupData) setExistingCup(cupData);
-        const slots = seasonData?.venue_timeslots?.length || 7;
-        setSlotsPerWeek(Math.max(1, slots));
+
+        // Prefill teams vanuit Seizoensopzet (alle teams)
+        const setup = seasonData?.season_setup;
+        if (!cupData && setup?.systems?.cup && setup.cup?.useAllTeams && teamsData.length > 0) {
+          setSelectedTeams(teamsData.map((t: { team_id: number }) => t.team_id));
+        }
+
+        const nominal = seasonData?.venue_timeslots?.length || 7;
+        if (seasonData?.season_start_date && seasonData?.season_end_date) {
+          const slotDetails = buildSlotDetailsFromSeasonData(seasonData);
+          const playable = listSeasonPlayableWeeks(
+            seasonData.season_start_date,
+            seasonData.season_end_date,
+            seasonData.vacation_periods || [],
+          );
+          const grids = buildSeasonSlotGrids({
+            weekMondays: playable,
+            slotDetails,
+            blocks: filterActiveSlotUnavailability(seasonData.slot_unavailability),
+            vacations: seasonData.vacation_periods || [],
+          });
+          const effective = resolveEffectiveSlotsPerWeek(grids, nominal);
+          setSlotsPerWeek(Math.max(1, effective || nominal));
+        } else {
+          setSlotsPerWeek(Math.max(1, nominal));
+        }
 
         // Defensive fallback: ensure all winners are advanced to their next round.
         // Catches edge cases where matches were updated outside the normal flow.
@@ -159,6 +193,7 @@ const BekerPage: React.FC = () => {
   useEffect(() => {
     if (tournamentDates.length > 0 && tournamentDates.length !== cupPlan.requiredWeeks) {
       setTournamentDates([]);
+      setDateRationale([]);
       setPreviewPlan(null);
       setPreviewTotal(null);
     }
@@ -167,8 +202,10 @@ const BekerPage: React.FC = () => {
   const handleCancelTournament = useCallback(() => {
     setSelectedTeams([]);
     setTournamentDates([]);
+    setDateRationale([]);
     setByeTeamId(null);
     setPreviewPlan(null);
+    setPreviewTotal(null);
     toast({ title: "Geannuleerd", description: "Teams en speeldata gewist." });
   }, [toast]);
 
@@ -183,9 +220,24 @@ const BekerPage: React.FC = () => {
     });
   }, []);
 
-  // Memoize date selection handler
-  const handleDatesSelected = useCallback((dates: string[]) => {
+  const handleResolvedCupPlan = useCallback(
+    (plan: {
+      requiredWeeks: number;
+      firstRoundWeeks: number;
+      effectiveSlotsPerWeek: number;
+    }) => {
+      if (plan.effectiveSlotsPerWeek > 0) {
+        setSlotsPerWeek(plan.effectiveSlotsPerWeek);
+      }
+    },
+    [],
+  );
+
+  const handleDatesSelected = useCallback((dates: string[], rationale?: string[]) => {
     setTournamentDates(dates);
+    setDateRationale(rationale ?? []);
+    setPreviewPlan(null);
+    setPreviewTotal(null);
     setShowDateSelector(false);
     toast({
       title: "Data geselecteerd",
@@ -235,8 +287,10 @@ const BekerPage: React.FC = () => {
         }
         setSelectedTeams([]);
         setTournamentDates([]);
+        setDateRationale([]);
         setByeTeamId(null);
         setPreviewPlan(null);
+        setPreviewTotal(null);
         await reloadExistingCup();
       } else {
         toast({ title: "Fout bij aanmaken", description: createResult.message, variant: "destructive" });
@@ -263,20 +317,45 @@ const BekerPage: React.FC = () => {
       toast({ title: "Onvoldoende data", description: `Selecteer exact ${requiredWeeks} speeldata`, variant: "destructive" });
       return;
     }
+    if (selectedTeams.length % 2 === 1 && !byeTeamId) {
+      toast({
+        title: "Selecteer bye-team",
+        description: "Bij oneven aantal teams moet je eerst een bye-team kiezen bij de speeldata.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsPreviewing(true);
     try {
-      const res = await bekerService.previewCupTournament(selectedTeams, tournamentDates, 1, byeTeamId || null, organizationId ?? undefined);
+      const res = await bekerService.previewCupTournament(
+        selectedTeams,
+        tournamentDates,
+        12,
+        byeTeamId || null,
+        organizationId ?? undefined,
+      );
       if (!res.success || !res.plan || res.plan.length === 0) {
-        toast({ title: "Preview mislukt", description: res.message || "Geen plan gegenereerd", variant: "destructive" });
+        toast({
+          title: "Preview mislukt",
+          description: res.message || "Geen plan gegenereerd",
+          variant: "destructive",
+        });
         setPreviewPlan(null);
         setPreviewTotal(null);
         return;
       }
       setPreviewPlan(res.plan);
       setPreviewTotal(res.totalCombined ?? null);
-      toast({ title: "Preview klaar", description: `Preview bevat ${res.plan.length} wedstrijden (totale score ${res.totalCombined ?? '-'}).` });
+      toast({
+        title: "Preview klaar",
+        description: `Preview bevat ${res.plan.length} wedstrijden (totale score ${res.totalCombined ?? "-"}).`,
+      });
     } catch (e) {
-      toast({ title: "Preview fout", description: "Er ging iets mis bij genereren", variant: "destructive" });
+      toast({
+        title: "Preview fout",
+        description: e instanceof Error ? e.message : "Er ging iets mis bij genereren",
+        variant: "destructive",
+      });
       setPreviewPlan(null);
       setPreviewTotal(null);
     } finally {
@@ -296,7 +375,9 @@ const BekerPage: React.FC = () => {
 
   const hasExistingCup = useMemo(() => {
     if (!existingCup) return false;
-    const total = (existingCup.achtste_finales?.length || 0) +
+    const total =
+      (existingCup.voorronde?.length || 0) +
+      (existingCup.achtste_finales?.length || 0) +
       (existingCup.kwartfinales?.length || 0) +
       (existingCup.halve_finales?.length || 0) +
       (existingCup.finale ? 1 : 0);
@@ -305,7 +386,13 @@ const BekerPage: React.FC = () => {
 
   const cupCounts = useMemo(() => {
     return {
-      total: ((existingCup?.achtste_finales?.length || 0) + (existingCup?.kwartfinales?.length || 0) + (existingCup?.halve_finales?.length || 0) + (existingCup?.finale ? 1 : 0)),
+      total:
+        (existingCup?.voorronde?.length || 0) +
+        (existingCup?.achtste_finales?.length || 0) +
+        (existingCup?.kwartfinales?.length || 0) +
+        (existingCup?.halve_finales?.length || 0) +
+        (existingCup?.finale ? 1 : 0),
+      voorronde: existingCup?.voorronde?.length || 0,
       achtste: existingCup?.achtste_finales?.length || 0,
       kwart: existingCup?.kwartfinales?.length || 0,
       halve: existingCup?.halve_finales?.length || 0,
@@ -323,14 +410,23 @@ const BekerPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className={cn("space-y-6", !embedded && "animate-slide-up")}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <PageHeader
-          className="mb-0 min-w-0 flex-1"
-          title="Beker"
-          subtitle="Beheer het bekertoernooi — aanmaken, verwijderen en overzicht"
-          icon={Award}
-        />
+        {!embedded ? (
+          <PageHeader
+            className="mb-0 min-w-0 flex-1"
+            title="Beker"
+            subtitle="Beheer het bekertoernooi — aanmaken, verwijderen en overzicht"
+            icon={Award}
+          />
+        ) : (
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-brand-dark">Beker aanmaken</h2>
+            <p className="text-sm text-muted-foreground">
+              Teams, speeldata en preview binnen dit seizoen
+            </p>
+          </div>
+        )}
         <Button
           variant="outline"
           onClick={() => setShowArchiveModal(true)}
@@ -375,7 +471,13 @@ const BekerPage: React.FC = () => {
                   <span className="ml-2">
                     Minstens 2 teams.{" "}
                     {selectedTeams.length >= 2
-                      ? `${cupPlan.requiredWeeks} speelweken nodig (${cupPlan.firstRoundPairs}× 1/8${cupPlan.firstRoundWeeks > 1 ? ` over ${cupPlan.firstRoundWeeks} weken` : ""} + QF/SF/finale).`
+                      ? `${cupPlan.requiredWeeks} speelweken nodig: ${cupPlan.rounds
+                          .map((r) =>
+                            r.byeCount > 0
+                              ? `${r.name} (${r.matchCount}w/${r.byeCount} bye)`
+                              : `${r.name} (${r.matchCount})`,
+                          )
+                          .join(" → ")}.`
                       : "Speelweken worden berekend op basis van teams en tijdslots."}
                   </span>
                 </div>
@@ -386,21 +488,37 @@ const BekerPage: React.FC = () => {
                   {tournamentDates.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nog geen speeldata geselecteerd</p>
                   ) : (
-                    <div className="space-y-1">
-                      {tournamentDates.map((date, index) => {
-                        const label =
-                          cupPlan.roundLabels.flatMap((r) =>
-                            r.type === "group"
-                              ? r.subRounds.map((s) => `${r.name} — ${s.name}`)
-                              : [r.name],
-                          )[index] ?? `Speelweek ${index + 1}`;
-                        return (
-                          <div key={index} className="flex items-center justify-between gap-2 p-2 bg-gray-50 rounded min-h-[44px]">
-                            <span className="text-sm">{label}</span>
-                            <span className="text-sm font-medium shrink-0">{new Date(date).toLocaleDateString('nl-NL')}</span>
-                          </div>
-                        );
-                      })}
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        {tournamentDates.map((date, index) => {
+                          const label =
+                            cupPlan.roundLabels.flatMap((r) =>
+                              r.type === "group"
+                                ? r.subRounds.map((s) => `${r.name} — ${s.name}`)
+                                : [r.name],
+                            )[index] ?? `Speelweek ${index + 1}`;
+                          return (
+                            <div key={index} className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded min-h-[44px]">
+                              <span className="text-sm">{label}</span>
+                              <span className="text-sm font-medium shrink-0 tabular-nums">
+                                {new Date(`${date}T12:00:00`).toLocaleDateString("nl-BE")}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {dateRationale.length > 0 ? (
+                        <div className="rounded-lg border border-primary/20 bg-brand-50/50 p-3 space-y-1.5">
+                          <p className="text-sm font-medium text-brand-dark">
+                            Waarom deze data
+                          </p>
+                          <ul className="list-disc pl-5 space-y-1 text-xs text-muted-foreground">
+                            {dateRationale.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -521,6 +639,9 @@ const BekerPage: React.FC = () => {
                   </AlertDescription>
                 </Alert>
                 <div className="space-y-1 text-sm text-muted-foreground">
+                  {cupCounts.voorronde > 0 ? (
+                    <div>• Voorronde: {cupCounts.voorronde}</div>
+                  ) : null}
                   <div>• Achtste finales: {cupCounts.achtste}</div>
                   <div>• Kwartfinales: {cupCounts.kwart}</div>
                   <div>• Halve finales: {cupCounts.halve}</div>
@@ -539,26 +660,25 @@ const BekerPage: React.FC = () => {
         </Card>
       </section>
 
-      {/* Date Selector Modal */}
-      <AppModal
+      <BekerDateSelector
         open={showDateSelector}
-        onOpenChange={(open) => { if (!open) handleCancelDateSelection(); }}
-        title="Speeldata Selecteren"
-        subtitle="Selecteer de speeldata voor het bekertoernooi"
-        size="lg"
-      >
-        <BekerDateSelector
-          onDatesSelected={handleDatesSelected}
-          onCancel={handleCancelDateSelection}
-          isLoading={isCreating}
-          weeks={cupPlan.requiredWeeks}
-          firstRoundWeeks={cupPlan.firstRoundWeeks}
-          organizationId={organizationId}
-          allowByeSelection={selectedTeams.length % 2 === 1}
-          teamsForBye={teams.filter(t => selectedTeams.includes(t.team_id)).map(t => ({ team_id: t.team_id, team_name: t.team_name }))}
-          onByeSelected={setByeTeamId}
-        />
-      </AppModal>
+        onOpenChange={(open) => {
+          if (!open) handleCancelDateSelection();
+          else setShowDateSelector(true);
+        }}
+        onDatesSelected={handleDatesSelected}
+        isLoading={isCreating}
+        weeks={cupPlan.requiredWeeks}
+        firstRoundWeeks={cupPlan.firstRoundWeeks}
+        organizationId={organizationId}
+        cupTeamCount={selectedTeams.length}
+        allowByeSelection={selectedTeams.length % 2 === 1}
+        teamsForBye={teams
+          .filter((t) => selectedTeams.includes(t.team_id))
+          .map((t) => ({ team_id: t.team_id, team_name: t.team_name }))}
+        onByeSelected={setByeTeamId}
+        onResolvedPlan={handleResolvedCupPlan}
+      />
     </div>
   );
 };

@@ -309,7 +309,7 @@ const SkippedWeekCard = ({ week }: { week: WeekData }) => (
   </div>
 );
 
-const AdminPlayoffPage: React.FC = () => {
+const AdminPlayoffPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [teams, setTeams] = useState<any[]>([]);
@@ -371,10 +371,18 @@ const AdminPlayoffPage: React.FC = () => {
         setPlayoffStatus('concept');
       }
       
-      // Load vacation periods
+      // Load vacation periods + seizoensopzet defaults
       try {
-        const seasonData = await seasonService.getSeasonData();
+        const seasonData = await seasonService.getSeasonData(organizationId);
         setVacationPeriods(seasonData.vacation_periods || []);
+        if (seasonData.season_start_date) setStartDate(seasonData.season_start_date);
+        if (seasonData.season_end_date) setEndDate(seasonData.season_end_date);
+        const setup = seasonData.season_setup;
+        if (setup?.systems?.playoffs && setup.playoffs) {
+          setTopTeamCount(setup.playoffs.topTeams);
+          setBottomTeamCount(setup.playoffs.bottomTeams);
+          setRounds(setup.playoffs.rounds);
+        }
       } catch (e) {
         console.log('Could not load vacation periods');
       }
@@ -644,16 +652,25 @@ const AdminPlayoffPage: React.FC = () => {
     }
   };
 
-  return <div className="space-y-6 animate-slide-up">
+  return <div className={cn("space-y-6", !embedded && "animate-slide-up")}>
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
-          <PageHeader
-            className="mb-0 min-w-0 flex-1"
-            title="Playoffs"
-            subtitle="Beheer de playoffs — genereren, finaliseren en overzicht"
-            icon={Target}
-          />
+          {!embedded ? (
+            <PageHeader
+              className="mb-0 min-w-0 flex-1"
+              title="Playoffs"
+              subtitle="Beheer de playoffs — genereren, finaliseren en overzicht"
+              icon={Target}
+            />
+          ) : (
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-semibold text-brand-dark">Play-offs</h2>
+              <p className="text-sm text-muted-foreground">
+                Genereren, finaliseren en overzicht binnen dit seizoen
+              </p>
+            </div>
+          )}
           <Button
             variant="outline"
             onClick={() => setShowArchiveModal(true)}

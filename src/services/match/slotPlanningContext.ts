@@ -8,9 +8,11 @@ import {
 } from '@/services/slotUnavailabilityService';
 import type { SlotUnavailability } from '@/types/slotUnavailability';
 import type { VenueTimeslotWithPriority } from '@/services/priorityOrderService';
+import type { VacationLike } from '@/lib/competitionPlanningEstimate';
 
 export interface SlotPlanningContext {
   blocks: SlotUnavailability[];
+  vacations: VacationLike[];
   slotDetails: SlotDetailRow[];
   totalSlots: number;
   getWeekCapacity: (weekMonday: string, configuredMax?: number) => number;
@@ -56,11 +58,13 @@ export async function loadSlotPlanningContext(
 ): Promise<SlotPlanningContext> {
   const seasonData = await seasonService.getSeasonData(organizationId);
   const blocks = filterActiveSlotUnavailability(seasonData.slot_unavailability);
+  const vacations: VacationLike[] = seasonData.vacation_periods ?? [];
   const slotDetails = buildSlotDetailsFromSeasonData(seasonData);
   const totalSlots = Math.max(slotDetails.length, 1);
 
   return {
     blocks,
+    vacations,
     slotDetails,
     totalSlots,
     getWeekCapacity: (weekMonday, configuredMax = totalSlots) =>
@@ -70,17 +74,25 @@ export async function loadSlotPlanningContext(
         slotDetails,
         blocks,
         configuredMax,
+        vacations,
       ),
     getAvailableSlotIndices: (weekMonday) =>
-      getAvailableSlotIndicesForWeek(weekMonday, totalSlots, slotDetails, blocks),
+      getAvailableSlotIndicesForWeek(
+        weekMonday,
+        totalSlots,
+        slotDetails,
+        blocks,
+        vacations,
+      ),
     getBlockedSlotIndices: (weekMonday) =>
-      getBlockedSlotIndicesForWeek(weekMonday, slotDetails, blocks),
+      getBlockedSlotIndicesForWeek(weekMonday, slotDetails, blocks, vacations),
     getSlotIndexForUsage: (weekMonday, slotsUsed) => {
       const available = getAvailableSlotIndicesForWeek(
         weekMonday,
         totalSlots,
         slotDetails,
         blocks,
+        vacations,
       );
       if (slotsUsed >= available.length) return null;
       return available[slotsUsed];

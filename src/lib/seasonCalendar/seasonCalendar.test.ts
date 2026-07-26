@@ -1,0 +1,279 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildConfigWeekGrid,
+  buildSeasonPlan,
+  buildSeasonSlotGrids,
+  capacityForWeek,
+  reserveCupWeeks,
+  resolveEffectiveSlotsPerWeek,
+} from "./index";
+import type { SlotDetailLike } from "./types";
+
+function makeSlots(
+  count: number,
+  opts?: { validFrom?: string; validUntil?: string; dayOfWeek?: number },
+): SlotDetailLike[] {
+  return Array.from({ length: count }, (_, i) => ({
+    venue: i % 2 === 0 ? "Hal A" : "Hal B",
+    timeslot: {
+      timeslot_id: i + 1,
+      venue_id: (i % 2) + 1,
+      day_of_week: opts?.dayOfWeek ?? (i % 2 === 0 ? 1 : 5),
+      start_time: `${18 + (i % 3)}:00`,
+      valid_from: opts?.validFrom ?? null,
+      valid_until: opts?.validUntil ?? null,
+    },
+  }));
+}
+
+describe("buildConfigWeekGrid", () => {
+  it("markeert alle slots blocked buiten valid_from/until", () => {
+    const slots = makeSlots(16, {
+      validFrom: "2026-09-01",
+      validUntil: "2027-05-31",
+    });
+    const grid = buildConfigWeekGrid("2026-08-17", slots, []);
+    expect(grid.configAvailableCount).toBe(0);
+    expect(grid.freeCount).toBe(0);
+    expect(grid.blockedConfig).toBe(16);
+  });
+
+  it("toont vakantieweken als phase vacation i.p.v. ze te verbergen", () => {
+    const slots = makeSlots(4, { dayOfWeek: 1 });
+    const plan = buildSeasonPlan({
+      seasonStart: "2026-08-10",
+      seasonEnd: "2026-08-31",
+      vacations: [
+        {
+          start_date: "2026-08-17",
+          end_date: "2026-08-23",
+          is_active: true,
+        },
+      ],
+      slotDetails: slots,
+      competitionMatches: 8,
+      cupTeamCount: 0,
+      playoffMatchdays: 0,
+    });
+    const vacationWeek = plan.weeks.find((w) => w.weekMonday === "2026-08-17");
+    expect(vacationWeek).toBeTruthy();
+    expect(vacationWeek!.phases).toEqual(["vacation"]);
+    expect(plan.competitionWeeks).not.toContain("2026-08-17");
+    expect(plan.weeks.some((w) => w.weekMonday === "2026-08-10")).toBe(true);
+    expect(plan.weeks.some((w) => w.weekMonday === "2026-08-24")).toBe(true);
+  });
+
+  it("laat slots vrij binnen geldigheidsperiode", () => {
+    const slots = makeSlots(7, {
+      validFrom: "2026-09-01",
+      validUntil: "2027-05-31",
+    });
+    const grid = buildConfigWeekGrid("2026-09-07", slots, []);
+    expect(grid.freeCount).toBe(7);
+  });
+
+  it("blokkeert di–zo als kerstvakantie op di begint (ma blijft vrij)", () => {
+    // Week ma 21/12/2026: 4 maandagslots + dinsdagslots; vakantie vanaf 22/12
+    const slots: SlotDetailLike[] = [
+      ...Array.from({ length: 4 }, (_, i) => ({
+        venue: "Hal A",
+        timeslot: {
+          timeslot_id: i + 1,
+          venue_id: 1,
+          day_of_week: 1,
+          start_time: `${18 + i}:00`,
+        },
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        venue: "Hal A",
+        timeslot: {
+          timeslot_id: i + 10,
+          venue_id: 1,
+          day_of_week: 2,
+          start_time: `${18 + i}:00`,
+        },
+      })),
+    ];
+    const vacations = [
+      { start_date: "2026-12-22", end_date: "2027-01-04", is_active: true },
+    ];
+    const grid = buildConfigWeekGrid("2026-12-21", slots, [], vacations);
+    expect(grid.configAvailableCount).toBe(4);
+    const freeDays = grid.slots
+      .filter((s) => s.status === "available")
+      .map((s) => s.dayOfWeek);
+    expect(freeDays.every((d) => d === 1)).toBe(true);
+    expect(
+      grid.slots.filter((s) => s.dayOfWeek === 2 && s.status === "blocked_config"),
+    ).toHaveLength(4);
+  });
+});
+
+describe("reserveCupWeeks", () => {
+  it("slaat weken met 0 capaciteit over (augustus-gat)", () => {
+    const slots = makeSlots(16, {
+      validFrom: "2026-09-01",
+      validUntil: "2027-05-31",
+    });
+    const result = reserveCupWeeks({
+      seasonStart: "2026-08-01",
+      seasonEnd: "2027-05-31",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      cupTeamCount: 22,
+    });
+    expect(result.dates.length).toBeGreaterThan(0);
+    expect(result.dates.every((d) => d >= "2026-09-01")).toBe(true);
+    expect(result.dates.includes("2026-08-17")).toBe(false);
+    expect(result.firstRoundWeeks).toBeGreaterThanOrEqual(1);
+  });
+
+  it("gebruikt effectieve capaciteit i.p.v. nominale 16 slots", () => {
+    // Slechts 5 van 16 slots geldig → 11 paren vragen ≥3 first-round weken
+    const all = makeSlots(16, { validFrom: "2026-09-01", validUntil: "2027-05-31" });
+    const limited = all.map((s, i) =>
+      i < 5
+        ? s
+        : {
+            ...s,
+            timeslot: {
+              ...s.timeslot!,
+              valid_from: "2099-01-01",
+              valid_until: "2099-12-31",
+            },
+          },
+    );
+    const result = reserveCupWeeks({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2027-05-31",
+      slotDetails: limited,
+      cupTeamCount: 22,
+    });
+    expect(result.effectiveSlotsPerWeek).toBeLessThanOrEqual(5);
+    expect(result.requiredWeeks).toBeGreaterThanOrEqual(6);
+    // 22 teams: voorronde + 1/8 + QF + SF + F (niet meer firstRound+3)
+    expect(result.requiredWeeks).toBeGreaterThan(result.firstRoundWeeks + 3);
+  });
+});
+
+describe("buildSeasonPlan", () => {
+  it("zet playoffs aan het einde en beker/competitie ervoor", () => {
+    const slots = makeSlots(7);
+    const plan = buildSeasonPlan({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2027-04-30",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      competitionMatches: 70,
+      cupTeamCount: 14,
+      playoffMatchdays: 4,
+    });
+    expect(plan.playoffWeeks.length).toBe(4);
+    const lastPlayable = plan.weeks.filter((w) => w.freeCount > 0).map((w) => w.weekMonday);
+    const last4 = lastPlayable.slice(-4);
+    expect(plan.playoffWeeks).toEqual(last4);
+    expect(plan.cupDates.every((d) => !plan.playoffWeeks.includes(d))).toBe(true);
+    expect(plan.efficiency.usableWeeks).toBeGreaterThan(0);
+    expect(plan.daySeparation.separated).toBe(true);
+    expect(plan.sharedCupMondays).toBeDefined();
+  });
+
+  it("deelt beker/competitie alleen bij speelweken-tekort", () => {
+    const slots = makeSlots(7);
+
+    const ruim = buildSeasonPlan({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2027-05-31",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      competitionMatches: 40,
+      cupTeamCount: 8,
+      playoffMatchdays: 2,
+    });
+    expect(ruim.efficiency.sharedWeeks).toBe(0);
+    expect(ruim.cupDates.every((d) => !ruim.competitionWeeks.includes(d))).toBe(true);
+
+    // Krap seizoen: forceer tekort → gedeelde weken toegestaan
+    const krap = buildSeasonPlan({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2026-12-15",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      competitionMatches: 120,
+      cupTeamCount: 22,
+      playoffMatchdays: 2,
+    });
+    expect(krap.daySeparation.separated).toBe(true);
+    expect(krap.efficiency.sharedWeeks).toBe(krap.sharedCupMondays.length);
+    if (krap.sharedCupMondays.length > 0) {
+      expect(
+        krap.cupDates.filter((d) => krap.competitionWeeks.includes(d)).length,
+      ).toBe(krap.sharedCupMondays.length);
+    }
+  });
+
+  it("gebruikt handmatig gekozen bekerweken", () => {
+    const slots = makeSlots(7);
+    const preferred = ["2026-10-05", "2026-11-02", "2026-12-07", "2027-01-11"];
+    const plan = buildSeasonPlan({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2027-04-30",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      competitionMatches: 40,
+      cupTeamCount: 8,
+      playoffMatchdays: 0,
+      cupWeekMode: "manual",
+      cupPreferredWeeks: preferred,
+    });
+    expect(plan.cupBracket.requiredWeeks).toBeGreaterThan(0);
+    expect(plan.cupDates.every((d) => preferred.includes(d))).toBe(true);
+    expect(plan.cupDates.length).toBe(plan.cupBracket.requiredWeeks);
+  });
+
+  it("markeert alle exclusieve late weken als competitie i.p.v. vrij", () => {
+    // 11+11 × 3 rondes = 330 wedstrijden / 33 speeldagen.
+    // Voorheen: slice(0, ceil(matches/slots)) → mei/juni bleven “vrij”.
+    const slots = makeSlots(16);
+    const plan = buildSeasonPlan({
+      seasonStart: "2026-09-07",
+      seasonEnd: "2027-06-21",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      competitionMatches: 330,
+      competitionMatchdays: 33,
+      cupTeamCount: 22,
+      playoffMatchdays: 2,
+    });
+
+    expect(plan.competitionWeeks.length).toBeGreaterThanOrEqual(33);
+
+    const lateExclusive = plan.weeks.filter(
+      (w) =>
+        w.weekMonday >= "2027-05-10" &&
+        w.weekMonday <= "2027-06-14" &&
+        !plan.cupDates.includes(w.weekMonday) &&
+        !plan.playoffWeeks.includes(w.weekMonday) &&
+        !w.phases.includes("vacation") &&
+        !w.phases.includes("blocked"),
+    );
+    expect(lateExclusive.length).toBeGreaterThan(0);
+    for (const w of lateExclusive) {
+      expect(plan.competitionWeeks).toContain(w.weekMonday);
+      expect(w.phases).toContain("competition");
+      expect(w.phases).not.toContain("free");
+    }
+  });
+});
+
+describe("resolveEffectiveSlotsPerWeek", () => {
+  it("neemt mediaan van positieve freeCounts", () => {
+    const slots = makeSlots(7);
+    const grids = buildSeasonSlotGrids({
+      weekMondays: ["2026-09-07", "2026-09-14", "2026-09-21"],
+      slotDetails: slots,
+    });
+    expect(capacityForWeek(grids, "2026-09-07")).toBe(7);
+    expect(resolveEffectiveSlotsPerWeek(grids, 16)).toBe(7);
+  });
+});

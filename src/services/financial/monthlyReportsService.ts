@@ -67,6 +67,8 @@ export interface RefereeMatchInfo {
   match_date: string;
   home_team: string;
   away_team: string;
+  home_score: number | null;
+  away_score: number | null;
 }
 
 export interface MonthlyFines {
@@ -325,6 +327,11 @@ function getCurrentSeasonStartYear(): number {
   const now = new Date();
   const year = now.getFullYear();
   return now.getMonth() >= 6 ? year : year - 1;
+}
+
+function isAssignedReferee(referee: string | null | undefined): boolean {
+  const name = referee?.trim() ?? "";
+  return name.length > 0 && name.toLowerCase() !== "niet toegewezen";
 }
 
 export const monthlyReportsService = {
@@ -586,7 +593,8 @@ export const monthlyReportsService = {
         }
         matchStatsByMonth[statsKey].totalMatches++;
 
-        const referee = match.referee?.trim() || "Niet toegewezen";
+        const refereeRaw = match.referee?.trim() || "";
+        const referee = isAssignedReferee(refereeRaw) ? refereeRaw : "Niet toegewezen";
         const refereeKey = month && year ? `${mMonthKey}-${referee}` : `season-${referee}`;
 
         if (!refereeCostsByReferee[refereeKey]) {
@@ -601,13 +609,17 @@ export const monthlyReportsService = {
         }
 
         refereeCostsByReferee[refereeKey].matchCount++;
-        refereeCostsByReferee[refereeKey].totalCost += refereeCostPerMatch * 2;
+        if (isAssignedReferee(referee)) {
+          refereeCostsByReferee[refereeKey].totalCost += refereeCostPerMatch * 2;
+        }
         refereeCostsByReferee[refereeKey].matches?.push({
           match_id: match.match_id,
           unique_number: match.unique_number || `#${match.match_id}`,
           match_date: match.match_date,
           home_team: match.home_team_name || "Onbekend",
           away_team: match.away_team_name || "Onbekend",
+          home_score: match.home_score ?? null,
+          away_score: match.away_score ?? null,
         });
       });
 
@@ -725,7 +737,8 @@ export const monthlyReportsService = {
       > = {};
 
       allMatches.forEach((match) => {
-        const referee = match.referee?.trim() || "Niet toegewezen";
+        const refereeRaw = match.referee?.trim() || "";
+        const referee = isAssignedReferee(refereeRaw) ? refereeRaw : "Niet toegewezen";
 
         if (!refereePayments[referee]) {
           refereePayments[referee] = {
@@ -739,13 +752,17 @@ export const monthlyReportsService = {
         }
 
         refereePayments[referee].matchCount++;
-        refereePayments[referee].totalCost += refereeCostPerMatch * 2;
+        if (isAssignedReferee(referee)) {
+          refereePayments[referee].totalCost += refereeCostPerMatch * 2;
+        }
         refereePayments[referee].matches.push({
           match_id: match.match_id,
           unique_number: match.unique_number || `#${match.match_id}`,
           match_date: match.match_date,
           home_team: match.home_team_name || "Onbekend",
           away_team: match.away_team_name || "Onbekend",
+          home_score: match.home_score ?? null,
+          away_score: match.away_score ?? null,
         });
       });
 

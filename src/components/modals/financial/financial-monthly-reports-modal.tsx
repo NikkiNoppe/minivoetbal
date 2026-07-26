@@ -52,6 +52,11 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
     });
   };
 
+  const formatMatchScore = (homeScore: number | null, awayScore: number | null) => {
+    if (homeScore == null || awayScore == null) return null;
+    return `${homeScore} – ${awayScore}`;
+  };
+
   const toggleRefereeExpanded = (referee: string) => {
     setExpandedReferees(prev => {
       const newSet = new Set(prev);
@@ -368,17 +373,29 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                         <CollapsibleContent>
                           {referee.matches && referee.matches.length > 0 && (
                             <div className={cn(SECTION_COLLAPSIBLE_CONTENT, "space-y-2")}>
-                            {referee.matches.map((match, mIdx) => (
+                            {referee.matches.map((match, mIdx) => {
+                              const score = formatMatchScore(match.home_score, match.away_score);
+                              return (
                               <div key={mIdx} className="bg-muted/50 rounded-md p-2 text-sm">
                                 <div className="flex justify-between items-start gap-2">
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium truncate">{match.home_team} - {match.away_team}</p>
-                                    <p className="text-xs text-muted-foreground">{match.unique_number}</p>
+                                    <p className="font-medium truncate">
+                                      {match.home_team}
+                                      {score ? (
+                                        <span className="mx-1.5 tabular-nums text-brand-dark" aria-label={`Uitslag ${score}`}>
+                                          {score}
+                                        </span>
+                                      ) : (
+                                        <span className="mx-1.5 text-muted-foreground">–</span>
+                                      )}
+                                      {match.away_team}
+                                    </p>
                                   </div>
                                   <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(match.match_date)}</span>
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                         </CollapsibleContent>
@@ -443,19 +460,24 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                                   <Table>
                                     <TableHeader>
                                       <TableRow>
-                                        <TableHead className="text-xs text-muted-foreground">Wedstrijd</TableHead>
                                         <TableHead className="text-xs text-muted-foreground">Teams</TableHead>
+                                        <TableHead className="text-xs text-muted-foreground text-center">Score</TableHead>
                                         <TableHead className="text-xs text-muted-foreground text-right">Datum</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {referee.matches.map((match, mIdx) => (
+                                      {referee.matches.map((match, mIdx) => {
+                                        const score = formatMatchScore(match.home_score, match.away_score);
+                                        return (
                                         <TableRow key={mIdx} className="border-0">
-                                          <TableCell className="py-1 text-sm">{match.unique_number}</TableCell>
-                                          <TableCell className="py-1 text-sm">{match.home_team} - {match.away_team}</TableCell>
+                                          <TableCell className="py-1 text-sm">{match.home_team} – {match.away_team}</TableCell>
+                                          <TableCell className="py-1 text-sm text-center tabular-nums font-medium text-brand-dark">
+                                            {score ?? "—"}
+                                          </TableCell>
                                           <TableCell className="py-1 text-sm text-right">{formatDate(match.match_date)}</TableCell>
                                         </TableRow>
-                                      ))}
+                                        );
+                                      })}
                                     </TableBody>
                                   </Table>
                                 </div>

@@ -3,7 +3,7 @@ import { useOrgAwareNavigate } from "@/hooks/useOrgAwareNavigate";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { 
   Trophy, Award, Target, Users, Shield, Ban, 
-  User, Settings, BookOpen, MessageSquare, Zap 
+  User, Settings, BookOpen, MessageSquare, Zap, CalendarRange 
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ADMIN_ROUTES } from "@/config/routes";
@@ -46,9 +46,7 @@ const organisatieActions: ActionItem[] = [
 ];
 
 const systemActions: ActionItem[] = [
-  { key: "competition", label: "Competitie Planning", icon: <Trophy size={16} />, path: ADMIN_ROUTES.competition, adminOnly: true, superAdminOnly: true },
-  { key: "cup", label: "Beker Planning", icon: <Award size={16} />, path: ADMIN_ROUTES.cup, adminOnly: true, superAdminOnly: true },
-  { key: "playoffs", label: "Playoff Planning", icon: <Target size={16} />, path: ADMIN_ROUTES.playoffs, adminOnly: true, superAdminOnly: true },
+  { key: "season-planning", label: "Seizoensplanning", icon: <CalendarRange size={16} />, path: ADMIN_ROUTES["season-planning"], adminOnly: true, superAdminOnly: true },
 ];
 
 const AdminQuickSheet: React.FC<AdminQuickSheetProps> = ({ open, onOpenChange }) => {

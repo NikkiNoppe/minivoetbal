@@ -3,6 +3,7 @@ import {
   estimateCompetitionPlanning,
   estimateCupSpreadWeeks,
   getConfiguredPlayDays,
+  orderCupDayPreference,
   pickSpacedPlayDayPair,
   uniqueMondaysFromDates,
 } from "./competitionPlanningEstimate";
@@ -21,6 +22,17 @@ describe("pickSpacedPlayDayPair", () => {
     const pair = pickSpacedPlayDayPair([1, 2]);
     expect(pair.early).toBe(1);
     expect(pair.late).toBe(2);
+  });
+});
+
+describe("orderCupDayPreference", () => {
+  it("bij dichte maandag: dinsdag vóór donderdag (vermijd dag vóór vrijdag)", () => {
+    // ma dicht → di/wo vóór do (eve van vr)
+    const order = orderCupDayPreference(1, 5, [1, 2, 3, 4, 5]);
+    expect(order[0]).toBe(1);
+    expect(order.indexOf(2)).toBeLessThan(order.indexOf(4));
+    expect(order.indexOf(4)).toBe(order.length - 1); // donderdag laatst
+    expect(order.includes(5)).toBe(false); // geen competitiedag
   });
 });
 

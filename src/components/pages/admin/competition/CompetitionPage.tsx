@@ -14,6 +14,7 @@ import { ADMIN_ROUTES } from "@/config/routes";
 import { competitionService, CompetitionConfig } from "@/services/match/competitionService";
 import type { CompetitionFormat } from "@/services/competitionDataService";
 import { normalizeCompetitionFormats } from "@/services/competitionDataService";
+import { SEASON_SETUP_FORMAT_ID } from "@/lib/seasonSetup";
 import { teamService } from "@/services/core/teamService";
 import AdminTeamSelector from "@/components/pages/admin/common/components/AdminTeamSelector";
 import {
@@ -22,9 +23,14 @@ import {
 } from "@/components/pages/admin/competition/DivisionTeamAssigner";
 import { PageHeader, PUBLIC_CARD_CLASS } from "@/components/layout";
 import { cn } from "@/lib/utils";
-import { estimateCompetitionPlanning, countVacationWeeksInRange, uniqueMondaysFromDates } from "@/lib/competitionPlanningEstimate";
+import { countVacationWeeksInRange, uniqueMondaysFromDates } from "@/lib/competitionPlanningEstimate";
+import {
+  buildSlotDetailsFromSeasonData,
+  estimateSeasonPlanning,
+} from "@/lib/seasonCalendar";
+import { filterActiveSlotUnavailability } from "@/services/slotUnavailabilityService";
 
-const AdminCompetitionPage: React.FC = () => {
+const AdminCompetitionPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { organizationId, orgQueryEnabled, getSeasonData } = useSeasonDataScope();
   const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -39,6 +45,7 @@ const AdminCompetitionPage: React.FC = () => {
   const [venues, setVenues] = useState<any[]>([]);
   const [timeslots, setTimeslots] = useState<any[]>([]);
   const [vacations, setVacations] = useState<any[]>([]);
+  const [slotUnavailability, setSlotUnavailability] = useState<any[]>([]);
   const [cupMatchCount, setCupMatchCount] = useState(0);
   const [cupWeekMondays, setCupWeekMondays] = useState<string[]>([]);
   const [existingCompetition, setExistingCompetition] = useState<any[]>([]);
@@ -69,15 +76,33 @@ const AdminCompetitionPage: React.FC = () => {
       setTeams(teamsData);
 
       const seasonData = await getSeasonData();
-      setFormats(normalizeCompetitionFormats(seasonData.competition_formats || []));
+      const formatsList = normalizeCompetitionFormats(seasonData.competition_formats || []);
+      setFormats(formatsList);
       setVenues(seasonData.venues || []);
       setTimeslots(seasonData.venue_timeslots || []);
       setVacations(seasonData.vacation_periods || []);
+      setSlotUnavailability(seasonData.slot_unavailability || []);
 
       // Set default dates from season data
       if (seasonData.season_start_date && seasonData.season_end_date) {
         setStartDate(seasonData.season_start_date);
         setEndDate(seasonData.season_end_date);
+      }
+
+      // Prefill format + reeks-toewijzing vanuit Seizoensopzet indien aanwezig
+      if (formatsList.some((f) => f.id === SEASON_SETUP_FORMAT_ID)) {
+        setSelectedFormat(String(SEASON_SETUP_FORMAT_ID));
+      }
+      const setup = seasonData.season_setup;
+      if (setup?.competition?.teamDivisions) {
+        const assignment = setup.competition.teamDivisions as Record<number, number>;
+        const assignedIds = Object.keys(assignment)
+          .map(Number)
+          .filter((id) => teamsData.some((t: { team_id: number }) => t.team_id === id));
+        if (assignedIds.length > 0) {
+          setSelectedTeams(assignedIds);
+          setTeamDivisions(assignment);
+        }
       }
 
       // Check for existing competition + beker (reserved weeks)
@@ -250,14 +275,23 @@ const AdminCompetitionPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-slide-up">
+    <div className={cn("space-y-4 sm:space-y-6", !embedded && "animate-slide-up")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageHeader
-          className="mb-0 min-w-0 flex-1"
-          title="Competitie"
-          icon={Trophy}
-          subtitle="Beheer de competitie — aanmaken, overzicht en seizoen archiveren"
-        />
+        {!embedded ? (
+          <PageHeader
+            className="mb-0 min-w-0 flex-1"
+            title="Competitie"
+            icon={Trophy}
+            subtitle="Beheer de competitie — aanmaken, overzicht en seizoen archiveren"
+          />
+        ) : (
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-brand-dark">Competitie aanmaken</h2>
+            <p className="text-sm text-muted-foreground">
+              Automatische wedstrijdgeneratie binnen dit seizoen
+            </p>
+          </div>
+        )}
         <Button
           variant="outline"
           onClick={() => setShowArchiveModal(true)}
@@ -530,16 +564,51 @@ const AdminCompetitionPage: React.FC = () => {
                     const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                     const calendarWeeks = Math.max(0, Math.ceil(totalDays / 7));
                     const vacationWeeks = countVacationWeeksInRange(vacations, startDate, endDate);
-
-                    const planning = estimateCompetitionPlanning({
-                      totalMatches: regularMatches,
-                      calendarWeeks,
-                      timeslots,
-                      vacationWeeks,
-                      cupMatches: cupMatchCount,
-                      cupWeeksReserved:
-                        cupWeekMondays.length > 0 ? cupWeekMondays.length : undefined,
+                    const slotDetails = buildSlotDetailsFromSeasonData({
+                      venues,
+                      venue_timeslots: timeslots,
                     });
+                    const seasonPlan = estimateSeasonPlanning({
+                      seasonStart: startDate,
+                      seasonEnd: endDate,
+                      vacations,
+                      timeslots,
+                      slotDetails,
+                      blocks: filterActiveSlotUnavailability(slotUnavailability),
+                      competitionMatches: regularMatches,
+                      cupTeamCount: selectedTeams.length,
+                      playoffMatchdays: playoffEnabled ? 4 : 0,
+                    });
+                    const planning = {
+                      slotsPerWeek: seasonPlan.cupBracket.slotsPerWeekUsed || timeslots.length || 7,
+                      calendarWeeks,
+                      vacationWeeks,
+                      cupWeeksReserved: seasonPlan.cupDates.length || cupWeekMondays.length,
+                      cupMatches: seasonPlan.cupBracket.firstRoundPairs || cupMatchCount,
+                      cupPreferredWeeks: seasonPlan.cupBracket.requiredWeeks,
+                      availableWeeks: seasonPlan.competitionWeeks.length,
+                      weeksNeeded:
+                        regularMatches === 0
+                          ? 0
+                          : Math.ceil(
+                              regularMatches /
+                                Math.max(1, seasonPlan.cupBracket.slotsPerWeekUsed || timeslots.length || 7),
+                            ),
+                      weekDeficit: Math.max(
+                        0,
+                        Math.ceil(
+                          regularMatches /
+                            Math.max(1, seasonPlan.cupBracket.slotsPerWeekUsed || timeslots.length || 7),
+                        ) - seasonPlan.competitionWeeks.length,
+                      ),
+                      overflowMatches: 0,
+                      doublePlayWeeks: 0,
+                      feasibleWithDoublePlay: seasonPlan.competitionWeeks.length > 0,
+                      dayPair: seasonPlan.daySeparation,
+                      utilization: seasonPlan.efficiency.utilization,
+                      usableWeeks: seasonPlan.efficiency.usableWeeks,
+                      weekWaste: seasonPlan.efficiency.weekWaste,
+                    };
 
                     const fitsNormally = planning.weekDeficit === 0;
                     const fitsWithDoublePlay =
@@ -616,6 +685,15 @@ const AdminCompetitionPage: React.FC = () => {
                           <div className="flex justify-between gap-3">
                             <span>Slots / week:</span>
                             <span className="font-medium">{planning.slotsPerWeek}</span>
+                          </div>
+                          <div className="flex justify-between gap-3">
+                            <span>Seizoensbenutting:</span>
+                            <span className="font-medium tabular-nums">
+                              {Math.round((planning.utilization ?? 0) * 100)}%
+                              {planning.weekWaste > 0
+                                ? ` (${planning.weekWaste} week${planning.weekWaste === 1 ? "" : "en"} vrij)`
+                                : ""}
+                            </span>
                           </div>
                           <div className="flex justify-between gap-3">
                             <span>Weken nodig (1×/week):</span>

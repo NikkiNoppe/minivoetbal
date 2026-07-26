@@ -18,6 +18,8 @@ import SlotUnavailabilitySettings from '@/components/pages/admin/settings/compon
 import { PUBLIC_CARD_CLASS, PUBLIC_PAGE_CLASS } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { SectionIcon } from "@/components/layout";
+import { pruneOrphanVacationSlotBlocks } from '@/lib/seasonCalendar';
+import { emitSeasonDataChanged } from '@/lib/seasonDataEvents';
 
 const VacationsSettings: React.FC = () => {
   const { toast } = useToast();
@@ -92,15 +94,31 @@ const VacationsSettings: React.FC = () => {
         updatedVacations.push(editingItem);
       }
 
+      const pruned = pruneOrphanVacationSlotBlocks(
+        currentData.slot_unavailability || [],
+        updatedVacations,
+      );
+
       const result = await saveSeasonData({
         ...currentData,
         vacation_periods: updatedVacations,
+        slot_unavailability: pruned.blocks,
       });
 
       if (result.success) {
-        toast({ title: 'Vakantieperiode opgeslagen', description: result.message });
+        toast({
+          title: 'Vakantieperiode opgeslagen',
+          description:
+            pruned.removed.length > 0
+              ? `${result.message} · ${pruned.removed.length} slotblokkade(s) buiten de vakantie opgeruimd.`
+              : result.message,
+        });
         setIsEditDialogOpen(false);
         setEditingItem(null);
+        emitSeasonDataChanged({
+          organizationId: organizationId ?? undefined,
+          source: 'vacations',
+        });
         await loadVacations();
       } else {
         toast({ title: 'Fout bij opslaan', description: result.message, variant: 'destructive' });
@@ -124,16 +142,25 @@ const VacationsSettings: React.FC = () => {
       const updatedVacations = (currentData.vacation_periods || []).filter(
         (v) => v.id !== deleteItem.id,
       );
+      const pruned = pruneOrphanVacationSlotBlocks(
+        currentData.slot_unavailability || [],
+        updatedVacations,
+      );
 
       const result = await saveSeasonData({
         ...currentData,
         vacation_periods: updatedVacations,
+        slot_unavailability: pruned.blocks,
       });
 
       if (result.success) {
         toast({ title: 'Vakantieperiode verwijderd', description: result.message });
         setIsDeleteDialogOpen(false);
         setDeleteItem(null);
+        emitSeasonDataChanged({
+          organizationId: organizationId ?? undefined,
+          source: 'vacations',
+        });
         await loadVacations();
       } else {
         toast({ title: 'Fout bij verwijderen', description: result.message, variant: 'destructive' });

@@ -30,20 +30,19 @@ import { Ban } from "lucide-react";
 const SettingsPanel = lazy(
   () => import("@/components/pages/admin/settings/components/SettingsPanel"),
 );
-const CompetitionPage = lazy(
-  () => import("@/components/pages/admin/competition/CompetitionPage"),
+const SeasonPlanningHub = lazy(
+  () => import("@/components/pages/admin/season-calendar/SeasonPlanningHub"),
 );
-const BekerPage = lazy(
-  () => import("@/components/pages/admin/beker/components/BekerPage"),
+const SeasonPlanningRedirect = lazy(
+  () => import("@/components/pages/admin/season-calendar/SeasonPlanningRedirect"),
 );
-const PlayoffPage = lazy(() => import("@/components/pages/admin/AdminPlayoffPage"));
 const SuperAdminOrgHubPage = lazy(() =>
   import("@/components/pages/superadmin/SuperAdminOrgHubPage").then((m) => ({
     default: m.SuperAdminOrgHubPage,
   })),
 );
 
-type TabName = "match-forms" | "match-forms-league" | "match-forms-cup" | "match-forms-playoffs" | "players" | "teams" | "users" | "competition" | "playoffs" | "financial" | "settings" | "platform-beheer" | "cup" | "suspensions" | "schorsingen" | "polls" | "scheidsrechters" | "blog-management" | "notification";
+type TabName = "match-forms" | "match-forms-league" | "match-forms-cup" | "match-forms-playoffs" | "players" | "teams" | "users" | "competition" | "playoffs" | "financial" | "settings" | "platform-beheer" | "cup" | "season-calendar" | "season-planning" | "suspensions" | "schorsingen" | "polls" | "scheidsrechters" | "blog-management" | "notification";
 
 interface AdminDashboardProps {
   activeTab: TabName;
@@ -255,16 +254,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, setActiveTab
 
             {isSuperAdmin && (
               <>
+                <LazyTabContent value="season-planning" activeTab={activeTab}>
+                  <SeasonPlanningHub />
+                </LazyTabContent>
+
                 <LazyTabContent value="competition" activeTab={activeTab}>
-                  <CompetitionPage />
+                  <SeasonPlanningRedirect />
                 </LazyTabContent>
-                
+
                 <LazyTabContent value="cup" activeTab={activeTab}>
-                  <BekerPage />
+                  <SeasonPlanningRedirect />
                 </LazyTabContent>
-                
+
                 <LazyTabContent value="playoffs" activeTab={activeTab}>
-                  <PlayoffPage />
+                  <SeasonPlanningRedirect />
+                </LazyTabContent>
+
+                <LazyTabContent value="season-calendar" activeTab={activeTab}>
+                  <SeasonPlanningRedirect />
                 </LazyTabContent>
 
                 <LazyTabContent value="platform-beheer" activeTab={activeTab}>

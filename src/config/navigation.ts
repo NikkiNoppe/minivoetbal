@@ -5,6 +5,7 @@ import {
   BookOpen,
   Building2,
   Calendar,
+  CalendarRange,
   DollarSign,
   Home,
   MessageSquare,
@@ -78,9 +79,14 @@ export const SIDEBAR_BEHEER_ITEMS: NavItem[] = [
 ];
 
 export const SPEELFORMATEN_ITEMS: NavItem[] = [
-  { key: "competition", label: "Competitie", icon: Trophy, visibilityKey: "format-competition", superAdminOnly: true },
-  { key: "cup", label: "Beker", icon: Award, visibilityKey: "format-cup", superAdminOnly: true },
-  { key: "playoffs", label: "Play-off", icon: Target, visibilityKey: "format-playoffs", superAdminOnly: true },
+  {
+    key: "season-planning",
+    label: "Seizoensplanning",
+    icon: CalendarRange,
+    /** Hub zichtbaar als minstens één speelformaat-tab aan staat — zie filterSpeelformatenItems. */
+    visibilityKey: "format-competition",
+    superAdminOnly: true,
+  },
 ];
 
 export const FINANCIEEL_ITEMS: NavItem[] = [
@@ -128,6 +134,8 @@ export const NAV_ROUTE_MAP: Record<string, string> = {
   competition: ADMIN_ROUTES.competition,
   playoffs: ADMIN_ROUTES.playoffs,
   cup: ADMIN_ROUTES.cup,
+  "season-calendar": ADMIN_ROUTES["season-calendar"],
+  "season-planning": ADMIN_ROUTES["season-planning"],
   financial: ADMIN_ROUTES.financial,
   settings: ADMIN_ROUTES.settings,
   scheidsrechters: ADMIN_ROUTES.scheidsrechters,
@@ -394,7 +402,14 @@ export function filterSpeelformatenItems(
     return [];
   }
 
-  return SPEELFORMATEN_ITEMS.filter((item) =>
-    isTabVisible(item.visibilityKey ?? item.key),
-  );
+  const anyFormatVisible =
+    isTabVisible("format-competition") ||
+    isTabVisible("format-cup") ||
+    isTabVisible("format-playoffs");
+
+  if (!anyFormatVisible) {
+    return [];
+  }
+
+  return SPEELFORMATEN_ITEMS;
 }

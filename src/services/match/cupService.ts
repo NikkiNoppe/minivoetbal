@@ -16,13 +16,27 @@ import {
 } from "@/services/financial/matchCostService";
 import { fetchPublicMatches, isCupMatch } from "@/services/public/publicScheduleFetch";
 import {
-  assignFirstRoundWeekIndex,
   earlyWeekSlotBonus,
   getCupBracketPlan,
-  getKnockoutWeekIndices,
   matchDateFromWeekMonday,
+  nextSlotAfterVoorronde,
+  weekIndexForRoundMatch,
+  type CupRoundSpec,
 } from "@/lib/cupBracketPlan";
-import { pickSpacedPlayDayPair, getConfiguredPlayDays } from "@/lib/competitionPlanningEstimate";
+import {
+  buildNextRoundPrefill,
+  seedCupTeamOrder,
+  type CupTeamRankMap,
+} from "@/lib/cupTeamSeeding";
+import { pickPriorityCandidateSlots, slotPriorityScoreBonus } from "@/lib/slotPriorityPacking";
+import {
+  pickSpacedPlayDayPair,
+  getConfiguredPlayDays,
+  toMondayIso,
+  orderCupDayPreference,
+  cupDayPreferenceBonus,
+  pickPreferredCupSlotIndex,
+} from "@/lib/competitionPlanningEstimate";
 import { requireOrganizationId } from "@/lib/organizationScope";
 
 export interface CupMatch {
@@ -46,6 +60,7 @@ export interface CupMatch {
 }
 
 export interface TournamentBracket {
+  voorronde: any[];
   achtste_finales: any[];
   kwartfinales: any[];
   halve_finales: any[];
@@ -144,9 +159,16 @@ export const bekerService = {
 
     const plan = getCupBracketPlan(teams.length, slotsPerWeek);
     if (selectedDates.length !== plan.requiredWeeks) {
+      const roundSummary = plan.rounds
+        .map((r) =>
+          r.byeCount > 0
+            ? `${r.name} (${r.matchCount} wedstrijden, ${r.byeCount} bye)`
+            : `${r.name} (${r.matchCount})`,
+        )
+        .join(" → ");
       return {
         isValid: false,
-        message: `Selecteer exact ${plan.requiredWeeks} speelweken voor ${teams.length} team(s) (${plan.firstRoundPairs} achtste-finale${plan.firstRoundPairs === 1 ? "" : "s"} + kwart/halve/finale)`,
+        message: `Selecteer exact ${plan.requiredWeeks} speelweken voor ${teams.length} team(s): ${roundSummary}`,
         requiredWeeks: plan.requiredWeeks,
       };
     }
@@ -185,23 +207,19 @@ export const bekerService = {
 
   validateVacationConflicts(selectedDates: string[], vacations: any[]): { isValid: boolean; message?: string } {
     for (const dateStr of selectedDates) {
-      const selectedDate = new Date(dateStr);
-      const isVacation = vacations.some((vacation: any) => {
-        if (!vacation.is_active) return false;
-        const vacStart = new Date(vacation.start_date);
-        const vacEnd = new Date(vacation.end_date);
+      const selectedIso = dateStr.split("T")[0];
+      const selectedDate = new Date(`${selectedIso}T12:00:00`);
+      const vacation = vacations.find((v: any) => {
+        if (!v.is_active) return false;
+        const vacStart = new Date(`${String(v.start_date).split("T")[0]}T12:00:00`);
+        const vacEnd = new Date(`${String(v.end_date).split("T")[0]}T12:00:00`);
         return selectedDate >= vacStart && selectedDate <= vacEnd;
       });
-      
-      if (isVacation) {
-        const vacation = vacations.find((v: any) => {
-          const vacStart = new Date(v.start_date);
-          const vacEnd = new Date(v.end_date);
-          return selectedDate >= vacStart && selectedDate <= vacEnd;
-        });
-        return { 
-          isValid: false, 
-          message: `Geselecteerde datum ${selectedDate.toLocaleDateString('nl-NL')} valt in vakantieperiode: ${vacation?.name}` 
+
+      if (vacation) {
+        return {
+          isValid: false,
+          message: `Geselecteerde datum ${selectedDate.toLocaleDateString("nl-BE")} valt in vakantieperiode: ${vacation?.name}`,
         };
       }
     }
@@ -209,18 +227,9 @@ export const bekerService = {
     return { isValid: true };
   },
 
+  /** Speelweken als lokale maandagen (YYYY-MM-DD) — timezone-veilig. */
   convertToPlayingWeeks(selectedDates: string[]): string[] {
-    return selectedDates.map(dateStr => {
-      const date = new Date(dateStr);
-      const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      
-      // Calculate Monday of this week
-      const monday = new Date(date);
-      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Handle Sunday (0) as -6
-      monday.setDate(date.getDate() + daysToMonday);
-      
-      return monday.toISOString().split('T')[0]; // Return Monday in YYYY-MM-DD format
-    });
+    return selectedDates.map((dateStr) => toMondayIso(dateStr));
   },
 
   createMatchObject(
@@ -248,12 +257,67 @@ export const bekerService = {
     };
   },
 
+  cupUniqueNumber(prefix: string, matchIndex1Based: number): string {
+    if (prefix === "FINAL") return "FINAL";
+    return `${prefix}-${matchIndex1Based}`;
+  },
+
+  cupSpeeldagLabel(prefix: string, matchIndex1Based: number): string {
+    switch (prefix) {
+      case "VR":
+        return `Voorronde ${matchIndex1Based}`;
+      case "1/16":
+        return `1/16 Finale ${matchIndex1Based}`;
+      case "1/8":
+        return `1/8 Finale ${matchIndex1Based}`;
+      case "QF":
+        return `Kwartfinale ${matchIndex1Based}`;
+      case "SF":
+        return `Halve Finale ${matchIndex1Based}`;
+      case "FINAL":
+        return "Finale";
+      default:
+        return `${prefix} ${matchIndex1Based}`;
+    }
+  },
+
   async createEightFinals(shuffledTeams: number[], playingWeeks: string[], opts?: { teamPreferences?: Map<number, TeamPreferencesNormalized>; venues?: any[]; slotsPerWeek?: number; earlyDay?: number; organizationId?: number }): Promise<any[]> {
+    // Legacy: openingsronde met bekende teams (prefix 1/8 tenzij caller createPopulatedCupRound gebruikt).
+    const slotsPerWeek = Math.max(1, opts?.slotsPerWeek ?? 7);
+    const matchCount = Math.floor(shuffledTeams.length / 2);
+    const weeksNeeded = Math.max(1, Math.ceil(matchCount / slotsPerWeek));
+    const round: CupRoundSpec = {
+      kind: "r16",
+      name: "Achtste Finales",
+      prefix: "1/8",
+      teamsEntering: shuffledTeams.length,
+      matchCount,
+      byeCount: 0,
+      teamsExiting: matchCount,
+      weeksNeeded,
+      weekOffset: 0,
+    };
+    return this.createPopulatedCupRound(shuffledTeams, round, playingWeeks, opts);
+  },
+
+  async createPopulatedCupRound(
+    orderedTeams: number[],
+    round: CupRoundSpec,
+    playingWeeks: string[],
+    opts?: {
+      teamPreferences?: Map<number, TeamPreferencesNormalized>;
+      venues?: any[];
+      slotsPerWeek?: number;
+      earlyDay?: number;
+      preferredCupDays?: number[];
+      organizationId?: number;
+    },
+  ): Promise<any[]> {
     const cupMatches = [];
-    const numberOfPairs = Math.floor(shuffledTeams.length / 2);
-    const { firstRoundWeeks } = getKnockoutWeekIndices(playingWeeks.length);
+    const numberOfPairs = Math.min(round.matchCount, Math.floor(orderedTeams.length / 2));
     const slotsPerWeek = Math.max(1, opts?.slotsPerWeek ?? 7);
     const earlyDay = opts?.earlyDay ?? 1;
+    const preferredCupDays = opts?.preferredCupDays;
 
     const { loadSlotPlanningContext } = await import("@/services/match/slotPlanningContext");
     const slotCtx = await loadSlotPlanningContext(opts?.organizationId);
@@ -263,7 +327,7 @@ export const bekerService = {
     for (let i = 0; i < numberOfPairs; i++) {
       const homeTeamIndex = i * 2;
       const awayTeamIndex = i * 2 + 1;
-      const weekIndex = assignFirstRoundWeekIndex(i, numberOfPairs, firstRoundWeeks, slotsPerWeek);
+      const weekIndex = weekIndexForRoundMatch(round, i, slotsPerWeek);
       const cycleIndex = i % totalAvailableSlots;
 
       let bestSlot = cycleIndex;
@@ -275,13 +339,15 @@ export const bekerService = {
         let combined = 0;
 
         if (opts?.teamPreferences && opts?.venues) {
-          const homeId = shuffledTeams[homeTeamIndex];
-          const awayId = shuffledTeams[awayTeamIndex];
+          const homeId = orderedTeams[homeTeamIndex];
+          const awayId = orderedTeams[awayTeamIndex];
           const h = scoreTeamForDetails(opts.teamPreferences.get(homeId), timeslot, venue, opts.venues);
           const a = scoreTeamForDetails(opts.teamPreferences.get(awayId), timeslot, venue, opts.venues);
           combined = h.score + a.score;
         }
-        combined += earlyWeekSlotBonus(timeslot?.day_of_week, earlyDay);
+        combined += preferredCupDays?.length
+          ? cupDayPreferenceBonus(timeslot?.day_of_week, preferredCupDays)
+          : earlyWeekSlotBonus(timeslot?.day_of_week, earlyDay);
 
         if (combined > bestScore) {
           bestScore = combined;
@@ -292,112 +358,119 @@ export const bekerService = {
       const { venue, timeslot } = slotDetails[bestSlot];
       const baseDate = playingWeeks[weekIndex];
       const matchDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
-      const matchTime = timeslot?.start_time || '19:00';
+      const matchTime = timeslot?.start_time || "19:00";
 
-      console.log(`🎯 Match ${i + 1}: Week ${weekIndex + 1}, day=${timeslot?.day_of_week}, Slot ${bestSlot + 1}, Venue: ${venue}, Time: ${matchTime}, prefScore=${bestScore}`);
+      cupMatches.push(
+        bekerService.createMatchObject(
+          bekerService.cupUniqueNumber(round.prefix, i + 1),
+          bekerService.cupSpeeldagLabel(round.prefix, i + 1),
+          orderedTeams[homeTeamIndex],
+          orderedTeams[awayTeamIndex],
+          matchDate,
+          matchTime,
+          venue,
+        ),
+      );
+    }
 
-      cupMatches.push(bekerService.createMatchObject(
-        `1/8-${i + 1}`,
-        `1/8 Finale ${i + 1}`,
-        shuffledTeams[homeTeamIndex],
-        shuffledTeams[awayTeamIndex],
-        matchDate,
-        matchTime,
-        venue
-      ));
+    return cupMatches;
+  },
+
+  async createEmptyCupRound(
+    round: CupRoundSpec,
+    playingWeeks: string[],
+    organizationId?: number,
+    prefillSlots?: Array<number | null>,
+  ): Promise<any[]> {
+    const cupMatches = [];
+    const { loadSlotPlanningContext } = await import("@/services/match/slotPlanningContext");
+    const slotCtx = await loadSlotPlanningContext(organizationId);
+    const slotDetails = slotCtx.slotDetails;
+    const slots = prefillSlots ?? [];
+
+    for (let i = 0; i < round.matchCount; i++) {
+      const slotIndex = Math.min(i, Math.max(0, slotDetails.length - 1));
+      const { venue, timeslot } = slotDetails[slotIndex] ?? { venue: "Onbekend", timeslot: null };
+      const weekIndex = weekIndexForRoundMatch(round, i, Math.max(1, slotDetails.length || 7));
+      const baseDate = playingWeeks[Math.min(weekIndex, playingWeeks.length - 1)];
+      const matchDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
+      const matchTime = timeslot?.start_time || "19:00";
+      const home = slots[i * 2] ?? null;
+      const away = slots[i * 2 + 1] ?? null;
+
+      cupMatches.push(
+        bekerService.createMatchObject(
+          bekerService.cupUniqueNumber(round.prefix, i + 1),
+          bekerService.cupSpeeldagLabel(round.prefix, i + 1),
+          home,
+          away,
+          matchDate,
+          matchTime,
+          venue,
+        ),
+      );
     }
 
     return cupMatches;
   },
 
   async createQuarterFinals(playingWeeks: string[], organizationId?: number): Promise<any[]> {
-    const cupMatches = [];
-    const { quarterFinal: baseWeekIndex } = getKnockoutWeekIndices(playingWeeks.length);
-    const { loadSlotPlanningContext } = await import("@/services/match/slotPlanningContext");
-    const slotCtx = await loadSlotPlanningContext(organizationId);
-    const slotDetails = slotCtx.slotDetails;
-    for (let i = 0; i < 4; i++) {
-      const slotIndex = Math.min(i, slotDetails.length - 1);
-      const { venue, timeslot } = slotDetails[slotIndex];
-      const baseDate = playingWeeks[baseWeekIndex];
-      const matchDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
-      const matchTime = timeslot?.start_time || '19:00';
-
-      console.log(`🎯 Kwartfinale ${i + 1}: day=${timeslot?.day_of_week}, Slot ${slotIndex + 1}, Venue: ${venue}, Time: ${matchTime}`);
-
-      cupMatches.push(bekerService.createMatchObject(
-        `QF-${i + 1}`,
-        `Kwartfinale ${i + 1}`,
-        null,
-        null,
-        matchDate,
-        matchTime,
-        venue
-      ));
-    }
-
-    return cupMatches;
+    const round: CupRoundSpec = {
+      kind: "qf",
+      name: "Kwart Finales",
+      prefix: "QF",
+      teamsEntering: 8,
+      matchCount: 4,
+      byeCount: 0,
+      teamsExiting: 4,
+      weeksNeeded: 1,
+      weekOffset: Math.max(0, playingWeeks.length - 3),
+    };
+    return this.createEmptyCupRound(round, playingWeeks, organizationId);
   },
 
   async createSemiFinals(playingWeeks: string[], organizationId?: number): Promise<any[]> {
-    const cupMatches = [];
-    const { semiFinal: baseWeekIndex } = getKnockoutWeekIndices(playingWeeks.length);
-    const { loadSlotPlanningContext } = await import("@/services/match/slotPlanningContext");
-    const slotCtx = await loadSlotPlanningContext(organizationId);
-    const slotDetails = slotCtx.slotDetails;
-    for (let i = 0; i < 2; i++) {
-      const slotIndex = Math.min(i, slotDetails.length - 1);
-      const { venue, timeslot } = slotDetails[slotIndex];
-      const baseDate = playingWeeks[baseWeekIndex];
-      const matchDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
-      const matchTime = timeslot?.start_time || '19:00';
-
-      console.log(`🎯 Halve finale ${i + 1}: day=${timeslot?.day_of_week}, Slot ${slotIndex + 1}, Venue: ${venue}, Time: ${matchTime}`);
-
-      cupMatches.push(bekerService.createMatchObject(
-        `SF-${i + 1}`,
-        `Halve Finale ${i + 1}`,
-        null,
-        null,
-        matchDate,
-        matchTime,
-        venue
-      ));
-    }
-
-    return cupMatches;
+    const round: CupRoundSpec = {
+      kind: "sf",
+      name: "Halve Finales",
+      prefix: "SF",
+      teamsEntering: 4,
+      matchCount: 2,
+      byeCount: 0,
+      teamsExiting: 2,
+      weeksNeeded: 1,
+      weekOffset: Math.max(0, playingWeeks.length - 2),
+    };
+    return this.createEmptyCupRound(round, playingWeeks, organizationId);
   },
 
   async createFinal(playingWeeks: string[], organizationId?: number): Promise<any[]> {
-    const finalSlotIndex = 0;
-    const { loadSlotPlanningContext } = await import("@/services/match/slotPlanningContext");
-    const slotCtx = await loadSlotPlanningContext(organizationId);
-    const { venue: finalVenue, timeslot: finalTimeslot } = slotCtx.slotDetails[finalSlotIndex]
-      ?? await priorityOrderService.getMatchDetails(finalSlotIndex, 7);
-
-    const { final: baseWeekIndex } = getKnockoutWeekIndices(playingWeeks.length);
-    const baseDate = playingWeeks[baseWeekIndex];
-    const finalDate = matchDateFromWeekMonday(baseDate, finalTimeslot?.day_of_week);
-    const finalTime = finalTimeslot?.start_time || '19:00';
-
-    console.log(`🎯 Finale: day=${finalTimeslot?.day_of_week}, Slot ${finalSlotIndex + 1}, Venue: ${finalVenue}, Time: ${finalTime}`);
-
-    return [bekerService.createMatchObject(
-      'FINAL',
-      'Finale',
-      null,
-      null,
-      finalDate,
-      finalTime,
-      finalVenue
-    )];
+    const round: CupRoundSpec = {
+      kind: "final",
+      name: "Finale",
+      prefix: "FINAL",
+      teamsEntering: 2,
+      matchCount: 1,
+      byeCount: 0,
+      teamsExiting: 1,
+      weeksNeeded: 1,
+      weekOffset: Math.max(0, playingWeeks.length - 1),
+    };
+    return this.createEmptyCupRound(round, playingWeeks, organizationId);
   },
 
   /**
    * Preview cup tournament plan without DB writes.
    * Returns detailed planned matches including preference scores for 1/8 finales.
    */
-  async previewCupTournament(teams: number[], selectedDates: string[], attempts?: number, byeTeamId?: number | null, organizationId?: number): Promise<{
+  async previewCupTournament(
+    teams: number[],
+    selectedDates: string[],
+    attempts?: number,
+    byeTeamId?: number | null,
+    organizationId?: number,
+    options?: { teamRank?: CupTeamRankMap },
+  ): Promise<{
     success: boolean;
     message: string;
     plan: Array<{ unique_number: string; speeldag: string; home_team_id: number | null; away_team_id: number | null; match_date: string; match_time: string; venue: string; slot_index: number; details: { homeScore?: number; awayScore?: number; combined?: number; maxCombined: number; priority?: number; day_of_week?: number } }>,
@@ -405,15 +478,15 @@ export const bekerService = {
   }> {
     // Validate input — slots from season data when available
     const seasonValidationEarly = await bekerService.validateSeasonData(organizationId);
-    const slotsPerWeek = Math.max(
-      1,
-      seasonValidationEarly.isValid
-        ? (seasonValidationEarly.data?.timeslots?.length || 7)
-        : 7,
-    );
-    const inputValidation = bekerService.validateCupTournamentInput(teams, selectedDates, slotsPerWeek);
-    if (!inputValidation.isValid) {
-      return { success: false, message: inputValidation.message!, plan: [] };
+    if (teams.length < 2) {
+      return { success: false, message: "Selecteer minstens 2 teams", plan: [] };
+    }
+    if (selectedDates.length < 3) {
+      return {
+        success: false,
+        message: "Selecteer minstens 3 speelweken (kwart/halve/finale)",
+        plan: [],
+      };
     }
 
     try {
@@ -424,7 +497,9 @@ export const bekerService = {
       }
 
       const { venues, vacations, timeslots } = seasonValidation.data!;
-      const earlyDay = pickSpacedPlayDayPair(getConfiguredPlayDays(timeslots || [])).early;
+      const playDays = getConfiguredPlayDays(timeslots || []);
+      const daySep = pickSpacedPlayDayPair(playDays);
+      const preferredCupDays = orderCupDayPreference(daySep.early, daySep.late, playDays);
 
       // Validate vacation conflicts
       const vacationValidation = bekerService.validateVacationConflicts(selectedDates, vacations);
@@ -443,30 +518,84 @@ export const bekerService = {
       const { loadSlotPlanningContext } = await import("@/services/match/slotPlanningContext");
       const slotCtx = await loadSlotPlanningContext(organizationId);
 
+      // Occupancy-aware grids: competitie/playoff bezetten slots (niet alleen config-blocks)
+      const existingMatches = await fetchMatchesForSession({}).catch(() => []);
+      const { buildSeasonSlotGrids, resolveEffectiveSlotsPerWeek } = await import("@/lib/seasonCalendar");
+      const occupancyGrids = buildSeasonSlotGrids({
+        weekMondays: playingWeeks,
+        slotDetails: slotCtx.slotDetails,
+        blocks: slotCtx.blocks,
+        vacations: slotCtx.vacations,
+        matches: existingMatches.map((m) => ({
+          match_date: m.match_date as string | undefined,
+          location: m.location as string | undefined,
+          match_time: m.match_time as string | undefined,
+          is_cup_match: Boolean(m.is_cup_match),
+          is_playoff_match: Boolean(m.is_playoff_match),
+        })),
+      });
+
+      const nominalSlots = Math.max(1, timeslots?.length || slotCtx.totalSlots || 7);
+      const effectiveSlots = resolveEffectiveSlotsPerWeek(occupancyGrids, nominalSlots);
+      const planCheck = getCupBracketPlan(teams.length, Math.max(1, effectiveSlots || 1));
+      if (selectedDates.length !== planCheck.requiredWeeks) {
+        return {
+          success: false,
+          message: `Selecteer exact ${planCheck.requiredWeeks} speelweken voor ${teams.length} team(s) (effectieve capaciteit ~${effectiveSlots || 1}/week)`,
+          plan: [],
+        };
+      }
+
+      const getFreeSlotIndices = (weekMonday: string): number[] => {
+        const grid = occupancyGrids.get(weekMonday);
+        if (!grid) return slotCtx.getAvailableSlotIndices(weekMonday);
+        return grid.slots.filter((s) => s.status === "available").map((s) => s.index);
+      };
+      const getBlockedIncludingOccupancy = (weekMonday: string): Set<number> => {
+        const grid = occupancyGrids.get(weekMonday);
+        if (!grid) return slotCtx.getBlockedSlotIndices(weekMonday);
+        return new Set(
+          grid.slots.filter((s) => s.status !== "available").map((s) => s.index),
+        );
+      };
+
       // Helper to build a plan for a given shuffled order and compute total combined score
-      const buildPlanForOrder = async (order: number[]) => {
+      const bracketPlan = planCheck;
+      const buildPlanForOrder = async (fullOrder: number[]) => {
         const plan: Array<{ unique_number: string; speeldag: string; home_team_id: number | null; away_team_id: number | null; match_date: string; match_time: string; venue: string; slot_index: number; details: { homeScore?: number; awayScore?: number; combined?: number; maxCombined: number; priority?: number; day_of_week?: number } }> = [];
         let totalCombined = 0;
+        let failureReason: string | null = null;
 
-        // 1/8 finales with per-week optimal unique slot assignment
-        const numberOfPairs = Math.floor(order.length / 2);
+        const firstRound = bracketPlan.rounds[0];
+        if (!firstRound) {
+          return { plan: [], totalCombined: -1, failureReason: "Geen geldig bracket." };
+        }
+
+        const byeTeams = fullOrder.slice(0, firstRound.byeCount);
+        const order = fullOrder.slice(firstRound.byeCount);
+        const numberOfPairs = firstRound.matchCount;
         const totalAvailableSlots = slotCtx.totalSlots;
         const slotDetails = slotCtx.slotDetails;
-        const { firstRoundWeeks } = getKnockoutWeekIndices(playingWeeks.length);
+        if (!slotDetails.length) {
+          return {
+            plan: [],
+            totalCombined: -1,
+            failureReason: "Geen tijdslots geconfigureerd voor deze organisatie.",
+          };
+        }
+
         const weekToIndices = new Map<number, number[]>();
         for (let i = 0; i < numberOfPairs; i++) {
-          const weekIndex = assignFirstRoundWeekIndex(
+          const weekIndex = weekIndexForRoundMatch(
+            firstRound,
             i,
-            numberOfPairs,
-            firstRoundWeeks,
-            totalAvailableSlots,
+            Math.max(1, effectiveSlots || totalAvailableSlots),
           );
           const arr = weekToIndices.get(weekIndex) || [];
           arr.push(i);
           weekToIndices.set(weekIndex, arr);
         }
 
-        // Helpers to generate combinations and permutations (small sizes only)
         const combinations = (arr: number[], k: number): number[][] => {
           const res: number[][] = [];
           const backtrack = (start: number, path: number[]) => {
@@ -500,19 +629,32 @@ export const bekerService = {
         for (const [weekIndex, matchIndices] of weekToIndices.entries()) {
           const m = matchIndices.length;
           const weekMonday = playingWeeks[weekIndex];
-          const blocked = slotCtx.getBlockedSlotIndices(weekMonday);
-          const availableSlots = slotCtx.getAvailableSlotIndices(weekMonday);
-          if (m > availableSlots.length) {
-            return { plan: [], totalCombined: -1 };
+          if (!weekMonday) {
+            failureReason = `Ontbrekende speelweek voor index ${weekIndex}. Selecteer opnieuw ${playingWeeks.length} geldige data.`;
+            return { plan: [], totalCombined: -1, failureReason };
           }
-          // Build score matrix: m x beschikbare slots
+          const blocked = getBlockedIncludingOccupancy(weekMonday);
+          const availableSlots = getFreeSlotIndices(weekMonday);
+          if (m > availableSlots.length) {
+            const mondayLabel = new Date(`${weekMonday}T12:00:00`).toLocaleDateString("nl-BE");
+            const grid = occupancyGrids.get(weekMonday);
+            const occ =
+              grid
+                ? ` (config ${grid.blockedConfig}, competitie ${grid.occupiedCompetition}, beker ${grid.occupiedCup}, playoff ${grid.occupiedPlayoff})`
+                : blocked.size > 0
+                  ? ` (${blocked.size} geblokkeerd)`
+                  : "";
+            failureReason =
+              `Te weinig vrije slots in speelweek van ${mondayLabel}: ` +
+              `${m} wedstrijd${m === 1 ? "" : "en"} nodig, ${availableSlots.length} beschikbaar` +
+              `${occ}.`;
+            return { plan: [], totalCombined: -1, failureReason };
+          }
           const scoreMatrix: Array<Array<{ combined: number; h: number; a: number }>> = [];
           for (let r = 0; r < m; r++) {
             const i = matchIndices[r];
-            const homeTeamIndex = i * 2;
-            const awayTeamIndex = i * 2 + 1;
-            const homeId = order[homeTeamIndex];
-            const awayId = order[awayTeamIndex];
+            const homeId = order[i * 2];
+            const awayId = order[i * 2 + 1];
             const row: Array<{ combined: number; h: number; a: number }> = [];
             for (let c = 0; c < totalAvailableSlots; c++) {
               if (blocked.has(c)) {
@@ -526,17 +668,21 @@ export const bekerService = {
                 const a = scoreTeamForDetails(teamPreferences.get(awayId), timeslot, venue, venues);
                 hScore = h.score as number; aScore = a.score as number; combined = hScore + aScore;
               }
-              combined += earlyWeekSlotBonus(timeslot?.day_of_week, earlyDay);
+              combined += cupDayPreferenceBonus(timeslot?.day_of_week, preferredCupDays);
+              combined += slotPriorityScoreBonus(c, totalAvailableSlots);
               row.push({ combined, h: hScore, a: aScore });
             }
             scoreMatrix.push(row);
           }
 
-          // Choose unique slots to maximize total combined
-          const allSlots = availableSlots;
+          const allSlots = pickPriorityCandidateSlots(
+            availableSlots,
+            m,
+            (c) => scoreMatrix.some((row) => (row[c]?.combined ?? -1) >= 0),
+          );
           let assignment: Array<{ matchIdx: number; slot: number; h: number; a: number; combined: number }> = [];
           let bestSum = -1;
-          if (m <= availableSlots.length && m <= 4) {
+          if (m <= allSlots.length && m <= 8) {
             const slotCombos = combinations(allSlots, m);
             for (const slots of slotCombos) {
               const perms = permutations(slots);
@@ -553,17 +699,18 @@ export const bekerService = {
               }
             }
           } else {
-            // Greedy fallback
             const used = new Set<number>();
             for (let r = 0; r < m; r++) {
               let bestSlot = -1; let best = -1; let bestH = 0; let bestA = 0;
-              for (let c = 0; c < totalAvailableSlots; c++) {
+              for (const c of allSlots) {
                 if (used.has(c)) continue;
                 const s = scoreMatrix[r][c];
                 if (s.combined > best) { best = s.combined; bestSlot = c; bestH = s.h; bestA = s.a; }
               }
-              if (bestSlot === -1) { // if all used, allow reuse minimal
-                bestSlot = 0; const s = scoreMatrix[r][0]; best = s.combined; bestH = s.h; bestA = s.a;
+              if (bestSlot === -1) {
+                bestSlot = allSlots[0] ?? 0;
+                const s = scoreMatrix[r][bestSlot];
+                best = s.combined; bestH = s.h; bestA = s.a;
               }
               used.add(bestSlot);
               assignment.push({ matchIdx: matchIndices[r], slot: bestSlot, h: bestH, a: bestA, combined: best });
@@ -571,128 +718,152 @@ export const bekerService = {
             }
           }
 
-          // Emit plan rows for this week's assigned matches
           for (const asn of assignment) {
             const i = asn.matchIdx;
             const { venue, timeslot } = slotDetails[asn.slot];
             const baseDate = playingWeeks[weekIndex];
             const matchDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
-            const matchTime = timeslot?.start_time || '19:00';
+            const matchTime = timeslot?.start_time || "19:00";
             totalCombined += asn.combined;
             plan.push({
-              unique_number: `1/8-${i + 1}`,
-              speeldag: `1/8 Finale ${i + 1}`,
+              unique_number: bekerService.cupUniqueNumber(firstRound.prefix, i + 1),
+              speeldag: bekerService.cupSpeeldagLabel(firstRound.prefix, i + 1),
               home_team_id: order[i * 2],
               away_team_id: order[i * 2 + 1],
               match_date: matchDate,
               match_time: matchTime,
               venue,
               slot_index: asn.slot,
-              details: { homeScore: asn.h, awayScore: asn.a, combined: asn.combined, maxCombined: 6, priority: timeslot?.priority, day_of_week: timeslot?.day_of_week }
+              details: {
+                homeScore: asn.h,
+                awayScore: asn.a,
+                combined: asn.combined,
+                maxCombined: 6,
+                priority: timeslot?.priority,
+                day_of_week: timeslot?.day_of_week,
+              },
             });
           }
         }
 
-        // Kwartfinales
-        {
-          const { quarterFinal: baseWeekIndex } = getKnockoutWeekIndices(playingWeeks.length);
-          for (let i = 0; i < 4; i++) {
-            const slotIndex = Math.min(i, slotDetails.length - 1);
-            const { venue, timeslot } = slotDetails[slotIndex];
-            const baseDate = playingWeeks[baseWeekIndex];
-            const matchDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
-            const matchTime = timeslot?.start_time || '19:00';
+        // Track slots claimed by openingsronde so latere rondes niet botsen
+        const usedSlotsByWeek = new Map<number, Set<number>>();
+        for (const p of plan) {
+          if (typeof p.slot_index !== "number") continue;
+          const monday = toMondayIso(p.match_date);
+          const wi = playingWeeks.findIndex((w) => toMondayIso(w) === monday);
+          if (wi < 0) continue;
+          const set = usedSlotsByWeek.get(wi) ?? new Set<number>();
+          set.add(p.slot_index);
+          usedSlotsByWeek.set(wi, set);
+        }
+
+        const nextMatchCount =
+          bracketPlan.rounds[1]?.matchCount ?? Math.floor(firstRound.teamsExiting / 2);
+        const prefill =
+          firstRound.byeCount > 0
+            ? buildNextRoundPrefill(byeTeams, nextMatchCount)
+            : [];
+
+        // Latere rondes: unieke slots; ma → di → …; vermijd dag vóór competitie (do als vr)
+        for (let ri = 1; ri < bracketPlan.rounds.length; ri++) {
+          const round = bracketPlan.rounds[ri];
+          for (let i = 0; i < round.matchCount; i++) {
+            const weekIndex = weekIndexForRoundMatch(
+              round,
+              i,
+              Math.max(1, effectiveSlots || totalAvailableSlots),
+            );
+            const weekMonday = playingWeeks[Math.min(weekIndex, playingWeeks.length - 1)];
+            const used = usedSlotsByWeek.get(weekIndex) ?? new Set<number>();
+            usedSlotsByWeek.set(weekIndex, used);
+
+            const free = getFreeSlotIndices(weekMonday).filter((s) => !used.has(s));
+            const slotIndex =
+              pickPreferredCupSlotIndex(
+                free,
+                (s) => slotDetails[s]?.timeslot?.day_of_week,
+                preferredCupDays,
+              ) ?? Math.min(i, Math.max(0, slotDetails.length - 1));
+            used.add(slotIndex);
+
+            const { venue, timeslot } = slotDetails[slotIndex] ?? {
+              venue: "Onbekend",
+              timeslot: null as any,
+            };
+            const matchDate = matchDateFromWeekMonday(weekMonday, timeslot?.day_of_week);
+            const matchTime = timeslot?.start_time || "19:00";
+            const home =
+              ri === 1 && firstRound.byeCount > 0 ? prefill[i * 2] ?? null : null;
+            const away =
+              ri === 1 && firstRound.byeCount > 0 ? prefill[i * 2 + 1] ?? null : null;
             plan.push({
-              unique_number: `QF-${i + 1}`,
-              speeldag: `Kwartfinale ${i + 1}`,
-              home_team_id: null,
-              away_team_id: null,
+              unique_number: bekerService.cupUniqueNumber(round.prefix, i + 1),
+              speeldag: bekerService.cupSpeeldagLabel(round.prefix, i + 1),
+              home_team_id: home,
+              away_team_id: away,
               match_date: matchDate,
               match_time: matchTime,
               venue,
               slot_index: slotIndex,
-              details: { maxCombined: 6, priority: timeslot?.priority, day_of_week: timeslot?.day_of_week }
+              details: {
+                maxCombined: 6,
+                priority: timeslot?.priority,
+                day_of_week: timeslot?.day_of_week,
+              },
             });
           }
         }
 
-        // Halve finales
-        {
-          const { semiFinal: baseWeekIndex } = getKnockoutWeekIndices(playingWeeks.length);
-          for (let i = 0; i < 2; i++) {
-            const slotIndex = Math.min(i, slotDetails.length - 1);
-            const { venue, timeslot } = slotDetails[slotIndex];
-            const baseDate = playingWeeks[baseWeekIndex];
-            const matchDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
-            const matchTime = timeslot?.start_time || '19:00';
-            plan.push({
-              unique_number: `SF-${i + 1}`,
-              speeldag: `Halve Finale ${i + 1}`,
-              home_team_id: null,
-              away_team_id: null,
-              match_date: matchDate,
-              match_time: matchTime,
-              venue,
-              slot_index: slotIndex,
-              details: { maxCombined: 6, priority: timeslot?.priority, day_of_week: timeslot?.day_of_week }
-            });
-          }
-        }
-
-        // Finale
-        {
-          const finalSlotIndex = 0;
-          const { venue, timeslot } = slotDetails[finalSlotIndex] ?? await priorityOrderService.getMatchDetails(finalSlotIndex, 7);
-          const { final: baseWeekIndex } = getKnockoutWeekIndices(playingWeeks.length);
-          const baseDate = playingWeeks[baseWeekIndex];
-          const finalDate = matchDateFromWeekMonday(baseDate, timeslot?.day_of_week);
-          const finalTime = timeslot?.start_time || '19:00';
-          plan.push({
-            unique_number: 'FINAL',
-            speeldag: 'Finale',
-            home_team_id: null,
-            away_team_id: null,
-            match_date: finalDate,
-            match_time: finalTime,
-            venue,
-            slot_index: finalSlotIndex,
-            details: { maxCombined: 6, priority: timeslot?.priority, day_of_week: timeslot?.day_of_week }
-          });
-        }
-
-        return { plan, totalCombined } as const;
+        return { plan, totalCombined, failureReason } as const;
       };
 
-      // Try multiple shuffled attempts; keep the plan with highest total combined score
-      const tries = Math.max(1, attempts ?? 1);
+      // Try multiple seeded attempts; keep the plan with highest total combined score
+      const tries = Math.max(1, attempts ?? 12);
       let bestPlan: Array<{ unique_number: string; speeldag: string; home_team_id: number | null; away_team_id: number | null; match_date: string; match_time: string; venue: string; slot_index: number; details: { homeScore?: number; awayScore?: number; combined?: number; maxCombined: number; priority?: number; day_of_week?: number } }> | null = null;
       let bestScore = -1;
+      let lastFailure: string | null = null;
+      const firstByeCount = bracketPlan.rounds[0]?.byeCount ?? 0;
+      const teamRank = options?.teamRank ?? {};
       for (let t = 0; t < tries; t++) {
-        // Shuffle teams each attempt
-        let shuffled = [...teams].sort(() => Math.random() - 0.5);
-        // If a bye team is provided, remove it from first round pairs
-        if (byeTeamId) {
-          shuffled = shuffled.filter(id => id !== byeTeamId);
-        }
-        const { plan: p, totalCombined } = await buildPlanForOrder(shuffled);
-
-        // If bye team exists: remove it from 1/8 and prefill QF-1 home in preview for clarity
-        if (byeTeamId) {
-          const qf1Index = p.findIndex(x => x.unique_number === 'QF-1');
-          if (qf1Index >= 0) {
-            p[qf1Index].home_team_id = byeTeamId;
-          }
-        }
+        const shuffled = seedCupTeamOrder({
+          teams,
+          teamRank,
+          byeCount: firstByeCount,
+          forcedByeTeamId: byeTeamId,
+        });
+        const { plan: p, totalCombined, failureReason } = await buildPlanForOrder(shuffled);
+        if (failureReason) lastFailure = failureReason;
+        if (!p.length) continue;
         if (totalCombined > bestScore) {
           bestScore = totalCombined;
           bestPlan = p;
         }
       }
 
-      return { success: true, message: 'Preview gegenereerd', plan: bestPlan || [], totalCombined: bestScore >= 0 ? bestScore : undefined };
+      if (!bestPlan || bestPlan.length === 0) {
+        return {
+          success: false,
+          message:
+            lastFailure ||
+            "Geen geldig bekerschema gegenereerd. Controleer speeldata, tijdslots en slotblokkades.",
+          plan: [],
+        };
+      }
+
+      return {
+        success: true,
+        message: "Preview gegenereerd",
+        plan: bestPlan,
+        totalCombined: bestScore >= 0 ? bestScore : undefined,
+      };
     } catch (error) {
       console.error('Error previewing cup tournament:', error);
-      return { success: false, message: 'Fout bij genereren preview', plan: [] };
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Fout bij genereren preview",
+        plan: [],
+      };
     }
   },
 
@@ -729,7 +900,13 @@ export const bekerService = {
     }
   },
 
-  async createCupTournament(teams: number[], selectedDates: string[], byeTeamId?: number | null, organizationId?: number): Promise<{ success: boolean; message: string }> {
+  async createCupTournament(
+    teams: number[],
+    selectedDates: string[],
+    byeTeamId?: number | null,
+    organizationId?: number,
+    options?: { teamRank?: CupTeamRankMap },
+  ): Promise<{ success: boolean; message: string }> {
     try {
       console.log('🏆 Starting cup tournament creation...');
 
@@ -748,7 +925,10 @@ export const bekerService = {
 
       const { venues, timeslots, vacations } = seasonValidation.data!;
       const slotsPerWeek = Math.max(1, timeslots?.length || 7);
-      const earlyDay = pickSpacedPlayDayPair(getConfiguredPlayDays(timeslots || [])).early;
+      const playDays = getConfiguredPlayDays(timeslots || []);
+      const daySep = pickSpacedPlayDayPair(playDays);
+      const earlyDay = daySep.early;
+      const preferredCupDays = orderCupDayPreference(daySep.early, daySep.late, playDays);
 
       const inputValidation = bekerService.validateCupTournamentInput(teams, selectedDates, slotsPerWeek);
       if (!inputValidation.isValid) {
@@ -765,12 +945,19 @@ export const bekerService = {
         return { success: false, message: vacationValidation.message! };
       }
 
-      // Shuffle teams for random bracket
-      let shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
-      if (byeTeamId) {
-        // remove bye from 1/8
-        shuffledTeams = shuffledTeams.filter(id => id !== byeTeamId);
+      // Seed: voorronde bij voorkeur lagere reeks; byes (reeks 1) vooraan
+      const plan = getCupBracketPlan(teams.length, slotsPerWeek);
+      const firstRound = plan.rounds[0];
+      if (!firstRound) {
+        return { success: false, message: "Geen geldig bekerbracket voor dit aantal teams." };
       }
+
+      const shuffledTeams = seedCupTeamOrder({
+        teams,
+        teamRank: options?.teamRank ?? {},
+        byeCount: firstRound.byeCount,
+        forcedByeTeamId: byeTeamId,
+      });
 
       // Convert selected dates to playing weeks (Mondays)
       const playingWeeks = bekerService.convertToPlayingWeeks(selectedDates);
@@ -786,54 +973,74 @@ export const bekerService = {
       // Show the priority order for information
       await priorityOrderService.showPriorityOrder();
 
-      // Teamvoorkeuren inladen voor de 1/8 finales (enkel ronde met bekende teams)
+      // Teamvoorkeuren inladen voor de openingsronde (enige ronde met alle teams bekend)
       const allTeamsData = await teamService.getAllTeams();
       const selectedTeamsSet = new Set(teams);
       const teamPreferences = normalizeTeamsPreferences(allTeamsData.filter(t => selectedTeamsSet.has(t.team_id)));
 
-      // Create all cup matches
-      const cupMatches = [];
+      const cupMatches: any[] = [];
 
-      // Create 8e finales - number of matches depends on available teams; split over firstRoundWeeks
-      console.log('🏆 Creating 1/8 finales with optimal timeslot distribution...');
-      const eightFinals = await bekerService.createEightFinals(shuffledTeams, playingWeeks, {
-        teamPreferences,
-        venues,
-        slotsPerWeek,
-        earlyDay,
-        organizationId,
-      });
-      cupMatches.push(...eightFinals);
+      const byeTeams = shuffledTeams.slice(0, firstRound.byeCount);
+      const playingTeams = shuffledTeams.slice(firstRound.byeCount);
 
-      // Create kwartfinales (4 matches) - dynamic week index based on schedule length
-      console.log('🏆 Creating kwartfinales with optimal timeslot distribution...');
-      const quarterFinals = await bekerService.createQuarterFinals(playingWeeks, organizationId);
-      // If bye team exists, put it in QF-1 home automatically
-      if (byeTeamId) {
-        const idx = quarterFinals.findIndex(x => x.unique_number === 'QF-1');
-        if (idx >= 0) quarterFinals[idx].home_team_id = byeTeamId;
+      console.log(
+        `🏆 Openingsronde ${firstRound.name}: ${firstRound.matchCount} wedstrijden` +
+          (firstRound.byeCount ? `, ${firstRound.byeCount} bye(s)` : ""),
+      );
+      const opening = await bekerService.createPopulatedCupRound(
+        playingTeams,
+        firstRound,
+        playingWeeks,
+        {
+          teamPreferences,
+          venues,
+          slotsPerWeek,
+          earlyDay,
+          preferredCupDays,
+          organizationId,
+        },
+      );
+      cupMatches.push(...opening);
+
+      // Latere rondes: byes gespreid over de bracket
+      const nextMatchCount =
+        plan.rounds[1]?.matchCount ?? Math.floor(firstRound.teamsExiting / 2);
+      const prefill =
+        firstRound.byeCount > 0
+          ? buildNextRoundPrefill(byeTeams, nextMatchCount)
+          : [];
+
+      for (let ri = 1; ri < plan.rounds.length; ri++) {
+        const round = plan.rounds[ri];
+        const slotsForRound =
+          ri === 1 && firstRound.byeCount > 0
+            ? prefill.slice(0, round.matchCount * 2)
+            : undefined;
+        console.log(`🏆 Ronde ${round.name}: ${round.matchCount} wedstrijd(en)`);
+        const rows = await bekerService.createEmptyCupRound(
+          round,
+          playingWeeks,
+          organizationId,
+          slotsForRound,
+        );
+        cupMatches.push(...rows);
       }
-      cupMatches.push(...quarterFinals);
-
-      // Create halve finales (2 matches) - dynamic week index based on schedule length
-      console.log('🏆 Creating halve finales with optimal timeslot distribution...');
-      const semiFinals = await bekerService.createSemiFinals(playingWeeks, organizationId);
-      cupMatches.push(...semiFinals);
-
-      // Create finale (1 match) - dynamic week index based on schedule length
-      console.log('🏆 Creating finale with optimal timeslot...');
-      const final = await bekerService.createFinal(playingWeeks, organizationId);
-      cupMatches.push(...final);
 
       const insertResult = await bulkInsertMatchesForSession(cupMatches);
       if (!insertResult.success) throw new Error(insertResult.error || 'Insert mislukt');
 
       console.log('✅ Cup tournament created successfully with optimal timeslot distribution');
-      const plan = getCupBracketPlan(teams.length, slotsPerWeek);
       const weeksUsed = selectedDates.length;
+      const roundSummary = plan.rounds
+        .map((r) =>
+          r.byeCount > 0
+            ? `${r.name} (${r.matchCount}w/${r.byeCount} bye)`
+            : `${r.name} (${r.matchCount})`,
+        )
+        .join(" → ");
       return {
         success: true,
-        message: `Bekertoernooi succesvol aangemaakt! Schema over ${weeksUsed} week(en) (${plan.firstRoundPairs} achtste-finale${plan.firstRoundPairs === 1 ? "" : "s"}${plan.firstRoundWeeks > 1 ? ` over ${plan.firstRoundWeeks} weken` : ""} + kwart/halve/finale). Gebruikt ${venues.length} venue(s), ${timeslots.length} tijdslot(s) en ${vacations.length} vakantieperiode(s) uit de database.`,
+        message: `Bekertoernooi succesvol aangemaakt! Schema over ${weeksUsed} week(en): ${roundSummary}. Gebruikt ${venues.length} venue(s), ${timeslots.length} tijdslot(s) en ${vacations.length} vakantieperiode(s) uit de database.`,
       };
 
     } catch (error) {
@@ -887,16 +1094,18 @@ export const bekerService = {
   },
 
   groupMatchesByRound(matches: any[]): TournamentBracket {
-    const achtste_finales = matches.filter(m => m.unique_number?.startsWith('1/8-'));
-    const kwartfinales = matches.filter(m => m.unique_number?.startsWith('QF-'));
-    const halve_finales = matches.filter(m => m.unique_number?.startsWith('SF-'));
-    const finale = matches.find(m => m.unique_number === 'FINAL') || null;
+    const voorronde = matches.filter((m) => m.unique_number?.startsWith("VR-"));
+    const achtste_finales = matches.filter((m) => m.unique_number?.startsWith("1/8-"));
+    const kwartfinales = matches.filter((m) => m.unique_number?.startsWith("QF-"));
+    const halve_finales = matches.filter((m) => m.unique_number?.startsWith("SF-"));
+    const finale = matches.find((m) => m.unique_number === "FINAL") || null;
 
     return {
+      voorronde,
       achtste_finales,
       kwartfinales,
       halve_finales,
-      finale
+      finale,
     };
   },
 
@@ -1032,16 +1241,76 @@ export const bekerService = {
   // Helper functions for winner advancement
   getNextMatchUniqueNumber(currentUniqueNumber: string): string | null {
     const matchNumber = bekerService.extractMatchNumber(currentUniqueNumber);
-    
-    if (currentUniqueNumber.startsWith('1/8-')) {
-      // Fixed mapping: 1/8-1->QF-1, 1/8-2->QF-1, 1/8-3->QF-2, ... 1/8-8->QF-4
-      return `QF-${Math.ceil(matchNumber / 2)}`;
-    } else if (currentUniqueNumber.startsWith('QF-')) {
-      return `SF-${Math.ceil(matchNumber / 2)}`;
-    } else if (currentUniqueNumber.startsWith('SF-')) {
-      return 'FINAL';
+
+    if (currentUniqueNumber.startsWith("VR-")) {
+      // Zonder matchlijst niet deterministisch; advanceWinner/reconcile lossen dit op.
+      return null;
     }
-    
+    if (currentUniqueNumber.startsWith("1/16-")) {
+      return `1/8-${Math.ceil(matchNumber / 2)}`;
+    }
+    if (currentUniqueNumber.startsWith("1/8-")) {
+      return `QF-${Math.ceil(matchNumber / 2)}`;
+    }
+    if (currentUniqueNumber.startsWith("QF-")) {
+      return `SF-${Math.ceil(matchNumber / 2)}`;
+    }
+    if (currentUniqueNumber.startsWith("SF-")) {
+      return "FINAL";
+    }
+
+    return null;
+  },
+
+  resolveVoorrondeNextFromMatches(
+    vrMatchNumber: number,
+    cupMatches: Array<{ unique_number?: string | null }>,
+  ): { unique: string; isHome: boolean } | null {
+    const vrCount = cupMatches.filter((m) =>
+      String(m.unique_number || "").startsWith("VR-"),
+    ).length;
+    if (vrCount <= 0) return null;
+
+    const nextPrefix = ["1/16-", "1/8-", "QF-", "SF-"].find((p) =>
+      cupMatches.some((m) => String(m.unique_number || "").startsWith(p)),
+    );
+    if (!nextPrefix) return null;
+    const nextMatchCount = cupMatches.filter((m) =>
+      String(m.unique_number || "").startsWith(nextPrefix),
+    ).length;
+    if (nextMatchCount <= 0) return null;
+
+    const slot = nextSlotAfterVoorronde(vrMatchNumber, vrCount, nextMatchCount);
+    const prefix = nextPrefix.replace(/-$/, "");
+    return {
+      unique: `${prefix}-${slot.matchNumber}`,
+      isHome: slot.isHome,
+    };
+  },
+
+  shouldBeHomeTeam(uniqueNumber: string, matchNumber: number): boolean {
+    if (uniqueNumber.startsWith("1/8-") || uniqueNumber.startsWith("1/16-")) {
+      return matchNumber % 2 === 0;
+    }
+    return matchNumber % 2 === 1;
+  },
+
+  getNextRound(currentUniqueNumber: string): string | null {
+    if (currentUniqueNumber.startsWith("VR-")) {
+      return "Volgende ronde";
+    }
+    if (currentUniqueNumber.startsWith("1/16-")) {
+      return "Achtste finale";
+    }
+    if (currentUniqueNumber.startsWith("1/8-")) {
+      return "Kwartfinale";
+    }
+    if (currentUniqueNumber.startsWith("QF-")) {
+      return "Halve Finale";
+    }
+    if (currentUniqueNumber.startsWith("SF-")) {
+      return "Finale";
+    }
     return null;
   },
 
@@ -1055,7 +1324,29 @@ export const bekerService = {
         return { success: false, message: "Wedstrijd niet gevonden." };
       }
 
-      const nextMatchUniqueNumber = bekerService.getNextMatchUniqueNumber(currentMatch.unique_number!);
+      const unique = currentMatch.unique_number!;
+      let nextMatchUniqueNumber: string | null = null;
+      let shouldBeHome: boolean;
+
+      if (unique.startsWith("VR-")) {
+        const allCup = await fetchMatchesForSession({ is_cup_match: true });
+        const resolved = bekerService.resolveVoorrondeNextFromMatches(
+          bekerService.extractMatchNumber(unique),
+          allCup,
+        );
+        if (!resolved) {
+          return { success: false, message: "Geen volgende ronde gevonden na voorronde." };
+        }
+        nextMatchUniqueNumber = resolved.unique;
+        shouldBeHome = resolved.isHome;
+      } else {
+        nextMatchUniqueNumber = bekerService.getNextMatchUniqueNumber(unique);
+        shouldBeHome = bekerService.shouldBeHomeTeam(
+          unique,
+          bekerService.extractMatchNumber(unique),
+        );
+      }
+
       if (!nextMatchUniqueNumber) {
         return { success: false, message: "Geen volgende ronde gevonden." };
       }
@@ -1071,8 +1362,6 @@ export const bekerService = {
         return { success: false, message: "Volgende wedstrijd niet gevonden." };
       }
 
-      // Determine reserved slot for this upstream match (no fallback)
-      const shouldBeHome = bekerService.shouldBeHomeTeam(currentMatch.unique_number!, bekerService.extractMatchNumber(currentMatch.unique_number!));
       const loserTeamId = (currentMatch.home_team_id === winnerTeamId) ? currentMatch.away_team_id : currentMatch.home_team_id;
 
       // Prepare update: set reserved slot to winner; if the opposite slot contains the loser from this match, clear it
@@ -1345,28 +1634,6 @@ export const bekerService = {
     return 0;
   },
 
-  shouldBeHomeTeam(uniqueNumber: string, matchNumber: number): boolean {
-    // Fixed bracket rule:
-    // - For 1/8 finals, the second match in each pair (even: 2,4,6,8) gets home in the corresponding QF
-    //   e.g., 1/8-4 winner -> QF-2 home
-    // - For other rounds, keep existing default (odd -> home) unless specified later
-    if (uniqueNumber.startsWith('1/8-')) {
-      return matchNumber % 2 === 0; // even
-    }
-    return matchNumber % 2 === 1; // default
-  },
-
-  getNextRound(currentUniqueNumber: string): string | null {
-    if (currentUniqueNumber.startsWith('1/8-')) {
-      return 'Kwartfinale';
-    } else if (currentUniqueNumber.startsWith('QF-')) {
-      return 'Halve Finale';
-    } else if (currentUniqueNumber.startsWith('SF-')) {
-      return 'Finale';
-    }
-    return null;
-  },
-
   /**
    * Defensive fallback: scan all submitted cup matches with scores and verify
    * that their winner has been advanced to the next round. If not, advance them.
@@ -1396,15 +1663,31 @@ export const bekerService = {
         if (m.home_score === m.away_score) continue;
         if (m.home_team_id == null || m.away_team_id == null) continue;
 
-        const nextUnique = bekerService.getNextMatchUniqueNumber(m.unique_number as string);
-        if (!nextUnique) continue; // FINAL has no next round
+        const unique = m.unique_number as string;
+        let nextUnique: string | null = null;
+        let shouldBeHome: boolean;
+
+        if (unique.startsWith("VR-")) {
+          const resolved = bekerService.resolveVoorrondeNextFromMatches(
+            bekerService.extractMatchNumber(unique),
+            cupMatches,
+          );
+          if (!resolved) continue;
+          nextUnique = resolved.unique;
+          shouldBeHome = resolved.isHome;
+        } else {
+          nextUnique = bekerService.getNextMatchUniqueNumber(unique);
+          if (!nextUnique) continue;
+          shouldBeHome = bekerService.shouldBeHomeTeam(
+            unique,
+            bekerService.extractMatchNumber(unique),
+          );
+        }
 
         const nextMatch = byUnique.get(nextUnique);
         if (!nextMatch) continue;
 
         const winnerTeamId = m.home_score > m.away_score ? m.home_team_id : m.away_team_id;
-        const matchNumber = bekerService.extractMatchNumber(m.unique_number as string);
-        const shouldBeHome = bekerService.shouldBeHomeTeam(m.unique_number as string, matchNumber);
 
         const slotAlreadyFilled = shouldBeHome
           ? nextMatch.home_team_id === winnerTeamId
@@ -1412,7 +1695,7 @@ export const bekerService = {
 
         if (slotAlreadyFilled) continue;
 
-        const nextRound = bekerService.getNextRound(m.unique_number as string);
+        const nextRound = bekerService.getNextRound(unique);
         if (!nextRound) continue;
 
         const result = await bekerService.advanceWinner(m.match_id as number, winnerTeamId as number, nextRound);

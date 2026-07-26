@@ -3,29 +3,63 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Info, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AppModal } from "@/components/modals/base/app-modal";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CalendarDays, Info, Sparkles } from "lucide-react";
 import { seasonService } from "@/services";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchMatchesForSession } from "@/services/core/matchesSessionBulk";
 import {
   buildCupRoundLabels,
-  suggestIdealCupDates,
   type IdealCupDatesSuggestion,
 } from "@/lib/cupBracketPlan";
-import { toMondayIso, uniqueMondaysFromDates } from "@/lib/competitionPlanningEstimate";
+import { toMondayIso } from "@/lib/competitionPlanningEstimate";
+import {
+  buildSlotDetailsFromSeasonData,
+  reserveCupWeeks,
+} from "@/lib/seasonCalendar";
+import { filterActiveSlotUnavailability } from "@/services/slotUnavailabilityService";
+import { cn } from "@/lib/utils";
 
 interface BekerDateSelectorProps {
-  onDatesSelected: (dates: string[]) => void;
-  onCancel: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDatesSelected: (dates: string[], rationale?: string[]) => void;
   isLoading?: boolean;
-  /** Exact aantal speelweken (berekend uit teamcount + slots). */
+  /** Exact aantal speelweken (berekend uit teamcount + effectieve slots). */
   weeks: number;
   /** Aantal 1/8-weken (voor ronde-labels). */
   firstRoundWeeks?: number;
   organizationId: number;
+  /** Aantal geselecteerde bekerteams (voor effectieve bracket). */
+  cupTeamCount: number;
   allowByeSelection?: boolean;
   teamsForBye?: Array<{ team_id: number; team_name: string }>;
   onByeSelected?: (teamId: number | null) => void;
+  /** Wanneer dat effectieve weken/slots afwijken van de parent-schatting. */
+  onResolvedPlan?: (plan: {
+    requiredWeeks: number;
+    firstRoundWeeks: number;
+    effectiveSlotsPerWeek: number;
+  }) => void;
+}
+
+function formatDateHint(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("nl-BE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 }
 
 const BekerDateInput = React.memo<{
@@ -35,8 +69,17 @@ const BekerDateInput = React.memo<{
   minDate: string;
   onChange: (value: string) => void;
 }>(({ id, label, value, minDate, onChange }) => (
-  <div>
-    <Label htmlFor={id} className="text-sm">{label}</Label>
+  <div className="space-y-1.5">
+    <div className="flex items-baseline justify-between gap-2">
+      <Label htmlFor={id} className="text-sm font-medium text-brand-dark">
+        {label}
+      </Label>
+      {value ? (
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+          {formatDateHint(value)}
+        </span>
+      ) : null}
+    </div>
     <Input
       id={id}
       type="date"
@@ -44,9 +87,11 @@ const BekerDateInput = React.memo<{
       min={minDate}
       onChange={(e) => onChange(e.target.value)}
       className="w-full min-h-[44px]"
+      aria-required
     />
   </div>
 ));
+BekerDateInput.displayName = "BekerDateInput";
 
 const BekerRoundComponent = React.memo<{
   round: {
@@ -59,61 +104,65 @@ const BekerRoundComponent = React.memo<{
   minimumDates: string[];
   onDateChange: (index: number, value: string) => void;
 }>(({ round, selectedDates, minimumDates, onDateChange }) => {
-  const handleDateChange = useCallback((index: number, value: string) => {
-    onDateChange(index, value);
-  }, [onDateChange]);
-
   if (round.type === "group") {
     return (
-      <div className="space-y-2">
-        <Label className="font-semibold text-sm">{round.name}</Label>
-        <div className="ml-2 space-y-2">
+      <section className="rounded-lg border border-primary/20 bg-card p-3 sm:p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-brand-dark">{round.name}</h3>
+        <div className="space-y-3">
           {round.subRounds?.map((subRound) => (
-            <div key={subRound.index} className="grid grid-cols-1 gap-2 items-center">
-              <BekerDateInput
-                id={`beker-date-${subRound.index}`}
-                label={subRound.name}
-                value={selectedDates[subRound.index] ?? ""}
-                minDate={minimumDates[subRound.index] ?? ""}
-                onChange={(value) => handleDateChange(subRound.index, value)}
-              />
-            </div>
+            <BekerDateInput
+              key={subRound.index}
+              id={`beker-date-${subRound.index}`}
+              label={subRound.name}
+              value={selectedDates[subRound.index] ?? ""}
+              minDate={minimumDates[subRound.index] ?? ""}
+              onChange={(value) => onDateChange(subRound.index, value)}
+            />
           ))}
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="space-y-1">
-      <Label className="font-semibold text-sm">{round.name}</Label>
+    <section className="rounded-lg border border-primary/20 bg-card p-3 sm:p-4">
       <BekerDateInput
         id={`beker-date-${round.index}`}
-        label="Selecteer datum"
+        label={round.name}
         value={selectedDates[round.index!] ?? ""}
         minDate={minimumDates[round.index!] ?? ""}
-        onChange={(value) => handleDateChange(round.index!, value)}
+        onChange={(value) => onDateChange(round.index!, value)}
       />
-    </div>
+    </section>
   );
 });
+BekerRoundComponent.displayName = "BekerRoundComponent";
 
-const BekerLoadingComponent = React.memo(() => (
-  <div className="flex justify-center items-center py-8" aria-busy="true">
-    <div className="text-sm text-muted-foreground">Ideale speeldata laden…</div>
+const BekerLoadingSkeleton = React.memo(() => (
+  <div className="space-y-3" aria-busy="true" aria-live="polite">
+    <span className="sr-only">Ideale speeldata laden…</span>
+    <Skeleton className="h-16 w-full rounded-lg" />
+    <Skeleton className="h-10 w-full rounded-md" />
+    <Skeleton className="h-20 w-full rounded-lg" />
+    <Skeleton className="h-20 w-full rounded-lg" />
+    <Skeleton className="h-20 w-full rounded-lg" />
   </div>
 ));
+BekerLoadingSkeleton.displayName = "BekerLoadingSkeleton";
 
 const BekerDateSelector: React.FC<BekerDateSelectorProps> = ({
+  open,
+  onOpenChange,
   onDatesSelected,
-  onCancel,
   isLoading = false,
   weeks,
   firstRoundWeeks,
   organizationId,
+  cupTeamCount,
   allowByeSelection = false,
   teamsForBye = [],
   onByeSelected,
+  onResolvedPlan,
 }) => {
   const [selectedDates, setSelectedDates] = useState<string[]>(() =>
     Array.from({ length: weeks }, () => ""),
@@ -122,32 +171,47 @@ const BekerDateSelector: React.FC<BekerDateSelectorProps> = ({
   const [loading, setLoading] = useState(true);
   const [byeTeamId, setByeTeamId] = useState<number | null>(null);
   const [suggestion, setSuggestion] = useState<IdealCupDatesSuggestion | null>(null);
-
-  const resolvedFirstRoundWeeks = firstRoundWeeks ?? Math.max(0, weeks - 3);
-
-  const bekerRounds = useMemo(
-    () => buildCupRoundLabels(resolvedFirstRoundWeeks),
-    [resolvedFirstRoundWeeks],
+  const [resolvedWeeks, setResolvedWeeks] = useState(weeks);
+  const [resolvedFirstRoundWeeks, setResolvedFirstRoundWeeks] = useState(
+    firstRoundWeeks ?? Math.max(0, weeks - 3),
   );
 
-  // Reset length when weeks changes
-  useEffect(() => {
-    setSelectedDates((prev) => {
-      if (prev.length === weeks) return prev;
-      const next = Array.from({ length: weeks }, (_, i) => prev[i] ?? "");
-      return next;
-    });
-  }, [weeks]);
+  const showByeSelect = allowByeSelection && teamsForBye.length % 2 === 1;
+  const activeWeeks = resolvedWeeks || weeks;
+  const activeFirstRoundWeeks =
+    resolvedFirstRoundWeeks || firstRoundWeeks || Math.max(0, activeWeeks - 3);
+
+  const bekerRounds = useMemo(
+    () => buildCupRoundLabels(activeFirstRoundWeeks),
+    [activeFirstRoundWeeks],
+  );
+
+  const filledCount = useMemo(
+    () => selectedDates.filter((d) => d !== "").length,
+    [selectedDates],
+  );
 
   useEffect(() => {
+    setSelectedDates((prev) => {
+      if (prev.length === activeWeeks) return prev;
+      return Array.from({ length: activeWeeks }, (_, i) => prev[i] ?? "");
+    });
+  }, [activeWeeks]);
+
+  useEffect(() => {
+    if (!open) {
+      setByeTeamId(null);
+      return;
+    }
+
     let cancelled = false;
 
     const loadAndSuggest = async () => {
       try {
         setLoading(true);
-        const [seasonData, competitionMatches] = await Promise.all([
+        const [seasonData, existingMatches] = await Promise.all([
           seasonService.getSeasonData(organizationId),
-          fetchMatchesForSession({ is_cup_match: false }).catch(() => []),
+          fetchMatchesForSession({}).catch(() => []),
         ]);
 
         const start =
@@ -168,29 +232,51 @@ const BekerDateSelector: React.FC<BekerDateSelectorProps> = ({
         if (cancelled) return;
         setSeasonStartDate(start);
 
-        const competitionMondays = uniqueMondaysFromDates(
-          (competitionMatches || [])
-            .map((m: { match_date?: string }) => m.match_date)
-            .filter(Boolean) as string[],
-        );
-
-        const ideal = suggestIdealCupDates({
-          requiredWeeks: weeks,
+        const slotDetails = buildSlotDetailsFromSeasonData(seasonData);
+        const reserved = reserveCupWeeks({
           seasonStart: start,
           seasonEnd: end,
           vacations: seasonData.vacation_periods || [],
-          competitionMondays,
           timeslots: seasonData.venue_timeslots || [],
+          slotDetails,
+          blocks: filterActiveSlotUnavailability(seasonData.slot_unavailability),
+          matches: (existingMatches || []).map((m: Record<string, unknown>) => ({
+            match_date: m.match_date as string | undefined,
+            location: m.location as string | undefined,
+            match_time: m.match_time as string | undefined,
+            is_cup_match: Boolean(m.is_cup_match),
+            is_playoff_match: Boolean(m.is_playoff_match),
+          })),
+          cupTeamCount,
         });
 
         if (cancelled) return;
+
+        setResolvedWeeks(reserved.requiredWeeks);
+        setResolvedFirstRoundWeeks(reserved.firstRoundWeeks);
+        onResolvedPlan?.({
+          requiredWeeks: reserved.requiredWeeks,
+          firstRoundWeeks: reserved.firstRoundWeeks,
+          effectiveSlotsPerWeek: reserved.effectiveSlotsPerWeek,
+        });
+
+        const ideal: IdealCupDatesSuggestion = {
+          dates: reserved.dates,
+          overlappingMondays: reserved.overlappingMondays,
+          freeWeeksAvailable: reserved.freeWeeksAvailable,
+          daySeparation: reserved.daySeparation,
+          notes: reserved.notes,
+          rationale: reserved.rationale,
+        };
         setSuggestion(ideal);
-        if (ideal.dates.length === weeks) {
-          setSelectedDates(ideal.dates);
-        } else if (ideal.dates.length > 0) {
+        if (reserved.dates.length === reserved.requiredWeeks) {
+          setSelectedDates(reserved.dates);
+        } else if (reserved.dates.length > 0) {
           setSelectedDates(
-            Array.from({ length: weeks }, (_, i) => ideal.dates[i] ?? ""),
+            Array.from({ length: reserved.requiredWeeks }, (_, i) => reserved.dates[i] ?? ""),
           );
+        } else {
+          setSelectedDates(Array.from({ length: reserved.requiredWeeks }, () => ""));
         }
       } catch (error) {
         console.error("❌ Error loading season/ideal cup dates:", error);
@@ -208,67 +294,119 @@ const BekerDateSelector: React.FC<BekerDateSelectorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [weeks, organizationId]);
+  }, [open, weeks, organizationId, cupTeamCount, onResolvedPlan]);
 
   const bekerMinimumDates = useMemo(() => {
     if (!seasonStartDate) {
-      return Array.from({ length: weeks }, () => "");
+      return Array.from({ length: activeWeeks }, () => "");
     }
     const seasonStart = new Date(`${toMondayIso(seasonStartDate)}T12:00:00`);
-    return Array.from({ length: weeks }, (_, i) => {
+    return Array.from({ length: activeWeeks }, (_, i) => {
       const date = new Date(seasonStart);
       date.setDate(seasonStart.getDate() + i * 7);
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     });
-  }, [seasonStartDate, weeks]);
+  }, [seasonStartDate, activeWeeks]);
 
   const applyIdealDates = useCallback(() => {
     if (suggestion?.dates?.length) {
       setSelectedDates(
-        Array.from({ length: weeks }, (_, i) => suggestion.dates[i] ?? ""),
+        Array.from({ length: activeWeeks }, (_, i) => suggestion.dates[i] ?? ""),
       );
     }
-  }, [suggestion, weeks]);
+  }, [suggestion, activeWeeks]);
 
   const handleBekerDateChange = useCallback((index: number, value: string) => {
     setSelectedDates((prev) => {
-      const newDates = [...prev];
-      newDates[index] = value;
-      return newDates;
+      const next = [...prev];
+      next[index] = value;
+      return next;
     });
   }, []);
 
   const handleBekerSubmit = useCallback(() => {
     const validDates = selectedDates.filter((date) => date !== "");
-    if (validDates.length === weeks) {
-      onDatesSelected(validDates);
+    if (validDates.length === activeWeeks) {
+      onDatesSelected(validDates, suggestion?.rationale);
     }
-  }, [selectedDates, onDatesSelected, weeks]);
+  }, [selectedDates, onDatesSelected, activeWeeks, suggestion?.rationale]);
+
+  const handleClose = useCallback(() => {
+    onByeSelected?.(null);
+    onOpenChange(false);
+  }, [onByeSelected, onOpenChange]);
 
   const isBekerSelectionValid = useMemo(
     () =>
-      selectedDates.length === weeks &&
+      selectedDates.length === activeWeeks &&
       selectedDates.every((date) => date !== "") &&
-      selectedDates.every((date, index) => !bekerMinimumDates[index] || date >= bekerMinimumDates[index]),
-    [selectedDates, bekerMinimumDates, weeks],
+      selectedDates.every(
+        (date, index) => !bekerMinimumDates[index] || date >= bekerMinimumDates[index],
+      ),
+    [selectedDates, bekerMinimumDates, activeWeeks],
   );
 
-  const isBekerSubmitDisabled = useMemo(() => {
-    const byeRequiredButMissing = allowByeSelection && !byeTeamId;
-    return !isBekerSelectionValid || isLoading || byeRequiredButMissing;
-  }, [isBekerSelectionValid, isLoading, allowByeSelection, byeTeamId]);
+  const byeRequiredButMissing = showByeSelect && !byeTeamId;
+  const isBekerSubmitDisabled =
+    !isBekerSelectionValid || isLoading || loading || byeRequiredButMissing;
 
   return (
-    <div className="modal">
-      <div className="modal__title">Beker Speeldata Selecteren</div>
-      <p className="text-sm text-muted-foreground mb-2">
-        {weeks} speelweek{weeks === 1 ? "" : "en"} nodig op basis van het aantal teams en beschikbare tijdslots.
-      </p>
+    <AppModal
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) handleClose();
+        else onOpenChange(true);
+      }}
+      title="Beker speeldata"
+      size="md"
+      showCloseButton
+      primaryAction={{
+        label: isLoading ? "Beker aanmaken…" : "Data bevestigen",
+        onClick: handleBekerSubmit,
+        variant: "primary",
+        loading: isLoading,
+        disabled: isBekerSubmitDisabled,
+      }}
+      secondaryAction={{
+        label: "Annuleren",
+        onClick: handleClose,
+        variant: "secondary",
+        disabled: isLoading,
+      }}
+    >
+      <div className="space-y-4">
+        <div className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-brand-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2 min-w-0">
+            <CalendarDays
+              className="mt-0.5 h-4 w-4 shrink-0 text-brand-dark"
+              aria-hidden
+            />
+            <p className="text-sm text-muted-foreground">
+              {activeWeeks} speelweek{activeWeeks === 1 ? "" : "en"} nodig op basis van het aantal
+              teams en effectieve tijdslots.
+            </p>
+          </div>
+          <Badge
+            variant="secondary"
+            className={cn(
+              "w-fit shrink-0 tabular-nums",
+              filledCount === activeWeeks && "border-success/30 bg-success/10 text-success",
+            )}
+            aria-live="polite"
+          >
+            {filledCount}/{activeWeeks} gekozen
+          </Badge>
+        </div>
 
-      <div className="space-y-3">
-        {allowByeSelection && teamsForBye.length % 2 === 1 && (
-          <div className="space-y-1">
-            <Label>Bye team (stroomt door naar volgende ronde)</Label>
+        {showByeSelect ? (
+          <div className="space-y-1.5 rounded-lg border border-primary/20 bg-card p-3 sm:p-4">
+            <Label htmlFor="beker-bye-team" className="text-sm font-medium text-brand-dark">
+              Bye-team
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Bij een oneven aantal teams stroomt één team automatisch door naar de
+              volgende ronde.
+            </p>
             <Select
               value={byeTeamId ? String(byeTeamId) : undefined}
               onValueChange={(val) => {
@@ -277,8 +415,8 @@ const BekerDateSelector: React.FC<BekerDateSelectorProps> = ({
                 onByeSelected?.(id);
               }}
             >
-              <SelectTrigger className="min-h-[44px]">
-                <SelectValue placeholder="Selecteer bye team" />
+              <SelectTrigger id="beker-bye-team" className="min-h-[44px]">
+                <SelectValue placeholder="Selecteer bye-team" />
               </SelectTrigger>
               <SelectContent>
                 {teamsForBye.map((t) => (
@@ -288,28 +426,45 @@ const BekerDateSelector: React.FC<BekerDateSelectorProps> = ({
                 ))}
               </SelectContent>
             </Select>
-            <div className="text-xs text-muted-foreground">
-              Bij oneven aantal teams kan één team automatisch doorstromen.
-            </div>
           </div>
-        )}
-      </div>
+        ) : null}
 
-      <div className="bg-white rounded-lg p-4 mt-3 w-full max-w-md space-y-3">
         {loading ? (
-          <BekerLoadingComponent />
+          <BekerLoadingSkeleton />
         ) : (
-          <>
-            {suggestion && suggestion.notes.length > 0 && (
+          <div className="space-y-3">
+            {suggestion && suggestion.rationale.length > 0 ? (
+              <section
+                className="rounded-lg border border-primary/20 bg-card p-3 sm:p-4 space-y-2"
+                aria-labelledby="ideal-dates-rationale"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-brand-dark shrink-0" aria-hidden />
+                  <h3
+                    id="ideal-dates-rationale"
+                    className="text-sm font-semibold text-brand-dark"
+                  >
+                    Waarom deze data ideaal zijn
+                  </h3>
+                </div>
+                <ul className="list-disc pl-5 space-y-1.5 text-sm text-muted-foreground">
+                  {suggestion.rationale.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {suggestion && suggestion.notes.length > 0 ? (
               <Alert className="border-primary/20">
-                <Info className="h-4 w-4" />
+                <Info className="h-4 w-4" aria-hidden />
                 <AlertDescription className="text-sm space-y-1">
                   {suggestion.notes.map((note) => (
                     <p key={note}>{note}</p>
                   ))}
                 </AlertDescription>
               </Alert>
-            )}
+            ) : null}
 
             <Button
               type="button"
@@ -324,39 +479,19 @@ const BekerDateSelector: React.FC<BekerDateSelectorProps> = ({
 
             <div className="space-y-3">
               {bekerRounds.map((round, roundIndex) => (
-                <div key={roundIndex}>
-                  <BekerRoundComponent
-                    round={round}
-                    selectedDates={selectedDates}
-                    minimumDates={bekerMinimumDates}
-                    onDateChange={handleBekerDateChange}
-                  />
-                </div>
+                <BekerRoundComponent
+                  key={`${round.name}-${roundIndex}`}
+                  round={round}
+                  selectedDates={selectedDates}
+                  minimumDates={bekerMinimumDates}
+                  onDateChange={handleBekerDateChange}
+                />
               ))}
             </div>
-          </>
+          </div>
         )}
-
-        <div className="flex gap-2 pt-3">
-          <button
-            type="button"
-            onClick={handleBekerSubmit}
-            disabled={isBekerSubmitDisabled || loading}
-            className="btn btn--primary flex-1 min-h-[44px]"
-          >
-            {isLoading ? "Beker aanmaken..." : "Beker Data Bevestigen"}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isLoading}
-            className="btn btn--secondary min-h-[44px]"
-          >
-            Annuleren
-          </button>
-        </div>
       </div>
-    </div>
+    </AppModal>
   );
 };
 

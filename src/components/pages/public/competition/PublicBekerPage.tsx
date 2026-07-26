@@ -368,6 +368,7 @@ const TournamentContent = memo(({
   bracketData: NonNullable<ReturnType<typeof useCupData>['bracketData']>;
 }) => {
   const isMobile = useIsMobile();
+  const prelimsRef = useRef<HTMLDivElement>(null);
   const eighthfinalsRef = useRef<HTMLDivElement>(null);
   const quarterfinalsRef = useRef<HTMLDivElement>(null);
   const semifinalsRef = useRef<HTMLDivElement>(null);
@@ -376,6 +377,14 @@ const TournamentContent = memo(({
   // FEATURE: Calculate progress for indicator
   const progressRounds = useMemo(() => {
     const rounds = [
+      {
+        key: 'prelims',
+        label: 'VR',
+        count: bracketData.prelims.length,
+        completed: bracketData.prelims.every(m => 
+          m.homeScore !== null && m.awayScore !== null
+        )
+      },
       {
         key: 'eighthfinals',
         label: '1/8',
@@ -408,7 +417,7 @@ const TournamentContent = memo(({
           (bracketData.final.homeScore !== null && bracketData.final.awayScore !== null) : 
           false
       }
-    ];
+    ].filter((r) => r.count > 0 || r.key === 'final');
     
     const currentRound = rounds.find(r => r.count > 0 && !r.completed)?.key || 
                         rounds.filter(r => r.count > 0).pop()?.key;
@@ -450,6 +459,18 @@ const TournamentContent = memo(({
         defaultValue={progressRounds.currentRound || undefined}
         className="space-y-3"
       >
+        {bracketData.prelims.length > 0 && (
+          <div ref={prelimsRef}>
+            <TournamentRound 
+              title="Voorronde" 
+              matches={bracketData.prelims} 
+              emptyMessage="Geen voorronde beschikbaar" 
+              roundName="Voorronde"
+              roundKey="prelims"
+            />
+          </div>
+        )}
+
         {bracketData.eighthfinals.length > 0 && (
           <div ref={eighthfinalsRef}>
             <TournamentRound 

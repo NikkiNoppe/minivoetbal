@@ -1,4 +1,9 @@
 import { isTimeslotValidOnDate } from '@/lib/timeslotAvailability';
+import { matchDateFromWeekMonday } from '@/lib/cupBracketPlan';
+import {
+  isDateInVacationPeriod,
+  type VacationLike,
+} from '@/lib/competitionPlanningEstimate';
 import type { SlotUnavailability } from '@/types/slotUnavailability';
 import type { VenueTimeslotWithPriority } from '@/services/priorityOrderService';
 
@@ -7,18 +12,9 @@ export type SlotDetailRow = {
   timeslot: VenueTimeslotWithPriority | null;
 };
 
-function addDaysToDate(dateStr: string, days: number): string {
-  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-}
-
 /** Kalenderdatum voor een priority-slot binnen een speelweek (maandag = weekstart). */
 export function getCalendarDateForSlot(weekMonday: string, dayOfWeek: number): string {
-  const base = weekMonday.split('T')[0];
-  if (dayOfWeek === 1) return base;
-  return addDaysToDate(base, 1);
+  return matchDateFromWeekMonday(weekMonday, dayOfWeek);
 }
 
 export function isSlotUnavailabilityActive(
@@ -41,6 +37,7 @@ export function getBlockedSlotIndicesForWeek(
   weekMonday: string,
   slotDetails: SlotDetailRow[],
   blocks: SlotUnavailability[],
+  vacations: VacationLike[] = [],
 ): Set<number> {
   const blocked = new Set<number>();
   slotDetails.forEach((row, index) => {
@@ -51,6 +48,10 @@ export function getBlockedSlotIndicesForWeek(
     }
     const matchDate = getCalendarDateForSlot(weekMonday, ts.day_of_week);
     if (!isTimeslotValidOnDate(ts, matchDate)) {
+      blocked.add(index);
+      return;
+    }
+    if (isDateInVacationPeriod(matchDate, vacations)) {
       blocked.add(index);
       return;
     }
@@ -66,8 +67,14 @@ export function getAvailableSlotIndicesForWeek(
   totalSlots: number,
   slotDetails: SlotDetailRow[],
   blocks: SlotUnavailability[],
+  vacations: VacationLike[] = [],
 ): number[] {
-  const blocked = getBlockedSlotIndicesForWeek(weekMonday, slotDetails, blocks);
+  const blocked = getBlockedSlotIndicesForWeek(
+    weekMonday,
+    slotDetails,
+    blocks,
+    vacations,
+  );
   return Array.from({ length: totalSlots }, (_, i) => i).filter((i) => !blocked.has(i));
 }
 
@@ -78,12 +85,14 @@ export function getEffectiveWeeklyMatchCapacity(
   slotDetails: SlotDetailRow[],
   blocks: SlotUnavailability[],
   configuredMax: number,
+  vacations: VacationLike[] = [],
 ): number {
   const available = getAvailableSlotIndicesForWeek(
     weekMonday,
     totalSlots,
     slotDetails,
     blocks,
+    vacations,
   ).length;
   return Math.min(configuredMax, available);
 }

@@ -182,6 +182,20 @@ const App = () => (
                         </Suspense>
                       </ProtectedRoute>
                     } />
+                    <Route path={ADMIN_ROUTES['season-calendar']} element={
+                      <ProtectedRoute requireAdmin>
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <Index />
+                        </Suspense>
+                      </ProtectedRoute>
+                    } />
+                    <Route path={ADMIN_ROUTES['season-planning']} element={
+                      <ProtectedRoute requireAdmin>
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <Index />
+                        </Suspense>
+                      </ProtectedRoute>
+                    } />
                     <Route path={ADMIN_ROUTES.financial} element={
                       <ProtectedRoute requireAdmin>
                         <Suspense fallback={<LoadingSpinner />}>

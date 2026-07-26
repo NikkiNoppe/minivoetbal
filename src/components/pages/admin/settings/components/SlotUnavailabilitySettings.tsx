@@ -24,6 +24,7 @@ import type { Venue, VenueTimeslot } from '@/services/competitionDataService';
 import { PUBLIC_CARD_CLASS } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { SectionIcon } from "@/components/layout";
+import { emitSeasonDataChanged } from '@/lib/seasonDataEvents';
 
 const DAY_NAMES: Record<number, string> = {
   0: 'Zondag',
@@ -170,6 +171,10 @@ const SlotUnavailabilitySettings: React.FC = () => {
         toast({ title: 'Veldblokkade opgeslagen', description: result.message });
         setIsEditOpen(false);
         setEditingItem(null);
+        emitSeasonDataChanged({
+          organizationId: organizationId ?? undefined,
+          source: 'slot-unavailability',
+        });
         await loadData();
       } else {
         toast({ title: 'Fout', description: result.message, variant: 'destructive' });
@@ -195,6 +200,10 @@ const SlotUnavailabilitySettings: React.FC = () => {
         toast({ title: 'Veldblokkade verwijderd' });
         setIsDeleteOpen(false);
         setDeleteItem(null);
+        emitSeasonDataChanged({
+          organizationId: organizationId ?? undefined,
+          source: 'slot-unavailability',
+        });
         await loadData();
       } else {
         toast({ title: 'Fout', description: result.message, variant: 'destructive' });

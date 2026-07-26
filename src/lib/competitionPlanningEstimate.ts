@@ -20,6 +20,27 @@ export type VacationLike = {
   is_active?: boolean | null;
 };
 
+/** True als de kalenderdatum in een actieve vakantieperiode valt (inclusief start/eind). */
+export function isDateInVacationPeriod(
+  dateInput: string | Date,
+  vacations: VacationLike[],
+): boolean {
+  if (!vacations.length) return false;
+  const d =
+    typeof dateInput === "string"
+      ? new Date(`${dateInput.split("T")[0]}T12:00:00`)
+      : new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return false;
+  return vacations.some((vacation) => {
+    if (vacation.is_active === false) return false;
+    if (!vacation.start_date || !vacation.end_date) return false;
+    const start = new Date(`${vacation.start_date.split("T")[0]}T12:00:00`);
+    const end = new Date(`${vacation.end_date.split("T")[0]}T12:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    return d >= start && d <= end;
+  });
+}
+
 /** Unieke speeldagen uit geconfigureerde tijdslots, oplopend. */
 export function getConfiguredPlayDays(timeslots: TimeslotLike[]): number[] {
   const days = new Set<number>();
@@ -29,6 +50,63 @@ export function getConfiguredPlayDays(timeslots: TimeslotLike[]): number[] {
     }
   }
   return Array.from(days).sort((a, b) => a - b);
+}
+
+/**
+ * Kies beker-speeldagen in volgorde van voorkeur:
+ * 1) early (bv. maandag)
+ * 2) dagen erna in de week
+ * 3) vermijd late (competitiedag) en de dag vóór late (anders rug-aan-rug, bv. do+vr)
+ */
+export function orderCupDayPreference(
+  earlyDay: number,
+  lateDay: number,
+  playDays: number[],
+): number[] {
+  const eveOfLate = ((lateDay % 7) + 6) % 7; // dag vóór competitie
+  const candidates = [
+    ...new Set(
+      playDays.filter(
+        (d) => typeof d === "number" && d >= 0 && d <= 6 && d !== lateDay,
+      ),
+    ),
+  ];
+  if (candidates.length === 0) return [earlyDay];
+
+  const rank = (d: number): number => {
+    if (d === earlyDay) return 0;
+    if (d === eveOfLate) return 1000;
+    // Afstand vooruit vanaf early (ma→di=1, ma→wo=2, …)
+    const forward = (d - earlyDay + 7) % 7;
+    return forward === 0 ? 0 : forward;
+  };
+
+  return [...candidates].sort((a, b) => rank(a) - rank(b) || a - b);
+}
+
+/** Bonus voor slotkeuze: hogere voorkeursdag = hogere score; vermeden dagen negatief. */
+export function cupDayPreferenceBonus(
+  dayOfWeek: number | null | undefined,
+  preferredDays: number[],
+): number {
+  if (dayOfWeek == null || Number.isNaN(dayOfWeek) || preferredDays.length === 0) return 0;
+  const idx = preferredDays.indexOf(Math.floor(dayOfWeek));
+  if (idx < 0) return -1.5;
+  return (preferredDays.length - idx) * 0.45;
+}
+
+/** Eerste vrije slot volgens voorkeursdagen (ma → di → …; dag vóór competitie laatst). */
+export function pickPreferredCupSlotIndex(
+  freeIndices: number[],
+  getDayOfWeek: (slotIndex: number) => number | null | undefined,
+  preferredDays: number[],
+): number | null {
+  if (freeIndices.length === 0) return null;
+  for (const day of preferredDays) {
+    const hit = freeIndices.find((i) => getDayOfWeek(i) === day);
+    if (hit != null) return hit;
+  }
+  return freeIndices[0] ?? null;
 }
 
 /**

@@ -43,11 +43,13 @@ export const sortMatchesByDateAndTime = <T extends { date: string; time: string;
  */
 export const sortCupMatches = (matches: MatchFormData[]): MatchFormData[] => {
   const getRoundOrder = (uniqueNumber: string): number => {
-    if (uniqueNumber.startsWith('1/8-')) return 1; // Achtste finales
-    if (uniqueNumber.startsWith('QF-')) return 2;  // Kwartfinales
-    if (uniqueNumber.startsWith('SF-')) return 3;  // Halve finales
-    if (uniqueNumber === 'FINAL') return 4;        // Finale
-    return 99; // Unknown/other
+    if (uniqueNumber.startsWith("VR-")) return 0;
+    if (uniqueNumber.startsWith("1/16-")) return 1;
+    if (uniqueNumber.startsWith("1/8-")) return 2;
+    if (uniqueNumber.startsWith("QF-")) return 3;
+    if (uniqueNumber.startsWith("SF-")) return 4;
+    if (uniqueNumber === "FINAL") return 5;
+    return 99;
   };
 
   const getRoundSubOrder = (uniqueNumber: string): number => {
@@ -169,11 +171,13 @@ export const sortMatchesWithinGroups = (
  * @returns The round name
  */
 export const getCupRoundName = (uniqueNumber: string): string => {
-  if (uniqueNumber.startsWith('1/8-')) return 'Achtste Finales';
-  if (uniqueNumber.startsWith('QF-')) return 'Kwart Finales';
-  if (uniqueNumber.startsWith('SF-')) return 'Halve Finales';
-  if (uniqueNumber === 'FINAL') return 'Finale';
-  return 'Andere';
+  if (uniqueNumber.startsWith("VR-")) return "Voorronde";
+  if (uniqueNumber.startsWith("1/16-")) return "Zestiende Finales";
+  if (uniqueNumber.startsWith("1/8-")) return "Achtste Finales";
+  if (uniqueNumber.startsWith("QF-")) return "Kwart Finales";
+  if (uniqueNumber.startsWith("SF-")) return "Halve Finales";
+  if (uniqueNumber === "FINAL") return "Finale";
+  return "Andere";
 };
 
 /**
@@ -185,12 +189,14 @@ export const getCupRoundName = (uniqueNumber: string): string => {
 export const sortGroupKeys = (groupKeys: string[], isCupMatchList: boolean): string[] => {
   if (isCupMatchList) {
     // Sort cup rounds in tournament order
-    const roundOrder = { 
-      'Achtste Finales': 1, 
-      'Kwart Finales': 2, 
-      'Halve Finales': 3, 
-      'Finale': 4, 
-      'Andere': 99 
+    const roundOrder: Record<string, number> = {
+      Voorronde: 0,
+      "Zestiende Finales": 1,
+      "Achtste Finales": 2,
+      "Kwart Finales": 3,
+      "Halve Finales": 4,
+      Finale: 5,
+      Andere: 99,
     };
     return groupKeys.sort((a, b) => (roundOrder[a] || 99) - (roundOrder[b] || 99));
   } else {

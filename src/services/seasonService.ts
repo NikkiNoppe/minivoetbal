@@ -15,6 +15,8 @@ export interface SeasonData {
   season_start_date: string;
   season_end_date: string;
   competition_formats?: any[];
+  /** Interactieve seizoensopzet (meerdere speelsystemen tegelijk). */
+  season_setup?: import('@/lib/seasonSetup').SeasonSetup;
   venues?: any[];
   venue_timeslots?: any[];
   vacation_periods?: any[];
@@ -27,6 +29,7 @@ export function createDefaultSeasonData(): SeasonData {
     season_start_date: '',
     season_end_date: '',
     competition_formats: [],
+    season_setup: undefined,
     venues: [],
     venue_timeslots: [],
     vacation_periods: [],
@@ -143,6 +146,7 @@ export const seasonService = {
           data.slot_unavailability ?? existing.slot_unavailability ?? [],
         competition_formats:
           data.competition_formats ?? existing.competition_formats ?? [],
+        season_setup: data.season_setup ?? existing.season_setup,
         day_names: data.day_names ?? existing.day_names ?? createDefaultSeasonData().day_names,
       };
 

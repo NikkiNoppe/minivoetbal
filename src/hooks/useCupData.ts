@@ -17,6 +17,7 @@ export interface CupMatchDisplay {
 }
 
 export interface TournamentData {
+  voorronde?: any[];
   achtste_finales?: any[];
   kwartfinales?: any[];
   halve_finales?: any[];
@@ -55,6 +56,7 @@ export const useCupData = () => {
 
   // Transform data to structured format
   const bracketData = query.data ? {
+    prelims: query.data.voorronde?.map(formatMatchForDisplay) || [],
     eighthfinals: query.data.achtste_finales?.map(formatMatchForDisplay) || [],
     quarterfinals: query.data.kwartfinales?.map(formatMatchForDisplay) || [],
     semifinals: query.data.halve_finales?.map(formatMatchForDisplay) || [],
@@ -62,6 +64,7 @@ export const useCupData = () => {
   } : null;
 
   const hasData = bracketData && (
+    bracketData.prelims.length > 0 ||
     bracketData.eighthfinals.length > 0 ||
     bracketData.quarterfinals.length > 0 ||
     bracketData.semifinals.length > 0 ||

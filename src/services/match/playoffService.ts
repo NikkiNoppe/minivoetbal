@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getRpcSessionArgs } from "@/lib/authSession";
 import { localDateTimeToISO } from "@/lib/dateUtils";
 import { normalizeVenueName } from "@/lib/utils";
+import { matchDateFromWeekMonday } from "@/lib/cupBracketPlan";
 import { seasonService } from "@/services/seasonService";
 import { priorityOrderService } from "@/services/priorityOrderService";
 import { loadSlotPlanningContext } from '@/services/match/slotPlanningContext';
@@ -42,8 +43,8 @@ export const playoffService = {
     return `${newYear}-${newMonth}-${newDay}`;
   },
 
-  async validateSeasonData(): Promise<{ isValid: boolean; message?: string; data?: any }> {
-    const seasonData = await seasonService.getSeasonData();
+  async validateSeasonData(organizationId?: number): Promise<{ isValid: boolean; message?: string; data?: any }> {
+    const seasonData = await seasonService.getSeasonData(organizationId);
     const venues = seasonData.venues || [];
     const timeslots = seasonData.venue_timeslots || [];
     if (venues.length === 0) return { isValid: false, message: "Geen venues beschikbaar in de database. Configureer eerst de competitiedata." };
@@ -165,69 +166,50 @@ export const playoffService = {
     return matches;
   },
 
-  async generatePlayoffWeeks(start_date: string, end_date: string): Promise<string[]> {
-    const seasonData = await seasonService.getSeasonData();
+  async generatePlayoffWeeks(
+    start_date: string,
+    end_date: string,
+    organizationId?: number,
+  ): Promise<string[]> {
+    const seasonData = await seasonService.getSeasonData(organizationId);
     const vacations = seasonData.vacation_periods || [];
-    
-    // Parse als lokale datum (niet UTC!) om DST problemen te voorkomen
-    const [startYear, startMonth, startDay] = start_date.split('-').map(Number);
-    const [endYear, endMonth, endDay] = end_date.split('-').map(Number);
-    const startDate = new Date(startYear, startMonth - 1, startDay);
-    const endDate = new Date(endYear, endMonth - 1, endDay);
-    
-    const weeks: string[] = [];
-    let currentDate = new Date(startDate);
-    
-    // Normaliseer naar maandag van de startweek
-    const dow = currentDate.getDay();
-    const daysToMonday = dow === 0 ? -6 : 1 - dow;
-    currentDate.setDate(currentDate.getDate() + daysToMonday);
-    
-    // Load existing non-playoff matches to avoid conflicts
-    const existingMatchesAll = (await fetchMatchesForSession({ is_cup_match: false }))
-      .filter((m) => !m.is_playoff_match)
-      .sort((a, b) => String(a.match_date).localeCompare(String(b.match_date)));
 
-    const existingMondays = new Set<string>();
-    existingMatchesAll.forEach((m: any) => {
-      if (!m?.match_date) return;
-      // Parse match date en normaliseer naar maandag (lokale tijd)
-      const matchDate = new Date(m.match_date);
-      const monday = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate());
-      const mdow = monday.getDay();
-      const mdelta = mdow === 0 ? -6 : 1 - mdow;
-      monday.setDate(monday.getDate() + mdelta);
-      
-      const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
-      existingMondays.add(mondayStr);
+    const {
+      listSeasonPlayableWeeks,
+      buildSeasonSlotGrids,
+      buildSlotDetailsFromSeasonData,
+      capacityForWeek,
+    } = await import("@/lib/seasonCalendar");
+    const { filterActiveSlotUnavailability } = await import("@/services/slotUnavailabilityService");
+    const { toMondayIso } = await import("@/lib/competitionPlanningEstimate");
+
+    const playable = listSeasonPlayableWeeks(start_date, end_date, vacations);
+    const existingMatchesAll = await fetchMatchesForSession({});
+    const slotDetails = buildSlotDetailsFromSeasonData(seasonData);
+    const grids = buildSeasonSlotGrids({
+      weekMondays: playable,
+      slotDetails,
+      blocks: filterActiveSlotUnavailability(seasonData.slot_unavailability),
+      vacations,
+      matches: existingMatchesAll.map((m: Record<string, unknown>) => ({
+        match_date: m.match_date as string | undefined,
+        location: m.location as string | undefined,
+        match_time: m.match_time as string | undefined,
+        is_cup_match: Boolean(m.is_cup_match),
+        is_playoff_match: Boolean(m.is_playoff_match),
+      })),
     });
 
-    while (currentDate <= endDate) {
-      const weekYear = currentDate.getFullYear();
-      const weekMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const weekDay = String(currentDate.getDate()).padStart(2, '0');
-      const weekDateStr = `${weekYear}-${weekMonth}-${weekDay}`;
-      
-      // Check vakantie - gebruik lokale datum parsing
-      const isVacation = vacations.some((vacation: any) => {
-        if (!vacation.is_active) return false;
-        const [vStartY, vStartM, vStartD] = vacation.start_date.split('-').map(Number);
-        const [vEndY, vEndM, vEndD] = vacation.end_date.split('-').map(Number);
-        const vacStart = new Date(vStartY, vStartM - 1, vStartD);
-        const vacEnd = new Date(vEndY, vEndM - 1, vEndD);
-        return currentDate >= vacStart && currentDate <= vacEnd;
-      });
-      
-      const hasConflict = existingMondays.has(weekDateStr);
-      
-      if (!isVacation && !hasConflict) {
-        weeks.push(weekDateStr);
-      }
-      
-      // Ga naar volgende week (maandag)
-      currentDate.setDate(currentDate.getDate() + 7);
-    }
-    return weeks;
+    // Hard vermijden: competitie- én bekerweken (en bestaande playoff)
+    const busyMondays = new Set(
+      existingMatchesAll
+        .filter((m: any) => m?.match_date)
+        .map((m: any) => toMondayIso(String(m.match_date))),
+    );
+
+    return playable.filter(
+      (monday) => !busyMondays.has(monday) && capacityForWeek(grids, monday) > 0,
+    );
   },
 
   // Calculate which position has BYE for a given matchday (for odd number of teams)
@@ -305,7 +287,8 @@ export const playoffService = {
     bottomPositions: number[], // e.g. [9,10,11,12,13,14,15] for bottom 7
     rounds: number,
     start_date: string,
-    end_date: string
+    end_date: string,
+    organizationId?: number,
   ): Promise<{ success: boolean; message: string }> {
     try {
       const existingPlayoffs = (await fetchMatchesForSession({})).filter(
@@ -319,10 +302,14 @@ export const playoffService = {
         };
       }
 
-      const seasonValidation = await this.validateSeasonData();
+      const seasonValidation = await this.validateSeasonData(organizationId);
       if (!seasonValidation.isValid) return { success: false, message: seasonValidation.message! };
       
-      const playingWeeks = await this.generatePlayoffWeeks(start_date, end_date);
+      const playingWeeks = await this.generatePlayoffWeeks(
+        start_date,
+        end_date,
+        organizationId,
+      );
       if (playingWeeks.length === 0) return { success: false, message: "Geen beschikbare speelweken binnen de geselecteerde periode." };
 
       // Get timeslots per day - PO1 on Monday (day 1), PO2 on Tuesday (day 2)
@@ -717,8 +704,10 @@ export const playoffService = {
       for (const { match, week, slot } of placed) {
         const { venue, timeslot } = await priorityOrderService.getMatchDetails(slot, 7);
         const baseDate = playingWeeks[week];
-        const isMonday = timeslot?.day_of_week === 1;
-        const matchDate = isMonday ? baseDate : this.addDaysToDate(baseDate, 1);
+        const matchDate = matchDateFromWeekMonday(
+          baseDate,
+          timeslot?.day_of_week,
+        );
         const matchDateTime = localDateTimeToISO(matchDate, timeslot?.start_time || '19:00');
         matchInserts.push({
           unique_number: `PO-${counter}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
