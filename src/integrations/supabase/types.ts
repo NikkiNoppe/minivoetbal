@@ -96,6 +96,63 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: number
+          message_id: string | null
+          metadata: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: never
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: never
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email?: string
+          status?: string
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          email: string
+          id: number
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: never
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: never
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       matches: {
         Row: {
           assigned_referee_id: number | null
@@ -354,6 +411,30 @@ export type Database = {
           },
         ]
       }
+      suppressed_emails: {
+        Row: {
+          created_at: string
+          email: string
+          id: number
+          metadata: Json | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: never
+          metadata?: Json | null
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: never
+          metadata?: Json | null
+          reason?: string
+        }
+        Relationships: []
+      }
       team_costs: {
         Row: {
           amount: number | null
@@ -513,6 +594,101 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      truukcity_bbq_events: {
+        Row: {
+          adult_price: number
+          child_price: number
+          created_at: string
+          currency: string
+          event_date: string
+          id: string
+          is_active: boolean
+          location: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          adult_price: number
+          child_price: number
+          created_at?: string
+          currency?: string
+          event_date: string
+          id?: string
+          is_active?: boolean
+          location?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          adult_price?: number
+          child_price?: number
+          created_at?: string
+          currency?: string
+          event_date?: string
+          id?: string
+          is_active?: boolean
+          location?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      truukcity_bbq_orders: {
+        Row: {
+          adults: number
+          children: number
+          created_at: string
+          email: string
+          event_id: string
+          id: string
+          mollie_payment_id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          adults: number
+          children: number
+          created_at?: string
+          email: string
+          event_id: string
+          id?: string
+          mollie_payment_id: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          adults?: number
+          children?: number
+          created_at?: string
+          email?: string
+          event_id?: string
+          id?: string
+          mollie_payment_id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "truukcity_bbq_orders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "truukcity_bbq_events"
             referencedColumns: ["id"]
           },
         ]
@@ -786,6 +962,15 @@ export type Database = {
         Returns: boolean
       }
       clear_app_user_context: { Args: never; Returns: undefined }
+      close_season_for_session: {
+        Args: {
+          p_cutoff_date: string
+          p_season_label: string
+          p_session_token: string
+          p_target_capital?: number
+        }
+        Returns: Json
+      }
       cost_name_implies_match_cost_suppression: {
         Args: { p_name: string }
         Returns: boolean
@@ -851,6 +1036,14 @@ export type Database = {
           username: string
         }[]
       }
+      export_season_backup_for_session: {
+        Args: {
+          p_season_label?: string
+          p_session_token: string
+          p_target_capital?: number
+        }
+        Returns: Json
+      }
       get_admin_database_backup_for_session: {
         Args: { p_session_token: string }
         Returns: Json
@@ -887,6 +1080,10 @@ export type Database = {
       get_current_user_organization_id: { Args: never; Returns: number }
       get_current_user_role: { Args: never; Returns: string }
       get_current_user_team_ids: { Args: never; Returns: number[] }
+      get_latest_season_backup_for_session: {
+        Args: { p_season_label?: string; p_session_token: string }
+        Returns: Json
+      }
       get_match_card_events: {
         Args: { p_session_token: string }
         Returns: {
@@ -974,6 +1171,7 @@ export type Database = {
           poll_month: string | null
           referee: string | null
           referee_notes: string | null
+          season_label: string | null
           skip_auto_match_costs: boolean
           speeldag: string | null
           unique_number: string | null
@@ -1082,7 +1280,7 @@ export type Database = {
         }[]
       }
       get_public_teams: {
-        Args: { p_organization_id?: number }
+        Args: { p_organization_id: number }
         Returns: {
           club_colors: string
           team_id: number
@@ -1271,7 +1469,7 @@ export type Database = {
       is_admin_user: { Args: never; Returns: boolean }
       is_current_user_admin: { Args: never; Returns: boolean }
       is_player_list_locked: {
-        Args: { p_organization_id?: number }
+        Args: { p_organization_id: number }
         Returns: boolean
       }
       is_player_suspended: {
@@ -1316,12 +1514,12 @@ export type Database = {
       logout_user: { Args: { p_session_token: string }; Returns: undefined }
       manage_application_settings_for_session: {
         Args: {
-          p_category: string
-          p_id: number
+          p_category?: string
+          p_id?: number
           p_operation: string
           p_session_token: string
-          p_setting_name: string
-          p_setting_value: Json
+          p_setting_name?: string
+          p_setting_value?: Json
         }
         Returns: Json
       }
@@ -1404,6 +1602,10 @@ export type Database = {
       match_played_with_scores: {
         Args: { p_match_id: number }
         Returns: boolean
+      }
+      preview_close_season_for_session: {
+        Args: { p_cutoff_date: string; p_session_token: string }
+        Returns: Json
       }
       remove_referee_assignment: {
         Args: { p_assignment_id: number; p_session_token: string }
