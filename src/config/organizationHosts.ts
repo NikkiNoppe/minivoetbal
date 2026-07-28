@@ -93,10 +93,12 @@ export function isPublicTenantQueryPath(pathname: string): boolean {
 }
 
 /**
- * Actieve org-slug override: superadmin-pad, daarna ?org= (dev of SuperAdmin).
+ * Actieve org-slug override: superadmin-pad, daarna ?org= (dev of SuperAdmin),
+ * en tenslotte de door SuperAdmin gekozen acting-tenant (localStorage).
  */
 export function getActiveOrgSlugOverride(options: {
   isSuperAdmin: boolean;
+  superAdminActingSlug?: string | null;
 }): string | null {
   const pathSlug = getSuperAdminPathSlug();
   if (pathSlug) {
@@ -104,20 +106,22 @@ export function getActiveOrgSlugOverride(options: {
   }
 
   const querySlug = getOrgSlugQueryParam();
-  if (!querySlug) {
-    return null;
+  if (querySlug) {
+    if (import.meta.env.DEV || options.isSuperAdmin) {
+      return querySlug;
+    }
+    if (isPublicTenantQueryPath(window.location.pathname)) {
+      return querySlug;
+    }
   }
 
-  if (import.meta.env.DEV || options.isSuperAdmin) {
-    return querySlug;
-  }
-
-  if (isPublicTenantQueryPath(window.location.pathname)) {
-    return querySlug;
+  if (options.isSuperAdmin && isKnownOrganizationSlug(options.superAdminActingSlug)) {
+    return options.superAdminActingSlug;
   }
 
   return null;
 }
+
 
 /**
  * Sync slug voor eerste paint / theme-bootstrap (geen DB-fetch).
@@ -126,10 +130,12 @@ export function getActiveOrgSlugOverride(options: {
 export function resolveBootOrganizationSlug(options?: {
   hostname?: string;
   isSuperAdmin?: boolean;
+  superAdminActingSlug?: string | null;
 }): string {
   const hostname = options?.hostname ?? getCurrentHostname();
   const override = getActiveOrgSlugOverride({
     isSuperAdmin: options?.isSuperAdmin ?? false,
+    superAdminActingSlug: options?.superAdminActingSlug ?? null,
   });
   if (override) {
     return override;
@@ -148,6 +154,7 @@ export function resolveBootOrganizationSlug(options?: {
 
   return DEFAULT_ORGANIZATION_SLUG;
 }
+
 
 export function getCurrentHostname(): string {
   return window.location.hostname;
