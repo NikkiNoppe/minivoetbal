@@ -17,6 +17,7 @@ import {
   normalizeOptionalDateField,
   normalizeVenueTimeslotForSave,
 } from "@/lib/timeslotAvailability";
+import { sortTimeslotsForDisplay } from "@/lib/timeslotBulkPresets";
 import { emitSeasonDataChanged } from "@/lib/seasonDataEvents";
 
 const TimeslotsSettings: React.FC = () => {
