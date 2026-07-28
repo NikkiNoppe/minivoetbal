@@ -1014,8 +1014,7 @@ const AdminPlayoffPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }
         }}
         size="sm"
       />
-    </div>
-  );
+    </div>;
 };
 
 export default AdminPlayoffPage;
