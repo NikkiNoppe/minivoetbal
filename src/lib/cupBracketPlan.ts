@@ -360,10 +360,9 @@ function isVacationMonday(
   vacations: VacationLike[],
   playableVacationWeeks: ReadonlySet<string> | string[] = [],
 ): boolean {
-  const exceptions =
-    playableVacationWeeks instanceof Set
-      ? playableVacationWeeks
-      : new Set(playableVacationWeeks.map((d) => d.slice(0, 10)));
+  const exceptions = Array.isArray(playableVacationWeeks)
+    ? new Set(playableVacationWeeks.map((d) => d.slice(0, 10)))
+    : playableVacationWeeks;
   if (exceptions.has(monday.slice(0, 10))) return false;
   return isDateInVacationPeriod(monday, vacations);
 }
