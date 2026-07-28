@@ -4,6 +4,7 @@ import {
   Building,
   ShieldAlert,
   Archive,
+  type LucideIcon,
 } from "lucide-react";
 import { Accordion } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
