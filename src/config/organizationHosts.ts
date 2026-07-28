@@ -130,10 +130,12 @@ export function getActiveOrgSlugOverride(options: {
 export function resolveBootOrganizationSlug(options?: {
   hostname?: string;
   isSuperAdmin?: boolean;
+  superAdminActingSlug?: string | null;
 }): string {
   const hostname = options?.hostname ?? getCurrentHostname();
   const override = getActiveOrgSlugOverride({
     isSuperAdmin: options?.isSuperAdmin ?? false,
+    superAdminActingSlug: options?.superAdminActingSlug ?? null,
   });
   if (override) {
     return override;
@@ -152,6 +154,7 @@ export function resolveBootOrganizationSlug(options?: {
 
   return DEFAULT_ORGANIZATION_SLUG;
 }
+
 
 export function getCurrentHostname(): string {
   return window.location.hostname;
