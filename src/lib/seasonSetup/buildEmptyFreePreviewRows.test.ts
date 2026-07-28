@@ -110,6 +110,25 @@ describe("buildEmptyFreePreviewRows", () => {
     });
     expect(free).toEqual([]);
   });
+
+  it("laat play-off-conceptrijen zonder tijd of locatie geen slot opeten", () => {
+    const free = buildEmptyFreePreviewRows({
+      occupiedRows: [
+        {
+          phase: "playoff",
+          speeldag: "Play-off 1",
+          homeLabel: "A",
+          awayLabel: "B",
+          match_date: "2026-09-07",
+          homeTeamId: 1,
+          awayTeamId: 2,
+        },
+      ],
+      slotDetails,
+    });
+    expect(free).toHaveLength(4);
+    expect(free.every((r) => r.phase === "free")).toBe(true);
+  });
 });
 
 describe("buildClosedCalendarPreviewRows", () => {

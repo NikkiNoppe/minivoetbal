@@ -1,5 +1,6 @@
 import {
   insertApplicationSettingForSession,
+  updateApplicationSettingForSession,
 } from '@/services/core/applicationSettingsSessionFetch';
 import {
   fetchPublicApplicationSettings,
@@ -152,11 +153,23 @@ export const seasonService = {
 
       localStorage.setItem(seasonDataStorageKey(orgId), JSON.stringify(merged));
 
-      await insertApplicationSettingForSession({
-        setting_category: 'season_data',
-        setting_name: 'main_config',
-        setting_value: merged,
-      });
+      const existingRow = findPublicSetting(
+        await fetchPublicApplicationSettings(['season_data'], orgId),
+        'season_data',
+        'main_config',
+      );
+
+      if (existingRow?.id) {
+        await updateApplicationSettingForSession(existingRow.id, {
+          setting_value: merged,
+        });
+      } else {
+        await insertApplicationSettingForSession({
+          setting_category: 'season_data',
+          setting_name: 'main_config',
+          setting_value: merged,
+        });
+      }
 
       return {
         success: true,

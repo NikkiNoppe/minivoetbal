@@ -84,6 +84,14 @@ export function orderCupDayPreference(
   return [...candidates].sort((a, b) => rank(a) - rank(b) || a - b);
 }
 
+/**
+ * Stap per rang in de bekerdag-voorkeur. Bewust groot: de bekerdag moet eerst
+ * volgelopen zijn vóór een volgende dag in beeld komt. Teamvoorkeuren (0–6) en
+ * slotprioriteit (`slotPriorityScoreBonus`, < 0,4 × aantal slots) blijven zo
+ * tie-breakers binnen dezelfde dag in plaats van de dagkeuze te overrulen.
+ */
+export const CUP_DAY_PREFERENCE_STEP = 100;
+
 /** Bonus voor slotkeuze: hogere voorkeursdag = hogere score; vermeden dagen negatief. */
 export function cupDayPreferenceBonus(
   dayOfWeek: number | null | undefined,
@@ -91,22 +99,8 @@ export function cupDayPreferenceBonus(
 ): number {
   if (dayOfWeek == null || Number.isNaN(dayOfWeek) || preferredDays.length === 0) return 0;
   const idx = preferredDays.indexOf(Math.floor(dayOfWeek));
-  if (idx < 0) return -1.5;
-  return (preferredDays.length - idx) * 0.45;
-}
-
-/** Eerste vrije slot volgens voorkeursdagen (ma → di → …; dag vóór competitie laatst). */
-export function pickPreferredCupSlotIndex(
-  freeIndices: number[],
-  getDayOfWeek: (slotIndex: number) => number | null | undefined,
-  preferredDays: number[],
-): number | null {
-  if (freeIndices.length === 0) return null;
-  for (const day of preferredDays) {
-    const hit = freeIndices.find((i) => getDayOfWeek(i) === day);
-    if (hit != null) return hit;
-  }
-  return freeIndices[0] ?? null;
+  if (idx < 0) return -CUP_DAY_PREFERENCE_STEP;
+  return (preferredDays.length - idx) * CUP_DAY_PREFERENCE_STEP;
 }
 
 /**

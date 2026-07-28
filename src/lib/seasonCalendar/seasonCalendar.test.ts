@@ -5,6 +5,7 @@ import {
   buildSeasonSlotGrids,
   capacityForWeek,
   reserveCupWeeks,
+  resolveCupBracketSlotsPerWeek,
   resolveEffectiveSlotsPerWeek,
 } from "./index";
 import type { SlotDetailLike } from "./types";
@@ -61,6 +62,56 @@ describe("buildConfigWeekGrid", () => {
     expect(plan.competitionWeeks).not.toContain("2026-08-17");
     expect(plan.weeks.some((w) => w.weekMonday === "2026-08-10")).toBe(true);
     expect(plan.weeks.some((w) => w.weekMonday === "2026-08-24")).toBe(true);
+  });
+
+  it("maakt een vakantieweek speelbaar via playableVacationWeeks", () => {
+    const slots = makeSlots(4, { dayOfWeek: 1 });
+    const vacations = [
+      {
+        start_date: "2027-04-05",
+        end_date: "2027-04-18",
+        is_active: true,
+        name: "Paasvakantie",
+      },
+    ];
+    const blocked = buildSeasonPlan({
+      seasonStart: "2027-03-29",
+      seasonEnd: "2027-04-26",
+      vacations,
+      slotDetails: slots,
+      competitionMatches: 4,
+      cupTeamCount: 0,
+      playoffMatchdays: 0,
+    });
+    expect(
+      blocked.weeks.find((w) => w.weekMonday === "2027-04-05")?.phases,
+    ).toEqual(["vacation"]);
+    expect(blocked.competitionWeeks).not.toContain("2027-04-05");
+
+    const open = buildSeasonPlan({
+      seasonStart: "2027-03-29",
+      seasonEnd: "2027-04-26",
+      vacations,
+      playableVacationWeeks: ["2027-04-05"],
+      slotDetails: slots,
+      competitionMatches: 4,
+      cupTeamCount: 0,
+      playoffMatchdays: 0,
+    });
+    const paas = open.weeks.find((w) => w.weekMonday === "2027-04-05");
+    expect(paas).toBeTruthy();
+    expect(paas!.phases).not.toContain("vacation");
+    expect(paas!.freeCount).toBeGreaterThan(0);
+    expect(open.competitionWeeks).toContain("2027-04-05");
+
+    const grid = buildConfigWeekGrid(
+      "2027-04-05",
+      slots,
+      [],
+      vacations,
+      ["2027-04-05"],
+    );
+    expect(grid.freeCount).toBe(4);
   });
 
   it("laat slots vrij binnen geldigheidsperiode", () => {
@@ -178,9 +229,11 @@ describe("buildSeasonPlan", () => {
     expect(plan.sharedCupMondays).toBeDefined();
   });
 
-  it("deelt beker/competitie alleen bij speelweken-tekort", () => {
+  it("deelt bekerweken zodra er na de beker speelmomenten vrij blijven", () => {
     const slots = makeSlots(7);
 
+    // 8 ploegen beker op 7 slots/week: de drukste ronde vult 4 momenten, dus blijft
+    // er ruimte over die de competitie mag benutten.
     const ruim = buildSeasonPlan({
       seasonStart: "2026-09-01",
       seasonEnd: "2027-05-31",
@@ -190,10 +243,16 @@ describe("buildSeasonPlan", () => {
       cupTeamCount: 8,
       playoffMatchdays: 2,
     });
-    expect(ruim.efficiency.sharedWeeks).toBe(0);
-    expect(ruim.cupDates.every((d) => !ruim.competitionWeeks.includes(d))).toBe(true);
+    expect(ruim.daySeparation.separated).toBe(true);
+    expect(ruim.efficiency.sharedWeeks).toBeGreaterThan(0);
+    expect(ruim.efficiency.sharedWeeks).toBe(ruim.sharedCupMondays.length);
+    expect(
+      ruim.sharedCupMondays.every(
+        (d) => ruim.cupDates.includes(d) && ruim.competitionWeeks.includes(d),
+      ),
+    ).toBe(true);
 
-    // Krap seizoen: forceer tekort → gedeelde weken toegestaan
+    // Krap seizoen: gedeelde weken blijven consistent met de weekstrook
     const krap = buildSeasonPlan({
       seasonStart: "2026-09-01",
       seasonEnd: "2026-12-15",
@@ -210,6 +269,23 @@ describe("buildSeasonPlan", () => {
         krap.cupDates.filter((d) => krap.competitionWeeks.includes(d)).length,
       ).toBe(krap.sharedCupMondays.length);
     }
+  });
+
+  it("deelt geen bekerweken bij één speeldag per week", () => {
+    // Alleen maandag geconfigureerd → geen dagscheiding, dus geen gedeelde weken.
+    const slots = makeSlots(4, { dayOfWeek: 1 });
+    const plan = buildSeasonPlan({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2027-05-31",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      competitionMatches: 40,
+      cupTeamCount: 8,
+      playoffMatchdays: 2,
+    });
+    expect(plan.daySeparation.separated).toBe(false);
+    expect(plan.sharedCupMondays).toEqual([]);
+    expect(plan.cupDates.every((d) => !plan.competitionWeeks.includes(d))).toBe(true);
   });
 
   it("gebruikt handmatig gekozen bekerweken", () => {
@@ -275,5 +351,39 @@ describe("resolveEffectiveSlotsPerWeek", () => {
     });
     expect(capacityForWeek(grids, "2026-09-07")).toBe(7);
     expect(resolveEffectiveSlotsPerWeek(grids, 16)).toBe(7);
+  });
+});
+
+describe("resolveCupBracketSlotsPerWeek", () => {
+  it("gebruikt piekcapaciteit voor beker-bracket", () => {
+    const slots = makeSlots(12);
+    const grids = buildSeasonSlotGrids({
+      weekMondays: ["2026-09-07", "2026-09-14", "2026-09-21"],
+      slotDetails: slots,
+    });
+    expect(resolveCupBracketSlotsPerWeek(grids, 16)).toBe(12);
+  });
+
+  it("22 teams: meer slots/week → minder bekerweken nodig", () => {
+    const slots = makeSlots(12);
+    const with12 = reserveCupWeeks({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2027-05-31",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      cupTeamCount: 22,
+    });
+    const with7 = reserveCupWeeks({
+      seasonStart: "2026-09-01",
+      seasonEnd: "2027-05-31",
+      slotDetails: makeSlots(7),
+      timeslots: makeSlots(7).map((s) => s.timeslot!),
+      cupTeamCount: 22,
+    });
+    expect(with12.effectiveSlotsPerWeek).toBe(12);
+    expect(with7.effectiveSlotsPerWeek).toBe(7);
+    expect(with12.requiredWeeks).toBeLessThan(with7.requiredWeeks);
+    expect(with12.requiredWeeks).toBe(5);
+    expect(with7.requiredWeeks).toBe(6);
   });
 });

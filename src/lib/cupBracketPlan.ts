@@ -355,7 +355,16 @@ export function earlyWeekSlotBonus(
   return Math.max(0, 3 - dist) * 0.4;
 }
 
-function isVacationMonday(monday: string, vacations: VacationLike[]): boolean {
+function isVacationMonday(
+  monday: string,
+  vacations: VacationLike[],
+  playableVacationWeeks: ReadonlySet<string> | string[] = [],
+): boolean {
+  const exceptions =
+    playableVacationWeeks instanceof Set
+      ? playableVacationWeeks
+      : new Set(playableVacationWeeks.map((d) => d.slice(0, 10)));
+  if (exceptions.has(monday.slice(0, 10))) return false;
   return isDateInVacationPeriod(monday, vacations);
 }
 
@@ -382,9 +391,11 @@ export function listPlayableMondays(
   seasonStart: string,
   seasonEnd: string,
   vacations: VacationLike[] = [],
+  playableVacationWeeks: string[] = [],
 ): string[] {
+  const exceptions = new Set(playableVacationWeeks.map((d) => d.slice(0, 10)));
   return listAllSeasonMondays(seasonStart, seasonEnd).filter(
-    (iso) => !isVacationMonday(iso, vacations),
+    (iso) => !isVacationMonday(iso, vacations, exceptions),
   );
 }
 

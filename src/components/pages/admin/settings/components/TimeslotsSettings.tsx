@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,10 @@ import { competitionDataService, type VenueTimeslot } from "@/services/competiti
 import { SectionIcon } from "@/components/layout";
 import {
   formatTimeslotPeriod,
-  normalizeTimeslotDateRange,
+  normalizeOptionalDateField,
+  normalizeVenueTimeslotForSave,
 } from "@/lib/timeslotAvailability";
+import { emitSeasonDataChanged } from "@/lib/seasonDataEvents";
 
 const TimeslotsSettings: React.FC = () => {
   const { toast } = useToast();
@@ -96,8 +98,17 @@ const TimeslotsSettings: React.FC = () => {
   const handleSave = async () => {
     if (!editingItem) return;
 
-    const from = editingItem.valid_from?.trim() || '';
-    const until = editingItem.valid_until?.trim() || '';
+    if (!orgQueryEnabled || organizationId == null) {
+      toast({
+        title: "Fout bij opslaan",
+        description: "Organisatie-context is nog niet geladen. Probeer het opnieuw.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const from = normalizeOptionalDateField(editingItem.valid_from);
+    const until = normalizeOptionalDateField(editingItem.valid_until);
     if (from && until && from > until) {
       toast({
         title: "Ongeldige periode",
@@ -107,24 +118,29 @@ const TimeslotsSettings: React.FC = () => {
       return;
     }
 
+    if (!editingItem.start_time?.trim() || !editingItem.end_time?.trim()) {
+      toast({
+        title: "Onvolledig",
+        description: "Start- en eindtijd zijn verplicht.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const currentData = await getSeasonData();
-      const updatedTimeslots = currentData.venue_timeslots || [];
+      const updatedTimeslots = [...(currentData.venue_timeslots || [])];
+      const slotId = Number(editingItem.timeslot_id);
       const existingIndex = updatedTimeslots.findIndex(
-        (t) => t.timeslot_id === editingItem.timeslot_id,
+        (t) => Number(t.timeslot_id) === slotId,
       );
 
       const venue = venues.find((v) => v.venue_id === editingItem.venue_id);
-      const dateRange = normalizeTimeslotDateRange(from || undefined, until || undefined);
-      const timeslotWithVenueName = {
-        ...editingItem,
-        ...dateRange,
-        venue_name: venue?.name || 'Unknown',
-      };
-
-      if (!dateRange.valid_from) delete timeslotWithVenueName.valid_from;
-      if (!dateRange.valid_until) delete timeslotWithVenueName.valid_until;
+      const timeslotWithVenueName = normalizeVenueTimeslotForSave(
+        editingItem,
+        venue?.name || editingItem.venue_name || "Onbekend",
+      );
 
       if (existingIndex >= 0) {
         updatedTimeslots[existingIndex] = timeslotWithVenueName;
@@ -145,7 +161,11 @@ const TimeslotsSettings: React.FC = () => {
 
         setIsEditDialogOpen(false);
         setEditingItem(null);
-        loadData();
+        emitSeasonDataChanged({
+          organizationId: organizationId ?? undefined,
+          source: "timeslots",
+        });
+        await loadData();
       } else {
         toast({
           title: "Fout bij opslaan",
@@ -153,10 +173,11 @@ const TimeslotsSettings: React.FC = () => {
           variant: "destructive",
         });
       }
-    } catch {
+    } catch (error) {
       toast({
         title: "Fout bij opslaan",
-        description: "Kon tijdslot niet opslaan",
+        description:
+          error instanceof Error ? error.message : "Kon tijdslot niet opslaan",
         variant: "destructive",
       });
     } finally {
@@ -187,6 +208,10 @@ const TimeslotsSettings: React.FC = () => {
 
         setIsDeleteDialogOpen(false);
         setDeleteItem(null);
+        emitSeasonDataChanged({
+          organizationId: organizationId ?? undefined,
+          source: "timeslots",
+        });
         loadData();
       } else {
         toast({
@@ -220,6 +245,11 @@ const TimeslotsSettings: React.FC = () => {
     const venue = venues.find((v) => v.venue_id === venueId);
     return venue?.name || 'Onbekend';
   };
+
+  const timeslotsSorted = useMemo(
+    () => sortTimeslotsForDisplay(timeslots),
+    [timeslots],
+  );
 
   return (
     <>
@@ -265,7 +295,7 @@ const TimeslotsSettings: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {timeslots.map((timeslot) => (
+                {timeslotsSorted.map((timeslot) => (
                   <TableRow key={timeslot.timeslot_id}>
                     <TableCell className="font-medium">
                       {getVenueName(timeslot.venue_id)}
@@ -311,7 +341,7 @@ const TimeslotsSettings: React.FC = () => {
         size="md"
         primaryAction={{
           label: isLoading ? 'Opslaan...' : 'Opslaan',
-          onClick: handleSave,
+          onClick: () => void handleSave(),
           variant: "primary",
           disabled: isLoading,
           loading: isLoading,
@@ -416,8 +446,19 @@ const TimeslotsSettings: React.FC = () => {
               id="priority"
               type="number"
               min="1"
-              value={editingItem?.priority ?? ''}
-              onChange={(e) => updateEditingItem('priority', parseInt(e.target.value, 10))}
+              value={
+                typeof editingItem?.priority === "number" &&
+                Number.isFinite(editingItem.priority)
+                  ? editingItem.priority
+                  : ""
+              }
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                updateEditingItem(
+                  "priority",
+                  raw === "" ? undefined : Number.parseInt(raw, 10),
+                );
+              }}
             />
           </div>
         </div>

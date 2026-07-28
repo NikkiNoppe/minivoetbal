@@ -100,6 +100,7 @@ export function seasonSetupToDemand(
     playoffMatchdays: estimatePlayoffMatchdays(setup),
     cupWeekMode: setup.cup.weekMode ?? "auto",
     cupPreferredWeeks: setup.cup.preferredWeeks ?? [],
+    playableVacationWeeks: setup.playableVacationWeeks ?? [],
   };
 }
 
@@ -112,7 +113,11 @@ export function describeCupRounds(
   return getCupBracketPlan(resolveCupTeamCount(setup, liveTeamCount), slotsPerWeek);
 }
 
-export function summarizeSeasonSetup(setup: SeasonSetup, liveTeamCount: number): string[] {
+export function summarizeSeasonSetup(
+  setup: SeasonSetup,
+  liveTeamCount: number,
+  slotsPerWeek?: number,
+): string[] {
   const lines: string[] = [];
   if (setup.systems.competition) {
     const matches = estimateCompetitionMatches(setup);
@@ -131,7 +136,7 @@ export function summarizeSeasonSetup(setup: SeasonSetup, liveTeamCount: number):
   }
   if (setup.systems.cup) {
     const n = resolveCupTeamCount(setup, liveTeamCount);
-    const plan = getCupBracketPlan(n);
+    const plan = getCupBracketPlan(n, slotsPerWeek);
     const roundNames = plan.roundLabels
       .map((r) => (r.type === "group" ? r.name : r.name))
       .join(" → ");

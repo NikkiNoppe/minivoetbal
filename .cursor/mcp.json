@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "context-engine": {
+      "command": "/Users/nikki/.local/bin/cce",
+      "args": [
+        "serve",
+        "--project-dir",
+        "/Users/nikki/GitHub/minivoetbal"
+      ]
+    }
+  }
+}

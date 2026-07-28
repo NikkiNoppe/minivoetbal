@@ -51,6 +51,14 @@ export {
   type UnifiedSeasonPreview,
 } from "./buildUnifiedPreview";
 export { commitUnifiedSeasonPreview } from "./commitUnifiedSeasonPreview";
+export {
+  clearSeasonPreviewSession,
+  getSeasonPreviewSession,
+  runSeasonPreviewGeneration,
+  subscribeSeasonPreviewSession,
+  type SeasonPreviewProgress,
+  type SeasonPreviewSessionState,
+} from "./seasonPreviewSession";
 export type {
   UnifiedCommitMatchPlan,
   UnifiedPlayoffCommitIntent,

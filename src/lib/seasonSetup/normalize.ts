@@ -53,6 +53,7 @@ export function createDefaultSeasonSetup(teamCount = 14): SeasonSetup {
       bottomTeams: 8,
       rounds: 2,
     },
+    playableVacationWeeks: [],
   };
 }
 
@@ -114,12 +115,21 @@ function normalizeCompetition(
   };
 }
 
+function normalizeIsoMondays(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw.filter(
+        (d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
+      ),
+    ),
+  ].sort();
+}
+
 function normalizeCup(raw: Partial<SeasonSetupCup> | undefined, teamCount: number): SeasonSetupCup {
   const useAllTeams = raw?.useAllTeams !== false;
   const weekMode = raw?.weekMode === "manual" ? "manual" : "auto";
-  const preferredWeeks = Array.isArray(raw?.preferredWeeks)
-    ? [...new Set(raw.preferredWeeks.filter((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort()
-    : [];
+  const preferredWeeks = normalizeIsoMondays(raw?.preferredWeeks);
   return {
     useAllTeams,
     teamCount: clampInt(raw?.teamCount, 2, 128, teamCount),
@@ -148,6 +158,7 @@ export function normalizeSeasonSetup(
     competition: normalizeCompetition(raw.competition, teamCount),
     cup: normalizeCup(raw.cup, teamCount),
     playoffs: normalizePlayoffs(raw.playoffs),
+    playableVacationWeeks: normalizeIsoMondays(raw.playableVacationWeeks),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
   };
 }

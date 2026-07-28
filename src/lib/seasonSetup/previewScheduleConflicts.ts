@@ -4,9 +4,15 @@
  */
 
 import { toMondayIso } from "@/lib/competitionPlanningEstimate";
+import {
+  hasMinimumDaySeparation,
+  hasSufficientDayGapBetweenDates,
+  MIN_DUAL_WEEK_DAY_GAP,
+  MIN_SAME_WEEK_DAY_GAP,
+} from "@/lib/competitionWeekPacking";
 import type { UnifiedPreviewRow } from "./buildUnifiedPreview";
 
-export type PreviewConflictKind = "double" | "advance_risk";
+export type PreviewConflictKind = "double" | "advance_risk" | "shared_week";
 
 export type PreviewTeamConflict = {
   cellKey: string;
@@ -46,8 +52,47 @@ export function previewConflictCellKey(
 }
 
 /**
+ * Twee wedstrijden in één week: min. 2 dagen ertussen (max. 2 / ploeg / week).
+ * Zelfde dag of opeenvolgende dagen = conflict.
+ */
+function isAllowedDualWeekGap(
+  apps: Array<{ phase: string; date: string }>,
+): boolean {
+  if (apps.length !== 2) return false;
+  return hasMinimumDaySeparation(
+    apps[0].date,
+    apps[1].date,
+    MIN_DUAL_WEEK_DAY_GAP,
+  );
+}
+
+/**
+ * Beker + competitie in dezelfde week met ≥3 dagen ertussen (klassieke uitzondering),
+ * of ≥2 dagen bij dual/force-spreiding.
+ */
+function isAllowedSharedWeekGap(
+  apps: Array<{ phase: string; date: string }>,
+): boolean {
+  if (apps.length !== 2) return false;
+  const phases = new Set(apps.map((a) => a.phase));
+  if (!(phases.has("cup") && phases.has("competition"))) return false;
+  const cup = apps.find((a) => a.phase === "cup")!;
+  const competition = apps.find((a) => a.phase === "competition")!;
+  if (hasSufficientDayGapBetweenDates(cup.date, competition.date, MIN_SAME_WEEK_DAY_GAP)) {
+    return true;
+  }
+  // Dual/doorstroming: min. 2 dagen (ma→wo) telt ook als gedeelde week
+  return hasMinimumDaySeparation(
+    cup.date,
+    competition.date,
+    MIN_DUAL_WEEK_DAY_GAP,
+  );
+}
+
+/**
  * Analyseer preview-rijen op:
- * - double: zelfde ploeg ≥2× in dezelfde ISO-week
+ * - double: zelfde ploeg ≥2× in dezelfde ISO-week zonder geldige dagspreiding
+ * - shared_week: 2× in één week op verschillende dagen (toegestaan, max. 2)
  * - advance_risk: bekerploeg kan doorstromen naar latere bekerweek waar ze al competitie hebben
  */
 export function analyzePreviewTeamConflicts(
@@ -91,6 +136,29 @@ export function analyzePreviewTeamConflicts(
   for (const [, apps] of byTeamWeek) {
     if (apps.length < 2) continue;
     const phases = [...new Set(apps.map((x) => x.phase))].join(" + ");
+    if (isAllowedSharedWeekGap(apps) || isAllowedDualWeekGap(apps)) {
+      const d1 = apps[0].date;
+      const d2 = apps[1].date;
+      const classicGap = isAllowedSharedWeekGap(apps) &&
+        apps.some((a) => a.phase === "cup") &&
+        apps.some((a) => a.phase === "competition") &&
+        hasSufficientDayGapBetweenDates(
+          apps.find((a) => a.phase === "cup")!.date,
+          apps.find((a) => a.phase === "competition")!.date,
+          MIN_SAME_WEEK_DAY_GAP,
+        );
+      for (const a of apps) {
+        results.push({
+          cellKey: a.cellKey,
+          teamId: a.teamId,
+          kind: "shared_week",
+          reason: classicGap
+            ? `Gedeelde week: beker + competitie op ${d1} / ${d2} — ≥${MIN_SAME_WEEK_DAY_GAP} dagen ertussen`
+            : `2× deze week op ${d1} / ${d2} — min. ${MIN_DUAL_WEEK_DAY_GAP} dagen ertussen (toegestaan, max. 2)`,
+        });
+      }
+      continue;
+    }
     for (const a of apps) {
       doubleKeys.add(a.cellKey);
       results.push({
@@ -154,13 +222,20 @@ export function analyzePreviewTeamConflicts(
   return results;
 }
 
+/** Ernst per soort: een harde dubbele boeking wint van een waarschuwing of info. */
+const CONFLICT_SEVERITY: Record<PreviewConflictKind, number> = {
+  double: 3,
+  advance_risk: 2,
+  shared_week: 1,
+};
+
 export function conflictLookup(
   conflicts: PreviewTeamConflict[],
 ): Map<string, PreviewTeamConflict> {
   const map = new Map<string, PreviewTeamConflict>();
   for (const c of conflicts) {
     const prev = map.get(c.cellKey);
-    if (!prev || (prev.kind === "advance_risk" && c.kind === "double")) {
+    if (!prev || CONFLICT_SEVERITY[c.kind] > CONFLICT_SEVERITY[prev.kind]) {
       map.set(c.cellKey, c);
     }
   }

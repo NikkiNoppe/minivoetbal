@@ -59,6 +59,9 @@ export async function loadSlotPlanningContext(
   const seasonData = await seasonService.getSeasonData(organizationId);
   const blocks = filterActiveSlotUnavailability(seasonData.slot_unavailability);
   const vacations: VacationLike[] = seasonData.vacation_periods ?? [];
+  const { normalizeSeasonSetup } = await import("@/lib/seasonSetup");
+  const playableVacationWeeks =
+    normalizeSeasonSetup(seasonData.season_setup).playableVacationWeeks ?? [];
   const slotDetails = buildSlotDetailsFromSeasonData(seasonData);
   const totalSlots = Math.max(slotDetails.length, 1);
 
@@ -75,6 +78,7 @@ export async function loadSlotPlanningContext(
         blocks,
         configuredMax,
         vacations,
+        playableVacationWeeks,
       ),
     getAvailableSlotIndices: (weekMonday) =>
       getAvailableSlotIndicesForWeek(
@@ -83,9 +87,16 @@ export async function loadSlotPlanningContext(
         slotDetails,
         blocks,
         vacations,
+        playableVacationWeeks,
       ),
     getBlockedSlotIndices: (weekMonday) =>
-      getBlockedSlotIndicesForWeek(weekMonday, slotDetails, blocks, vacations),
+      getBlockedSlotIndicesForWeek(
+        weekMonday,
+        slotDetails,
+        blocks,
+        vacations,
+        playableVacationWeeks,
+      ),
     getSlotIndexForUsage: (weekMonday, slotsUsed) => {
       const available = getAvailableSlotIndicesForWeek(
         weekMonday,
@@ -93,6 +104,7 @@ export async function loadSlotPlanningContext(
         slotDetails,
         blocks,
         vacations,
+        playableVacationWeeks,
       );
       if (slotsUsed >= available.length) return null;
       return available[slotsUsed];

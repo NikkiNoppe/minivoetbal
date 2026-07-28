@@ -29,13 +29,13 @@ import {
   type CupTeamRankMap,
 } from "@/lib/cupTeamSeeding";
 import { pickPriorityCandidateSlots, slotPriorityScoreBonus } from "@/lib/slotPriorityPacking";
+import { scopeSlotsByCupDayPreference } from "@/lib/competitionPreferredDayScope";
 import {
   pickSpacedPlayDayPair,
   getConfiguredPlayDays,
   toMondayIso,
   orderCupDayPreference,
   cupDayPreferenceBonus,
-  pickPreferredCupSlotIndex,
 } from "@/lib/competitionPlanningEstimate";
 import { requireOrganizationId } from "@/lib/organizationScope";
 
@@ -193,6 +193,9 @@ export const bekerService = {
     const venues = seasonData.venues || [];
     const timeslots = seasonData.venue_timeslots || [];
     const vacations = seasonData.vacation_periods || [];
+    const { normalizeSeasonSetup } = await import("@/lib/seasonSetup");
+    const playableVacationWeeks =
+      normalizeSeasonSetup(seasonData.season_setup).playableVacationWeeks ?? [];
 
     if (venues.length === 0) {
       return { isValid: false, message: "Geen venues beschikbaar in de database. Configureer eerst de competitiedata." };
@@ -202,10 +205,20 @@ export const bekerService = {
       return { isValid: false, message: "Geen tijdslots beschikbaar in de database. Configureer eerst de competitiedata." };
     }
 
-    return { isValid: true, data: { venues, timeslots, vacations, organizationId: orgId } };
+    return {
+      isValid: true,
+      data: { venues, timeslots, vacations, playableVacationWeeks, organizationId: orgId },
+    };
   },
 
-  validateVacationConflicts(selectedDates: string[], vacations: any[]): { isValid: boolean; message?: string } {
+  validateVacationConflicts(
+    selectedDates: string[],
+    vacations: any[],
+    playableVacationWeeks: string[] = [],
+  ): { isValid: boolean; message?: string } {
+    const exceptions = new Set(
+      playableVacationWeeks.map((d) => toMondayIso(String(d).split("T")[0])),
+    );
     for (const dateStr of selectedDates) {
       const selectedIso = dateStr.split("T")[0];
       const selectedDate = new Date(`${selectedIso}T12:00:00`);
@@ -217,6 +230,9 @@ export const bekerService = {
       });
 
       if (vacation) {
+        if (exceptions.has(toMondayIso(selectedIso))) {
+          continue;
+        }
         return {
           isValid: false,
           message: `Geselecteerde datum ${selectedDate.toLocaleDateString("nl-BE")} valt in vakantieperiode: ${vacation?.name}`,
@@ -496,13 +512,17 @@ export const bekerService = {
         return { success: false, message: seasonValidation.message!, plan: [] };
       }
 
-      const { venues, vacations, timeslots } = seasonValidation.data!;
+      const { venues, vacations, timeslots, playableVacationWeeks } = seasonValidation.data!;
       const playDays = getConfiguredPlayDays(timeslots || []);
       const daySep = pickSpacedPlayDayPair(playDays);
       const preferredCupDays = orderCupDayPreference(daySep.early, daySep.late, playDays);
 
       // Validate vacation conflicts
-      const vacationValidation = bekerService.validateVacationConflicts(selectedDates, vacations);
+      const vacationValidation = bekerService.validateVacationConflicts(
+        selectedDates,
+        vacations,
+        playableVacationWeeks ?? [],
+      );
       if (!vacationValidation.isValid) {
         return { success: false, message: vacationValidation.message!, plan: [] };
       }
@@ -675,10 +695,17 @@ export const bekerService = {
             scoreMatrix.push(row);
           }
 
-          const allSlots = pickPriorityCandidateSlots(
+          // Bekerdag eerst volledig vullen; pas uitwijken als die dag te klein is.
+          const cupDayScoped = scopeSlotsByCupDayPreference(
             availableSlots,
             m,
-            (c) => scoreMatrix.some((row) => (row[c]?.combined ?? -1) >= 0),
+            (s) => slotDetails[s]?.timeslot?.day_of_week,
+            preferredCupDays,
+          );
+          const allSlots = pickPriorityCandidateSlots(
+            cupDayScoped,
+            m,
+            (c) => !blocked.has(c),
           );
           let assignment: Array<{ matchIdx: number; slot: number; h: number; a: number; combined: number }> = [];
           let bestSum = -1;
@@ -780,11 +807,12 @@ export const bekerService = {
 
             const free = getFreeSlotIndices(weekMonday).filter((s) => !used.has(s));
             const slotIndex =
-              pickPreferredCupSlotIndex(
+              scopeSlotsByCupDayPreference(
                 free,
+                1,
                 (s) => slotDetails[s]?.timeslot?.day_of_week,
                 preferredCupDays,
-              ) ?? Math.min(i, Math.max(0, slotDetails.length - 1));
+              )[0] ?? Math.min(i, Math.max(0, slotDetails.length - 1));
             used.add(slotIndex);
 
             const { venue, timeslot } = slotDetails[slotIndex] ?? {
@@ -923,7 +951,7 @@ export const bekerService = {
         return { success: false, message: seasonValidation.message! };
       }
 
-      const { venues, timeslots, vacations } = seasonValidation.data!;
+      const { venues, timeslots, vacations, playableVacationWeeks } = seasonValidation.data!;
       const slotsPerWeek = Math.max(1, timeslots?.length || 7);
       const playDays = getConfiguredPlayDays(timeslots || []);
       const daySep = pickSpacedPlayDayPair(playDays);
@@ -940,7 +968,11 @@ export const bekerService = {
       console.log('🏖️ Vacation periods:', vacations.length);
 
       // Validate vacation conflicts
-      const vacationValidation = bekerService.validateVacationConflicts(selectedDates, vacations);
+      const vacationValidation = bekerService.validateVacationConflicts(
+        selectedDates,
+        vacations,
+        playableVacationWeeks ?? [],
+      );
       if (!vacationValidation.isValid) {
         return { success: false, message: vacationValidation.message! };
       }

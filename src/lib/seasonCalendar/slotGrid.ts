@@ -58,8 +58,13 @@ export function buildConfigWeekGrid(
   slotDetails: SlotDetailLike[],
   blocks: SlotUnavailability[] = [],
   vacations: VacationLike[] = [],
+  playableVacationWeeks: string[] = [],
 ): WeekSlotGrid {
   const monday = toMondayIso(weekMonday);
+  const vacationExceptions = new Set(
+    playableVacationWeeks.map((d) => toMondayIso(d)),
+  );
+  const ignoreVacation = vacationExceptions.has(monday);
   const slots: EffectiveSlot[] = slotDetails.map((row, index) => {
     const ts = row.timeslot;
     if (!ts) {
@@ -69,7 +74,8 @@ export function buildConfigWeekGrid(
     const venueId = typeof ts.venue_id === "number" ? ts.venue_id : -1;
     const timeslotId = typeof ts.timeslot_id === "number" ? ts.timeslot_id : -1;
     const invalid = !isTimeslotValidOnDate(ts, matchDate);
-    const onVacation = isDateInVacationPeriod(matchDate, vacations);
+    const onVacation =
+      !ignoreVacation && isDateInVacationPeriod(matchDate, vacations);
     const blocked =
       invalid ||
       onVacation ||
@@ -194,13 +200,22 @@ export function buildSeasonSlotGrids(input: {
   blocks?: SlotUnavailability[];
   matches?: OccupancyMatchLike[];
   vacations?: VacationLike[];
+  /** Vakantieweken die uitzonderlijk speelbaar blijven. */
+  playableVacationWeeks?: string[];
 }): Map<string, WeekSlotGrid> {
   const map = new Map<string, WeekSlotGrid>();
   const blocks = input.blocks ?? [];
   const vacations = input.vacations ?? [];
   const matches = input.matches ?? [];
+  const playableVacationWeeks = input.playableVacationWeeks ?? [];
   for (const week of input.weekMondays) {
-    const config = buildConfigWeekGrid(week, input.slotDetails, blocks, vacations);
+    const config = buildConfigWeekGrid(
+      week,
+      input.slotDetails,
+      blocks,
+      vacations,
+      playableVacationWeeks,
+    );
     map.set(
       toMondayIso(week),
       applyOccupancyToWeekGrid(config, matches, input.slotDetails),

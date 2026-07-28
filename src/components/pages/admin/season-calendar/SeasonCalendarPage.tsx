@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PageHeader } from "@/components/layout";
-import { AlertCircle, CalendarRange, Info, Loader2, Save, Sparkles, Wand2 } from "lucide-react";
+import { AlertCircle, CalendarRange, Info, Loader2, Save, Sparkles, Wand2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { useOrgAwareNavigate } from "@/hooks/useOrgAwareNavigate";
@@ -22,14 +22,17 @@ import {
   type SeasonPlan,
 } from "@/lib/seasonCalendar";
 import {
-  buildUnifiedSeasonPreview,
   commitUnifiedSeasonPreview,
   createDefaultSeasonSetup,
   ensureAtLeastOneSystem,
   estimateCompetitionMatchdays,
+  getSeasonPreviewSession,
   mergeSeasonSetupIntoFormats,
   normalizeSeasonSetup,
+  runSeasonPreviewGeneration,
   seasonSetupToDemand,
+  subscribeSeasonPreviewSession,
+  type SeasonPreviewProgress,
   type SeasonSetup,
   type UnifiedSeasonPreview,
 } from "@/lib/seasonSetup";
@@ -106,9 +109,28 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
   const [seasonBounds, setSeasonBounds] = useState<{ start: string; end: string } | null>(
     null,
   );
-  const [unifiedPreview, setUnifiedPreview] = useState<UnifiedSeasonPreview | null>(null);
-  const [previewing, setPreviewing] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewSession = useSyncExternalStore(
+    subscribeSeasonPreviewSession,
+    getSeasonPreviewSession,
+    getSeasonPreviewSession,
+  );
+  const unifiedPreview =
+    organizationId != null &&
+    previewSession.organizationId === organizationId
+      ? previewSession.preview
+      : null;
+  const previewing = previewSession.loading;
+  const previewError =
+    organizationId != null &&
+    previewSession.organizationId === organizationId
+      ? previewSession.error
+      : null;
+  const previewProgress: SeasonPreviewProgress | null =
+    previewing &&
+    organizationId != null &&
+    previewSession.organizationId === organizationId
+      ? previewSession.progress
+      : null;
   const [confirmingPreview, setConfirmingPreview] = useState(false);
   const [settingsSyncing, setSettingsSyncing] = useState(false);
   const settingsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -469,11 +491,17 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
 
   const weeksToShow = useMemo(() => plan?.weeks ?? [], [plan]);
   const cupRequiredWeeks = plan?.cupBracket.requiredWeeks ?? 0;
+  const cupSlotsPerWeek = plan?.cupBracket.slotsPerWeekUsed ?? 0;
   const preferredCupWeeks = setup.cup.preferredWeeks ?? [];
   const cupWeekMode = setup.cup.weekMode ?? "auto";
   const preferredCupSet = useMemo(
-    () => new Set(preferredCupWeeks),
+    () => new Set(preferredCupWeeks.map((d) => d.slice(0, 10))),
     [preferredCupWeeks],
+  );
+  const playableVacationWeeks = setup.playableVacationWeeks ?? [];
+  const playableVacationSet = useMemo(
+    () => new Set(playableVacationWeeks.map((d) => d.slice(0, 10))),
+    [playableVacationWeeks],
   );
 
   const cupWeekAdvice = useMemo(() => {
@@ -579,6 +607,39 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     ],
   );
 
+  const togglePlayableVacationWeek = useCallback(
+    (weekMonday: string) => {
+      const monday = weekMonday.slice(0, 10);
+      const current = setup.playableVacationWeeks ?? [];
+      const exists = current.some((d) => d.slice(0, 10) === monday);
+      const playableVacationWeeksNext = exists
+        ? current.filter((d) => d.slice(0, 10) !== monday)
+        : [...current, monday].sort();
+
+      toast({
+        title: exists ? "Uitzondering verwijderd" : "Vakantieweek speelbaar",
+        description: exists
+          ? "Deze week is opnieuw een vakantieweek (geen wedstrijden)."
+          : "Deze week telt uitzonderlijk mee als speelweek (slots openen opnieuw).",
+      });
+
+      void applySetupAndRefreshPlan({
+        ...setup,
+        playableVacationWeeks: playableVacationWeeksNext,
+        // Bekerkeuze op een week die terug vakantie wordt, opruimen
+        cup: exists
+          ? {
+              ...setup.cup,
+              preferredWeeks: (setup.cup.preferredWeeks ?? []).filter(
+                (d) => d.slice(0, 10) !== monday,
+              ),
+            }
+          : setup.cup,
+      });
+    },
+    [setup, applySetupAndRefreshPlan, toast],
+  );
+
   const setCupWeekMode = useCallback(
     (weekMode: "auto" | "manual") => {
       void applySetupAndRefreshPlan({
@@ -621,10 +682,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     });
   }, [setup, applySetupAndRefreshPlan]);
 
-  const handleUnifiedPreview = useCallback(async () => {
+  const handleUnifiedPreview = useCallback(async (opts?: {
+    allowDualMatchWeek?: boolean;
+  }) => {
     if (!orgQueryEnabled || organizationId == null || !seasonBounds) {
       const msg = "Seizoensperiode ontbreekt of organisatie is niet geladen.";
-      setPreviewError(msg);
       toast({
         title: "Preview niet mogelijk",
         description: msg,
@@ -634,60 +696,63 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     }
     if (teams.length === 0) {
       const msg = "Geen teams geladen — kan geen preview maken.";
-      setPreviewError(msg);
       toast({ title: "Preview niet mogelijk", description: msg, variant: "destructive" });
       return;
     }
+    const forceDual = Boolean(opts?.allowDualMatchWeek);
     try {
-      setPreviewing(true);
-      setPreviewError(null);
-      setUnifiedPreview(null);
-      let activePlan = plan;
-      if (!activePlan) {
-        activePlan = await buildPlanFromSetup(setup, liveTeamCount);
-        if (activePlan) setPlan(activePlan);
-      }
-      const result = await buildUnifiedSeasonPreview({
+      const result = await runSeasonPreviewGeneration({
+        organizationId,
         setup,
         seasonStart: seasonBounds.start,
         seasonEnd: seasonBounds.end,
-        organizationId,
         teams,
-        plan: activePlan,
+        plan,
+        allowDualMatchWeek: forceDual,
+        prepare: async () => {
+          seasonService.clearSeasonDataCache(organizationId);
+          const activePlan = await buildPlanFromSetup(setup, liveTeamCount);
+          if (activePlan) setPlan(activePlan);
+          return activePlan;
+        },
       });
-      setUnifiedPreview(result);
+      if (!result) return; // vervangen door nieuwere run of unmount
       const ok = result.sections.filter((s) => s.success).length;
       const fail = result.sections.filter((s) => !s.success).length;
       const freeCount = result.rows.filter((r) => r.phase === "free").length;
       const matchCount = result.rows.length - freeCount;
       toast({
-        title: matchCount > 0 ? "Preview klaar" : "Preview zonder wedstrijden",
+        title: forceDual
+          ? matchCount > 0
+            ? "Geforceerd schema klaar"
+            : "Geforceerd schema zonder wedstrijden"
+          : matchCount > 0
+            ? "Preview klaar"
+            : "Preview zonder wedstrijden",
         description: `${matchCount} wedstrijden${
           freeCount ? ` · ${freeCount} leeg` : ""
-        } · ${ok} systeem(en) ok${fail ? ` · ${fail} met fout` : ""}`,
+        } · ${ok} systeem(en) ok${fail ? ` · ${fail} met fout` : ""}${
+          forceDual ? " · max. 2×/week" : ""
+        }`,
         variant: matchCount > 0 || ok > 0 ? "default" : "destructive",
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Onbekende fout";
       console.error("Unified season preview failed:", e);
-      setPreviewError(msg);
-      setUnifiedPreview(null);
       toast({
         title: "Preview mislukt",
         description: msg,
         variant: "destructive",
       });
-    } finally {
-      setPreviewing(false);
     }
   }, [
     orgQueryEnabled,
     organizationId,
     seasonBounds,
-    plan,
     setup,
     liveTeamCount,
     teams,
+    plan,
     buildPlanFromSetup,
     toast,
   ]);
@@ -770,14 +835,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
           subtitle="Kies speelsystemen, configureer rondes en bekijk de kalender"
           icon={CalendarRange}
         />
-      ) : (
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-brand-dark">Seizoensopzet</h2>
-          <p className="text-sm text-muted-foreground">
-            Meerdere systemen tegelijk · kalender volgt uit jouw keuzes
-          </p>
-        </div>
-      )}
+      ) : null}
 
       {!seasonBounds ? (
         <Alert>
@@ -799,6 +857,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
       <SeasonSetupPanel
         setup={setup}
         liveTeamCount={liveTeamCount}
+        slotsPerWeek={plan?.cupBracket.slotsPerWeekUsed}
         teams={teams}
         allowedSystems={allowedSystems}
         onChange={handleSetupChange}
@@ -848,10 +907,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
           >
             Kalender
           </h3>
-          <p className="text-sm text-muted-foreground">
-            Volgt Instellingen (vakanties, veld niet beschikbaar, seizoensperiode). Wordt
-            automatisch bijgewerkt als je terugkomt van Instellingen — of via vernieuwen.
-          </p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -921,27 +976,13 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
             </Card>
           </div>
 
-          {plan.efficiency.sharedWeeks > 0 ? (
-            <Alert className="border-amber-400/40 bg-amber-50/80 text-amber-950">
-              <Info className="h-4 w-4" aria-hidden />
-              <AlertDescription className="text-sm">
-                Speelweken-tekort: {plan.efficiency.sharedWeeks} week(en) worden gedeeld.
-                Beker bij voorkeur op{" "}
-                <span className="font-medium">{plan.daySeparation.earlyLabel}</span>, competitie
-                op <span className="font-medium">{plan.daySeparation.lateLabel}</span>.
-                Standaard speelt een ploeg max. 1× per week; uitzonderlijk mag beker + competitie
-                als er ≥3 dagen tussen zitten. Bij genoeg weken blijft alles exclusief.
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
           <Card className="border-primary/20 shadow-lg">
             <CardHeader>
               <CardTitle className="text-base">Weekstrook</CardTitle>
               <CardDescription>
                 {setup.systems.cup
-                  ? "Tik op weken voor beker. Bij speelweken-tekort mogen beker en competitie dezelfde week delen op verschillende speeldagen; anders blijven ze exclusief."
-                  : "Effectieve capaciteit per week op basis van de gekozen speelsystemen."}
+                  ? "Tik op weken voor beker. Vakantieweken kun je uitzonderlijk speelbaar maken. Blijven er na de beker speelmomenten vrij, dan vult de competitie die op met ploegen die die week geen beker spelen."
+                  : "Effectieve capaciteit per week. Tik op een vakantieweek om die uitzonderlijk speelbaar te maken."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -952,7 +993,13 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                       Bekerweken{" "}
                       <span className="font-normal text-muted-foreground">
                         ({preferredCupWeeks.length}
-                        {cupRequiredWeeks > 0 ? ` gekozen · ${cupRequiredWeeks} nodig` : " gekozen"})
+                        {cupRequiredWeeks > 0
+                          ? ` gekozen · ${cupRequiredWeeks} nodig${
+                              cupSlotsPerWeek > 0
+                                ? ` · ~${cupSlotsPerWeek} slots/week`
+                                : ""
+                            }`
+                          : " gekozen"})
                       </span>
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -1053,8 +1100,48 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                 </div>
               ) : null}
 
+              <div className="space-y-2 rounded-lg border border-sky-300/50 bg-sky-50/70 p-3">
+                <p className="text-sm font-medium text-sky-950">
+                  Speeluitzonderingen (vakantie)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Tik op een vakantieweek hieronder om die speelbaar te maken. Verwijder
+                  een uitzondering hier of via de knop onder die week.
+                </p>
+                {playableVacationWeeks.length > 0 ? (
+                  <ul className="flex flex-wrap gap-2" aria-label="Actieve speeluitzonderingen">
+                    {playableVacationWeeks.map((monday) => {
+                      const key = monday.slice(0, 10);
+                      return (
+                        <li key={key}>
+                          <button
+                            type="button"
+                            onClick={() => togglePlayableVacationWeek(key)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 min-h-[44px] rounded-md border px-3",
+                              "border-sky-400/70 bg-card text-sky-950 text-sm",
+                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              "hover:bg-sky-100/80",
+                            )}
+                            aria-label={`Uitzondering ${formatWeekLabel(key)} verwijderen`}
+                          >
+                            <span className="tabular-nums">{formatWeekLabel(key)}</span>
+                            <X className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Nog geen uitzonderingen — vakantieweken blijven gesloten.
+                  </p>
+                )}
+              </div>
+
               <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                 {weeksToShow.map((week) => {
+                  const monday = week.weekMonday.slice(0, 10);
                   const isShared =
                     week.phases.includes("cup") && week.phases.includes("competition");
                   const primary = isShared
@@ -1067,16 +1154,19 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                       : 0;
                   const isBlocked =
                     week.configAvailableCount <= 0 || week.phases.includes("blocked");
-                  const isCupPreferred = preferredCupSet.has(week.weekMonday);
+                  const isVacation = week.phases.includes("vacation");
+                  const isVacationException = playableVacationSet.has(monday);
+                  const isCupPreferred = preferredCupSet.has(monday);
                   const isCupAssigned = week.phases.includes("cup");
-                  const weekAdvice = cupWeekAdvice?.byWeek.get(week.weekMonday);
+                  const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
                   const selectability = weekAdvice?.selectability;
                   const cupInteractive = Boolean(setup.systems.cup);
+                  const vacationInteractive = isVacation || isVacationException;
 
                   const content = (
                     <>
                       <span className="text-xs font-medium tabular-nums">
-                        {formatWeekLabel(week.weekMonday)}
+                        {formatWeekLabel(monday)}
                       </span>
                       {isShared ? (
                         <Badge
@@ -1090,6 +1180,14 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                           {style.label}
                         </Badge>
                       )}
+                      {isVacationException ? (
+                        <Badge
+                          variant="outline"
+                          className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
+                        >
+                          Uitzondering
+                        </Badge>
+                      ) : null}
                       {week.sharedDayHint ? (
                         <span className="text-[10px] leading-tight text-muted-foreground">
                           {week.sharedDayHint}
@@ -1134,9 +1232,25 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     </>
                   );
 
-                  if (!cupInteractive) {
+                  const handleWeekClick = () => {
+                    if (isVacation) {
+                      togglePlayableVacationWeek(monday);
+                      return;
+                    }
+                    if (isVacationException && !cupInteractive) {
+                      togglePlayableVacationWeek(monday);
+                      return;
+                    }
+                    if (cupInteractive) {
+                      toggleCupWeek(monday);
+                    }
+                  };
+
+                  const isInteractive = vacationInteractive || cupInteractive;
+
+                  if (!isInteractive) {
                     return (
-                      <li key={week.weekMonday}>
+                      <li key={monday}>
                         <div
                           className={cn(
                             "rounded-lg border p-2 min-h-[72px] flex flex-col gap-1",
@@ -1152,41 +1266,62 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
 
                   const isSelectedVisual =
                     isCupPreferred ||
-                    (isCupAssigned && cupWeekMode === "auto" && !weekAdvice?.blockReason);
-                  const ringClass =
-                    selectability === "blocked"
-                      ? "opacity-55"
-                      : isCupPreferred && selectability === "tight"
-                        ? "ring-2 ring-orange-500 border-orange-500"
-                        : isSelectedVisual
-                          ? "ring-2 ring-amber-500 border-amber-500"
-                          : selectability === "suggested"
-                            ? "border-2 border-dashed border-primary/50"
-                            : selectability === "tight"
-                              ? "ring-1 ring-orange-300/80 border-orange-300/60"
-                              : null;
+                    (isCupAssigned && cupWeekMode === "auto" && !weekAdvice?.blockReason) ||
+                    isVacationException;
+                  const ringClass = isVacation
+                    ? "opacity-80 hover:opacity-100 border-dashed"
+                    : isVacationException
+                      ? "ring-2 ring-sky-500 border-sky-500"
+                      : selectability === "blocked"
+                        ? "opacity-55"
+                        : isCupPreferred && selectability === "tight"
+                          ? "ring-2 ring-orange-500 border-orange-500"
+                          : isSelectedVisual
+                            ? "ring-2 ring-amber-500 border-amber-500"
+                            : selectability === "suggested"
+                              ? "border-2 border-dashed border-primary/50"
+                              : selectability === "tight"
+                                ? "ring-1 ring-orange-300/80 border-orange-300/60"
+                                : null;
 
                   return (
-                    <li key={week.weekMonday}>
+                    <li key={monday} className="space-y-1">
                       <button
                         type="button"
-                        onClick={() => toggleCupWeek(week.weekMonday)}
-                        aria-pressed={isCupPreferred || isCupAssigned}
-                        aria-disabled={selectability === "blocked" && !isCupPreferred}
+                        onClick={handleWeekClick}
+                        aria-pressed={
+                          isVacation
+                            ? false
+                            : isVacationException || isCupPreferred || isCupAssigned
+                        }
+                        aria-disabled={
+                          !isVacation &&
+                          selectability === "blocked" &&
+                          !isCupPreferred &&
+                          !isVacationException
+                        }
                         aria-label={
-                          selectability === "blocked" && !isCupPreferred
-                            ? `Week ${formatWeekLabel(week.weekMonday)} niet beschikbaar voor beker`
-                            : `Week ${formatWeekLabel(week.weekMonday)} ${
-                                isCupPreferred
-                                  ? "als bekerweek demarkeren"
-                                  : "als bekerweek markeren"
-                              }`
+                          isVacation
+                            ? `Week ${formatWeekLabel(monday)} uitzonderlijk speelbaar maken`
+                            : !cupInteractive && isVacationException
+                              ? `Uitzondering voor week ${formatWeekLabel(monday)} verwijderen`
+                              : selectability === "blocked" && !isCupPreferred
+                                ? `Week ${formatWeekLabel(monday)} niet beschikbaar voor beker`
+                                : `Week ${formatWeekLabel(monday)} ${
+                                    isCupPreferred
+                                      ? "als bekerweek demarkeren"
+                                      : "als bekerweek markeren"
+                                  }`
                         }
                         title={
-                          weekAdvice?.blockReason ??
-                          weekAdvice?.warningWhileSelected ??
-                          weekAdvice?.warningOnSelect ??
-                          undefined
+                          isVacation
+                            ? "Tik om deze vakantieweek speelbaar te maken"
+                            : isVacationException && !cupInteractive
+                              ? "Tik om uitzondering te verwijderen"
+                              : weekAdvice?.blockReason ??
+                                weekAdvice?.warningWhileSelected ??
+                                weekAdvice?.warningOnSelect ??
+                                undefined
                         }
                         className={cn(
                           "w-full rounded-lg border p-2 min-h-[72px] flex flex-col gap-1 text-left",
@@ -1198,6 +1333,22 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                       >
                         {content}
                       </button>
+                      {isVacationException ? (
+                        <button
+                          type="button"
+                          className={cn(
+                            "w-full min-h-[44px] rounded-md text-[11px] px-2 inline-flex items-center justify-center gap-1",
+                            "border border-sky-300/70 bg-sky-50 text-sky-950",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            "hover:bg-sky-100",
+                          )}
+                          onClick={() => togglePlayableVacationWeek(monday)}
+                          aria-label={`Uitzondering voor week ${formatWeekLabel(monday)} verwijderen`}
+                        >
+                          <X className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          Uitzondering uit
+                        </button>
+                      ) : null}
                     </li>
                   );
                 })}
@@ -1280,6 +1431,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
         <SeasonUnifiedPreviewPanel
           preview={unifiedPreview}
           loading={previewing}
+          progress={previewProgress}
           error={previewError}
           onGenerate={handleUnifiedPreview}
           onConfirm={handleConfirmUnifiedPreview}

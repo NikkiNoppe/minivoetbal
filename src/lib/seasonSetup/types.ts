@@ -49,6 +49,11 @@ export type SeasonSetup = {
   competition: SeasonSetupCompetition;
   cup: SeasonSetupCup;
   playoffs: SeasonSetupPlayoffs;
+  /**
+   * ISO-maandagen die uitzonderlijk speelbaar blijven ondanks vacation_periods.
+   * Vakantie blijft in Instellingen staan; packing mag deze weken wél gebruiken.
+   */
+  playableVacationWeeks?: string[];
   updatedAt?: string;
 };
 

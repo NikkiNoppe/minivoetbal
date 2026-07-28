@@ -17,14 +17,12 @@ import { SectionCollapsibleCard } from "@/components/layout";
 import { cn } from "@/lib/utils";
 import {
   addDivisionToSetup,
-  describeCompetitionMatchdayMath,
   describeCupRounds,
   estimateCompetitionMatchdays,
   estimateCompetitionMatches,
   estimatePlayoffMatchdays,
   removeDivisionFromSetup,
   resolveCupTeamCount,
-  summarizeSeasonSetup,
   syncDivisionCountsFromAssignments,
   type SeasonSetup,
 } from "@/lib/seasonSetup";
@@ -63,6 +61,8 @@ const SYSTEM_CARDS: Array<{
 export interface SeasonSetupPanelProps {
   setup: SeasonSetup;
   liveTeamCount: number;
+  /** Effectieve slots/week (uit kalenderplan of timeslots). */
+  slotsPerWeek?: number;
   /** Teams voor reeks-toewijzing (bewaard in opzet). */
   teams?: Array<{ team_id: number; team_name: string }>;
   disabled?: boolean;
@@ -74,6 +74,7 @@ export interface SeasonSetupPanelProps {
 const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
   setup,
   liveTeamCount,
+  slotsPerWeek,
   teams = [],
   disabled = false,
   onChange,
@@ -87,19 +88,9 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
     [allowedSystems],
   );
 
-  const summary = useMemo(
-    () => summarizeSeasonSetup(setup, liveTeamCount),
-    [setup, liveTeamCount],
-  );
-
   const cupPlan = useMemo(
-    () => describeCupRounds(setup, liveTeamCount),
-    [setup, liveTeamCount],
-  );
-
-  const matchdayByeNote = useMemo(
-    () => describeCompetitionMatchdayMath(setup),
-    [setup],
+    () => describeCupRounds(setup, liveTeamCount, slotsPerWeek),
+    [setup, liveTeamCount, slotsPerWeek],
   );
 
   const toggleSystem = (key: SystemKey, checked: boolean) => {
@@ -216,17 +207,6 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                 );
               })}
             </ul>
-
-            <div
-              className="rounded-md border border-primary/15 bg-muted/30 px-3 py-2 space-y-1"
-              aria-live="polite"
-            >
-              {summary.map((line) => (
-                <p key={line} className="text-sm text-muted-foreground">
-                  {line}
-                </p>
-              ))}
-            </div>
           </CardContent>
         </Card>
       </section>
@@ -243,9 +223,6 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
             >
               Details per systeem
             </h3>
-            <p className="text-sm text-muted-foreground">
-              Elk blok hoort bij één speelsysteem — klap open om te configureren.
-            </p>
           </div>
 
           <div className="space-y-3">
@@ -265,11 +242,6 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                 <p className="text-sm text-muted-foreground -mt-1 mb-2">
                   Rondes, poule of reeksen — apart van beker en play-offs.
                 </p>
-                {matchdayByeNote ? (
-                  <p className="text-xs text-muted-foreground rounded-md border border-primary/15 bg-muted/40 px-3 py-2">
-                    {matchdayByeNote}
-                  </p>
-                ) : null}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="setup-rounds">Aantal rondes</Label>

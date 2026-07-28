@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Eye, Info, AlertCircle, CheckCircle2, Database } from "lucide-react";
+import { Loader2, Eye, Info, AlertCircle, CheckCircle2, Database, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AppAlertModal, InfoConfirmDescription } from "@/components/modals";
 import { getSuperAdminTenantById } from "@/config/superAdminTenants";
@@ -12,10 +12,12 @@ import {
   conflictLookup,
   previewConflictCellKey,
   type PreviewConflictKind,
+  type SeasonPreviewProgress,
   type UnifiedPreviewPhase,
   type UnifiedPreviewRow,
   type UnifiedSeasonPreview,
 } from "@/lib/seasonSetup";
+import { Progress } from "@/components/ui/progress";
 
 const PHASE_BADGE: Record<
   UnifiedPreviewPhase,
@@ -61,6 +63,11 @@ const CONFLICT_STYLE: Record<
       "rounded px-1 py-0.5 bg-emerald-200 text-emerald-950 font-semibold ring-1 ring-emerald-500/70",
     label: "Risico doorstroming (deze week)",
   },
+  shared_week: {
+    className:
+      "rounded px-1 py-0.5 bg-sky-100 text-sky-950 ring-1 ring-sky-400/60",
+    label: "2× week (andere dag)",
+  },
 };
 
 function formatDate(iso: string): string {
@@ -74,6 +81,15 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function isByePreviewRow(row: UnifiedPreviewRow): boolean {
+  return (
+    row.venue === "BYE" ||
+    row.match_time === "00:00" ||
+    row.awayLabel === "BYE" ||
+    row.homeLabel === "BYE"
+  );
 }
 
 function TeamCell({
@@ -103,8 +119,10 @@ function TeamCell({
 export interface SeasonUnifiedPreviewPanelProps {
   preview: UnifiedSeasonPreview | null;
   loading?: boolean;
+  /** Voortgang tijdens genereren (percentage + label). */
+  progress?: SeasonPreviewProgress | null;
   error?: string | null;
-  onGenerate: () => void;
+  onGenerate: (opts?: { allowDualMatchWeek?: boolean }) => void;
   onConfirm?: () => void | Promise<void>;
   confirming?: boolean;
   disabled?: boolean;
@@ -113,6 +131,7 @@ export interface SeasonUnifiedPreviewPanelProps {
 const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
   preview,
   loading = false,
+  progress = null,
   error = null,
   onGenerate,
   onConfirm,
@@ -120,6 +139,7 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
   disabled = false,
 }) => {
   const [filter, setFilter] = useState<UnifiedPreviewPhase | "all">("all");
+  const [showByes, setShowByes] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -154,18 +174,28 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
   const conflictCounts = useMemo(() => {
     let double = 0;
     let advance = 0;
+    let shared = 0;
     for (const c of conflictMap.values()) {
       if (c.kind === "double") double += 1;
-      else advance += 1;
+      else if (c.kind === "advance_risk") advance += 1;
+      else shared += 1;
     }
-    return { double, advance };
+    return { double, advance, shared };
   }, [conflictMap]);
+
+  const byeCount = useMemo(() => {
+    if (!preview) return 0;
+    return preview.rows.filter(isByePreviewRow).length;
+  }, [preview]);
 
   const filteredRows = useMemo(() => {
     if (!preview) return [];
-    if (filter === "all") return preview.rows;
-    return preview.rows.filter((r) => r.phase === filter);
-  }, [preview, filter]);
+    let rows = filter === "all" ? preview.rows : preview.rows.filter((r) => r.phase === filter);
+    if (!showByes) {
+      rows = rows.filter((r) => !isByePreviewRow(r));
+    }
+    return rows;
+  }, [preview, filter, showByes]);
 
   useEffect(() => {
     if (!preview && !error) return;
@@ -175,7 +205,7 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
   return (
     <Card className="border-primary/20 shadow-lg">
       <CardContent className="pt-6 space-y-4">
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
           <Button
             type="button"
             className="w-full sm:w-auto min-h-[44px]"
@@ -196,6 +226,20 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                 Preview genereren
               </>
             )}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto min-h-[44px] border-sky-400/70 text-sky-950 hover:bg-sky-50"
+            onClick={() => {
+              void onGenerate({ allowDualMatchWeek: true });
+            }}
+            disabled={disabled || loading || confirming}
+            aria-label="Schema forceren met max twee wedstrijden per week per ploeg, minstens twee dagen ertussen"
+          >
+            <Sparkles className="mr-2 h-4 w-4" aria-hidden />
+            Schema forceren (max. 2×/week)
           </Button>
 
           {commitSummary?.canConfirm && onConfirm ? (
@@ -221,6 +265,12 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
             </Button>
           ) : null}
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          Past de normale preview niet? Die probeert automatisch opnieuw met max.
+          2 wedstrijden per ploeg per week en minstens 2 dagen ertussen (ook t.o.v.
+          beker / doorstroming). “Schema forceren” doet dat meteen.
+        </p>
 
         {commitSummary?.canConfirm ? (
           <Alert className="border-emerald-300/60 bg-emerald-50/80">
@@ -295,11 +345,39 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
 
         {loading ? (
           <div
-            className="flex items-center gap-2 rounded-lg border border-primary/15 bg-muted/30 px-3 py-4 text-sm text-muted-foreground"
+            className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-muted/40 px-4 py-6 sm:py-8"
+            role="status"
             aria-live="polite"
+            aria-busy="true"
           >
-            <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" aria-hidden />
-            Speelmomenten worden gegenereerd… Dit kan even duren.
+            <div className="flex items-start gap-3">
+              <Loader2
+                className="h-8 w-8 shrink-0 animate-spin text-primary mt-0.5"
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-sm font-medium text-brand-dark">
+                  Preview wordt gegenereerd…
+                  {typeof progress?.percent === "number"
+                    ? ` ${Math.round(progress.percent)}%`
+                    : ""}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {progress?.label ??
+                    "Beker, competitie en play-offs worden ingepland. Je mag van pagina wisselen — de preview blijft bewaard."}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Progress
+                value={Math.max(0, Math.min(100, progress?.percent ?? 8))}
+                className="h-2.5"
+                aria-label={`Voortgang ${Math.round(progress?.percent ?? 0)} procent`}
+              />
+              <p className="text-xs text-muted-foreground text-center sm:text-left">
+                De rest van de site blijft bruikbaar tijdens het genereren.
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -376,18 +454,32 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                                 ))}
                               </ol>
                               {s.suggestions.some((t) => t.id === "regenerate") ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="min-h-[44px] mt-1"
-                                  disabled={loading}
-                                  onClick={() => {
-                                    void onGenerate();
-                                  }}
-                                >
-                                  Opnieuw genereren
-                                </Button>
+                                <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-[44px]"
+                                    disabled={loading}
+                                    onClick={() => {
+                                      void onGenerate();
+                                    }}
+                                  >
+                                    Opnieuw genereren
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-[44px] border-sky-400/70 text-sky-950"
+                                    disabled={loading}
+                                    onClick={() => {
+                                      void onGenerate({ allowDualMatchWeek: true });
+                                    }}
+                                  >
+                                    Schema forceren (max. 2×/week)
+                                  </Button>
+                                </div>
                               ) : null}
                             </div>
                           ) : null}
@@ -415,8 +507,11 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                 ).map(([key, label]) => {
                   const count =
                     key === "all"
-                      ? preview.rows.length
-                      : preview.rows.filter((r) => r.phase === key).length;
+                      ? preview.rows.filter((r) => showByes || !isByePreviewRow(r)).length
+                      : preview.rows.filter(
+                          (r) =>
+                            r.phase === key && (showByes || !isByePreviewRow(r)),
+                        ).length;
                   if (key !== "all" && count === 0) return null;
                   return (
                     <Button
@@ -431,6 +526,18 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                     </Button>
                   );
                 })}
+                {byeCount > 0 ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={showByes ? "default" : "outline"}
+                    className="min-h-[44px]"
+                    onClick={() => setShowByes((v) => !v)}
+                    aria-pressed={showByes}
+                  >
+                    {showByes ? "BYE verbergen" : `BYE tonen (${byeCount})`}
+                  </Button>
+                ) : null}
               </div>
 
               {filteredRows.length === 0 ? (
@@ -489,6 +596,20 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                           Risico doorstroming (deze week)
                           {conflictCounts.advance > 0
                             ? ` (${conflictCounts.advance})`
+                            : ""}
+                        </span>
+                      </li>
+                      <li className="inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-0">
+                        <span
+                          className={CONFLICT_STYLE.shared_week.className}
+                          aria-hidden
+                        >
+                          Ploeg
+                        </span>
+                        <span>
+                          Beker + competitie, ≥3 dagen ertussen (toegestaan)
+                          {conflictCounts.shared > 0
+                            ? ` (${conflictCounts.shared})`
                             : ""}
                         </span>
                       </li>

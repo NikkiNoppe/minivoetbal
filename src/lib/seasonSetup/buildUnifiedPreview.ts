@@ -14,6 +14,7 @@ import {
   type SlotDetailLike,
 } from "@/lib/seasonCalendar";
 import { DAY_OF_WEEK_NAMES, toMondayIso, type VacationLike } from "@/lib/competitionPlanningEstimate";
+import { hasSufficientSameWeekDayGap } from "@/lib/competitionWeekPacking";
 import { comparePreviewChronological } from "@/lib/slotPriorityPacking";
 import {
   buildCupTeamRankMap,
@@ -184,6 +185,37 @@ export function cupBusyTeamsByMondayFromPlan(
   return out;
 }
 
+/**
+ * Echte bekerdatums per ploeg, per ISO-maandag.
+ * De ≥3-dagen-uitzondering moet op de werkelijke wedstrijddag rekenen: een beker
+ * op donderdag laat geen competitie op vrijdag toe, ook al is maandag de bekerdag.
+ */
+export function cupTeamDatesByMondayFromPlan(
+  plan: Array<{
+    home_team_id: number | null;
+    away_team_id: number | null;
+    match_date: string;
+    match_time?: string;
+    venue?: string;
+  }>,
+  toMonday: (date: string) => string,
+): Record<string, Record<number, string[]>> {
+  const out: Record<string, Record<number, string[]>> = {};
+  for (const p of plan) {
+    if (!p.match_date) continue;
+    if (p.venue === "BYE" || p.match_time === "00:00") continue;
+    const monday = toMonday(p.match_date);
+    const date = p.match_date.slice(0, 10);
+    const byTeam = (out[monday] ??= {});
+    for (const teamId of [p.home_team_id, p.away_team_id]) {
+      if (teamId == null) continue;
+      const dates = (byTeam[teamId] ??= []);
+      if (!dates.includes(date)) dates.push(date);
+    }
+  }
+  return out;
+}
+
 /** Slot-indices die de bekerpreview al claimt (per ISO-maandag). */
 export function cupOccupiedSlotsByMondayFromPlan(
   plan: Array<{
@@ -244,6 +276,9 @@ export function buildEmptyFreePreviewRows(input: {
     if (row.venue === "BYE" || row.match_time === "00:00") continue;
     const monday = toMondayIso(row.match_date);
     weekMondays.add(monday);
+    // Conceptrijen zonder tijd of locatie (bv. play-offs) claimen nog geen slot;
+    // ze meetellen zou greedy een écht vrij speelmoment opeten.
+    if (!row.match_time || !row.venue) continue;
     occupancy.push({
       match_date: row.match_date.slice(0, 10),
       location: row.venue,
@@ -349,6 +384,7 @@ async function previewCupSection(input: {
   section: UnifiedPreviewSection;
   warnings: string[];
   busyByMonday: Record<string, number[]>;
+  teamDatesByMonday: Record<string, Record<number, string[]>>;
   occupiedSlotsByMonday: Record<string, number[]>;
   commitPlan: import("./commitTypes").UnifiedCommitMatchPlan[] | null;
 }> {
@@ -369,6 +405,7 @@ async function previewCupSection(input: {
       },
       warnings,
       busyByMonday: {},
+      teamDatesByMonday: {},
       occupiedSlotsByMonday: {},
       commitPlan: null,
     };
@@ -385,6 +422,7 @@ async function previewCupSection(input: {
       },
       warnings,
       busyByMonday: {},
+      teamDatesByMonday: {},
       occupiedSlotsByMonday: {},
       commitPlan: null,
     };
@@ -409,6 +447,7 @@ async function previewCupSection(input: {
       },
       warnings,
       busyByMonday: {},
+      teamDatesByMonday: {},
       occupiedSlotsByMonday: {},
       commitPlan: null,
     };
@@ -494,6 +533,7 @@ async function previewCupSection(input: {
         },
         warnings,
         busyByMonday: {},
+        teamDatesByMonday: {},
         occupiedSlotsByMonday: {},
         commitPlan: null,
       };
@@ -501,6 +541,7 @@ async function previewCupSection(input: {
 
     const { toMondayIso } = await import("@/lib/competitionPlanningEstimate");
     const busyByMonday = cupBusyTeamsByMondayFromPlan(res.plan, toMondayIso);
+    const teamDatesByMonday = cupTeamDatesByMondayFromPlan(res.plan, toMondayIso);
     const occupiedSlotsByMonday = cupOccupiedSlotsByMondayFromPlan(res.plan, toMondayIso);
     const commitPlan = res.plan.map((p) => ({
       unique_number: p.unique_number,
@@ -531,6 +572,7 @@ async function previewCupSection(input: {
       },
       warnings,
       busyByMonday,
+      teamDatesByMonday,
       occupiedSlotsByMonday,
       commitPlan,
     };
@@ -545,6 +587,7 @@ async function previewCupSection(input: {
       },
       warnings,
       busyByMonday: {},
+      teamDatesByMonday: {},
       occupiedSlotsByMonday: {},
       commitPlan: null,
     };
@@ -558,10 +601,17 @@ export async function buildUnifiedSeasonPreview(input: {
   organizationId: number;
   teams: TeamLike[];
   plan: SeasonPlan | null;
+  /** Laatste redmiddel: max. 2×/week/ploeg, nooit dezelfde dag. */
+  allowDualMatchWeek?: boolean;
+  onProgress?: (progress: { percent: number; label: string }) => void;
 }): Promise<UnifiedSeasonPreview> {
   const { setup, seasonStart, seasonEnd, organizationId, teams, plan } = input;
+  const allowDualMatchWeek = Boolean(input.allowDualMatchWeek);
+  const onProgress = input.onProgress;
   const sections: UnifiedPreviewSection[] = [];
   const warnings: string[] = [];
+
+  onProgress?.({ percent: 5, label: "Start preview…" });
 
   if (!seasonStart || !seasonEnd) {
     return {
@@ -582,19 +632,34 @@ export async function buildUnifiedSeasonPreview(input: {
   }
 
   if (plan?.cupDates?.length && plan.daySeparation?.separated) {
+    const exceptionPossible = hasSufficientSameWeekDayGap(
+      plan.daySeparation.early,
+      plan.daySeparation.late,
+    );
     warnings.push(
-      `Op bekerweken: competitie op vrije momenten (${plan.daySeparation.lateLabel}), beker op ${plan.daySeparation.earlyLabel}. Standaard speelt een ploeg max. 1× per week; uitzonderlijk mag beker + competitie als er ≥3 dagen tussen zitten.`,
+      `Op bekerweken: beker op ${plan.daySeparation.earlyLabel}, competitie op de resterende speelmomenten (${plan.daySeparation.lateLabel}). ` +
+        (allowDualMatchWeek
+          ? "Geforceerd schema: max. 2 wedstrijden per ploeg per week, minstens 2 dagen ertussen (ook t.o.v. beker)."
+          : exceptionPossible
+            ? "Een ploeg speelt max. 1× per week; uitzonderlijk mag beker + competitie als er ≥3 dagen tussen zitten. Past het niet: automatisch opnieuw met 2×/week (≥2 dagen)."
+            : `Een ploeg speelt max. 1× per week — met ${plan.daySeparation.earlyLabel} en ${plan.daySeparation.lateLabel} liggen de speeldagen te dicht bij elkaar voor de ≥3-dagen-uitzondering. Past het niet: automatisch opnieuw met 2×/week (≥2 dagen).`),
+    );
+  }
+  if (allowDualMatchWeek) {
+    warnings.push(
+      "Schema forceren actief: max. 2 wedstrijden/ploeg/week toegestaan (beker + competitie of 2× competitie), altijd met minstens 2 dagen ertussen (ook bij bekerdoorstroming).",
     );
   }
   if (plan?.sharedCupMondays?.length) {
     warnings.push(
-      `Speelweken-tekort: ${plan.sharedCupMondays.length} week(en) bewust gedeeld gemarkeerd in de kalender.`,
+      `${plan.sharedCupMondays.length} bekerweek(en) delen speelmomenten met de competitie (ploegen zonder beker die week).`,
     );
   }
 
   // Beker eerst (indien aan): bezette teams + slots doorgeven aan competitie
   let cupSection: UnifiedPreviewSection | null = null;
   let cupBusyTeamsByMonday: Record<string, number[]> = {};
+  let cupTeamDatesByMonday: Record<string, Record<number, string[]>> = {};
   let cupOccupiedSlotsByMonday: Record<string, number[]> = {};
   let cupCommitPlan: import("./commitTypes").UnifiedCommitMatchPlan[] | null = null;
   let competitionCommitPlan: import("./commitTypes").UnifiedCommitMatchPlan[] | null =
@@ -602,16 +667,19 @@ export async function buildUnifiedSeasonPreview(input: {
   let playoffIntent: import("./commitTypes").UnifiedPlayoffCommitIntent | null = null;
 
   if (setup.systems.cup) {
+    onProgress?.({ percent: 12, label: "Beker inplannen…" });
     const cup = await previewCupSection({ setup, organizationId, teams, plan });
     warnings.push(...cup.warnings);
     cupSection = cup.section;
     cupBusyTeamsByMonday = cup.busyByMonday;
+    cupTeamDatesByMonday = cup.teamDatesByMonday;
     cupOccupiedSlotsByMonday = cup.occupiedSlotsByMonday;
     cupCommitPlan = cup.commitPlan;
   }
 
   // —— Competitie ——
   if (setup.systems.competition) {
+    onProgress?.({ percent: 18, label: "Competitie voorbereiden…" });
     const format = buildSeasonSetupFormat(setup);
     const teamIds = pickCompetitionTeams(setup, teams);
     if (teamIds.length < 4) {
@@ -656,25 +724,69 @@ export async function buildUnifiedSeasonPreview(input: {
       }
 
       try {
-        const res = await competitionService.previewCompetition({
-          format,
-          start_date: seasonStart,
-          end_date: seasonEnd,
-          teams: teamIds,
-          organizationId,
-          teamDivisions,
-          reservedCupMondays: plan?.cupDates ?? [],
-          reservedPlayoffMondays: plan?.playoffWeeks ?? [],
-          shareCupWeeks: Boolean(plan?.daySeparation?.separated),
-          competitionPreferredDayOfWeek: plan?.daySeparation?.separated
-            ? plan.daySeparation.late
-            : undefined,
-          cupPreferredDayOfWeek: plan?.daySeparation?.separated
-            ? plan.daySeparation.early
-            : undefined,
-          cupBusyTeamsByMonday,
-          cupOccupiedSlotsByMonday,
-        });
+        const runCompetition = (dual: boolean) =>
+          competitionService.previewCompetition({
+            format,
+            start_date: seasonStart,
+            end_date: seasonEnd,
+            teams: teamIds,
+            organizationId,
+            teamDivisions,
+            reservedCupMondays: plan?.cupDates ?? [],
+            reservedPlayoffMondays: plan?.playoffWeeks ?? [],
+            shareCupWeeks:
+              Boolean(plan?.daySeparation?.separated) || dual || allowDualMatchWeek,
+            sharedCupMondays: plan?.sharedCupMondays ?? [],
+            competitionPreferredDayOfWeek: plan?.daySeparation?.separated
+              ? plan.daySeparation.late
+              : undefined,
+            cupPreferredDayOfWeek: plan?.daySeparation?.separated
+              ? plan.daySeparation.early
+              : undefined,
+            cupBusyTeamsByMonday,
+            cupTeamDatesByMonday,
+            cupOccupiedSlotsByMonday,
+            allowDualMatchWeek: dual,
+            onProgress: (p) => {
+              onProgress?.({
+                percent: Math.min(92, Math.max(18, p.percent)),
+                label: p.label,
+              });
+            },
+          });
+
+        let res = await runCompetition(allowDualMatchWeek);
+        let usedDualFallback = false;
+        // Near-miss: automatisch opnieuw met max. 2×/week en ≥2 dagen ertussen
+        // (incl. beker + competitie / doorstromingsrisico).
+        if (
+          !allowDualMatchWeek &&
+          (!res.success || !res.plan?.length) &&
+          Boolean(res.message?.startsWith("Bijna:"))
+        ) {
+          onProgress?.({
+            percent: 45,
+            label:
+              "Bijna gelukt — opnieuw met max. 2×/week (≥2 dagen ertussen)…",
+          });
+          const retry = await runCompetition(true);
+          if (retry.success && retry.plan?.length) {
+            res = retry;
+            usedDualFallback = true;
+            warnings.push(
+              "Automatisch versoepeld: sommige ploegen spelen 2× in één week, altijd met minstens 2 dagen ertussen (ook t.o.v. beker / doorstroming).",
+            );
+          } else if (
+            (retry.plan?.length ?? 0) > (res.plan?.length ?? 0) ||
+            (retry.message?.startsWith("Bijna:") &&
+              (retry.message?.length ?? 0) > 0)
+          ) {
+            // Houd het beste resultaat voor de foutmelding
+            res = retry;
+            usedDualFallback = true;
+          }
+        }
+
         if (!res.success || !res.plan?.length) {
           sections.push({
             phase: "competition",
@@ -698,7 +810,9 @@ export async function buildUnifiedSeasonPreview(input: {
             phase: "competition",
             label: "Competitie",
             success: true,
-            message: `${res.plan.length} wedstrijden`,
+            message: usedDualFallback
+              ? `${res.plan.length} wedstrijden (deels 2×/week, ≥2d gap)`
+              : `${res.plan.length} wedstrijden`,
             rows: res.plan.map((p) => ({
               phase: "competition" as const,
               speeldag: p.speeldag,
@@ -734,6 +848,7 @@ export async function buildUnifiedSeasonPreview(input: {
 
   // —— Play-offs (in-memory, geen DB-write) ——
   if (setup.systems.playoffs) {
+    onProgress?.({ percent: 95, label: "Play-offs toevoegen…" });
     const topN = setup.playoffs.topTeams;
     const bottomN = setup.playoffs.bottomTeams;
     const rounds = setup.playoffs.rounds;
@@ -806,6 +921,8 @@ export async function buildUnifiedSeasonPreview(input: {
       };
     }
   }
+
+  onProgress?.({ percent: 98, label: "Preview afronden…" });
 
   const scheduledRows = sections.flatMap((s) => s.rows);
   const closedRows = buildClosedCalendarPreviewRows(plan);

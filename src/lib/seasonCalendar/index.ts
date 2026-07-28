@@ -27,6 +27,7 @@ export {
   estimateSeasonPlanning,
   listSeasonPlayableWeeks,
   reserveCupWeeks,
+  resolveCupBracketSlotsPerWeek,
   resolveEffectiveSlotsPerWeek,
   type BuildSeasonCalendarInput,
 } from "./planner";

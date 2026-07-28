@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -179,6 +179,14 @@ const VacationsSettings: React.FC = () => {
   const formatDate = (dateString: string) =>
     new Date(`${dateString.split('T')[0]}T12:00:00`).toLocaleDateString('nl-BE');
 
+  const vacationsSorted = useMemo(
+    () =>
+      [...vacations].sort((a, b) =>
+        String(a.start_date).slice(0, 10).localeCompare(String(b.start_date).slice(0, 10)),
+      ),
+    [vacations],
+  );
+
   return (
     <div className={cn(PUBLIC_PAGE_CLASS)}>
       <Tabs defaultValue="vacations" className="w-full">
@@ -207,7 +215,7 @@ const VacationsSettings: React.FC = () => {
             <CardContent className="space-y-4 pt-0">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
-                  {vacations.length} {vacations.length === 1 ? 'periode' : 'periodes'} geconfigureerd
+                  {vacationsSorted.length} {vacationsSorted.length === 1 ? 'periode' : 'periodes'} geconfigureerd
                 </p>
                 <Button
                   type="button"
@@ -219,7 +227,7 @@ const VacationsSettings: React.FC = () => {
                 </Button>
               </div>
 
-              {vacations.length === 0 ? (
+              {vacationsSorted.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-primary/20 px-4 py-8 text-center text-sm text-muted-foreground">
                   Geen vakantieperiodes — alle speelweken zijn in principe beschikbaar.
                 </div>
@@ -236,7 +244,7 @@ const VacationsSettings: React.FC = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {vacations.map((vacation) => (
+                      {vacationsSorted.map((vacation) => (
                         <TableRow key={vacation.id}>
                           <TableCell className="font-medium">{vacation.name}</TableCell>
                           <TableCell className="whitespace-nowrap">{formatDate(vacation.start_date)}</TableCell>

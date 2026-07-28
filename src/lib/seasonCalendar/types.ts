@@ -87,6 +87,10 @@ export type SeasonDemand = {
   cupWeekMode?: "auto" | "manual";
   /** ISO-maandagen die als bekerweek geprefereerd/vastgezet zijn. */
   cupPreferredWeeks?: string[];
+  /**
+   * ISO-maandagen die speelbaar blijven ondanks vakantie (seizoensopzet-uitzondering).
+   */
+  playableVacationWeeks?: string[];
 };
 
 export type SeasonPlan = {

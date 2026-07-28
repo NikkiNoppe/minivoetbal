@@ -34,6 +34,8 @@ export type BuildSeasonCalendarInput = {
   seasonStart: string;
   seasonEnd: string;
   vacations?: VacationLike[];
+  /** Vakantieweken die uitzonderlijk speelbaar blijven. */
+  playableVacationWeeks?: string[];
   timeslots?: TimeslotLike[];
   slotDetails: SlotDetailLike[];
   blocks?: SlotUnavailability[];
@@ -44,12 +46,33 @@ export function listSeasonPlayableWeeks(
   seasonStart: string,
   seasonEnd: string,
   vacations: VacationLike[] = [],
+  playableVacationWeeks: string[] = [],
 ): string[] {
-  return listPlayableMondays(seasonStart, seasonEnd, vacations);
+  return listPlayableMondays(
+    seasonStart,
+    seasonEnd,
+    vacations,
+    playableVacationWeeks,
+  );
 }
 
 /**
- * Effectieve slots/week voor beker-bracket: mediaan van positieve freeCount,
+ * Effectieve slots/week voor beker-bracket: piekcapaciteit op bruikbare weken
+ * (cup wordt op de sterkste weken gepland), begrensd door nominaal aantal timeslots.
+ */
+export function resolveCupBracketSlotsPerWeek(
+  grids: ReturnType<typeof buildSeasonSlotGrids>,
+  nominalSlots: number,
+): number {
+  const summary = summarizeEffectiveCapacity(grids);
+  if (summary.usableWeekCount === 0) return 0;
+  const nominal = Math.max(1, nominalSlots);
+  const peak = Math.max(summary.maxFree, summary.medianPositiveFree);
+  return Math.max(1, Math.min(nominal, peak));
+}
+
+/**
+ * Effectieve slots/week voor competitie-schatting: mediaan van positieve freeCount,
  * nooit hoger dan nominale timeslot-count, nooit lager dan 1 als er bruikbare weken zijn.
  */
 export function resolveEffectiveSlotsPerWeek(
@@ -77,19 +100,27 @@ export function reserveCupWeeks(input: {
   preferredMondays?: string[];
   /** manual = preferred eerst / exact; auto = preferred als zachte boost. */
   weekMode?: "auto" | "manual";
+  playableVacationWeeks?: string[];
 }): ReserveCupWeeksResult {
   const vacations = input.vacations ?? [];
-  const playable = listPlayableMondays(input.seasonStart, input.seasonEnd, vacations);
+  const playableVacationWeeks = input.playableVacationWeeks ?? [];
+  const playable = listPlayableMondays(
+    input.seasonStart,
+    input.seasonEnd,
+    vacations,
+    playableVacationWeeks,
+  );
   const grids = buildSeasonSlotGrids({
     weekMondays: playable,
     slotDetails: input.slotDetails,
     blocks: input.blocks,
     matches: input.matches,
     vacations,
+    playableVacationWeeks,
   });
 
   const nominal = Math.max(1, input.slotDetails.length || input.timeslots?.length || 7);
-  const effectiveSlots = resolveEffectiveSlotsPerWeek(grids, nominal);
+  const effectiveSlots = resolveCupBracketSlotsPerWeek(grids, nominal);
   const pairs = getCupFirstRoundPairs(input.cupTeamCount);
   const bracket =
     effectiveSlots > 0
@@ -302,13 +333,21 @@ export function buildSeasonPlan(
   input: BuildSeasonCalendarInput & SeasonDemand,
 ): SeasonPlan {
   const vacations = input.vacations ?? [];
-  const playable = listPlayableMondays(input.seasonStart, input.seasonEnd, vacations);
+  const playableVacationWeeks = input.playableVacationWeeks ?? [];
+  const exceptionSet = new Set(playableVacationWeeks.map((d) => toMondayIso(d)));
+  const playable = listPlayableMondays(
+    input.seasonStart,
+    input.seasonEnd,
+    vacations,
+    playableVacationWeeks,
+  );
   const grids = buildSeasonSlotGrids({
     weekMondays: playable,
     slotDetails: input.slotDetails,
     blocks: input.blocks,
     matches: input.matches,
     vacations,
+    playableVacationWeeks,
   });
   const usable = playable.filter((m) => capacityForWeek(grids, m) > 0);
   const nominal = Math.max(1, input.slotDetails.length || 7);
@@ -329,12 +368,13 @@ export function buildSeasonPlan(
     reservedMondays: playoffWeeks,
     preferredMondays: input.cupPreferredWeeks,
     weekMode: input.cupWeekMode,
+    playableVacationWeeks,
   });
   const cupSet = new Set(cup.dates);
 
-  // (c) Competitie: eerst exclusieve weken (zonder beker).
-  // Gedeelde weken (beker + competitie, aparte speeldagen) ALLEEN bij tekort —
-  // typisch krappe seizoenen (bv. kortere speelperiode / veel systemen).
+  // (c) Competitie: eerst exclusieve weken (zonder beker), daarna bekerweken waar
+  // na de beker nog speelmomenten vrij blijven. Zelfde beleid als de generator:
+  // ploegen zonder beker die week mogen die resterende momenten gebruiken.
   const competitionCandidates = usable.filter((m) => !playoffSet.has(m));
   // Weken = max(capaciteit, speeldagen): een ploeg speelt ≤1×/week, dus speeldagen
   // domineren bij oneven reeksen (anders blijven late weken ten onrechte “vrij”).
@@ -350,19 +390,40 @@ export function buildSeasonPlan(
   const exclusiveComp = competitionCandidates.filter((m) => !cupSet.has(m));
   const hasWeekShortage = exclusiveComp.length < weeksNeededComp;
   const canShareByDay = cup.daySeparation.separated;
-  const sharedCompCandidates =
-    hasWeekShortage && canShareByDay
-      ? competitionCandidates.filter((m) => cupSet.has(m))
-      : [];
-  // Alle exclusieve weken blijven beschikbaar voor competitie (niet alleen de
+
+  // Hoeveel momenten de beker per bekerweek nodig heeft — zelfde verdeling als
+  // de bekergenerator (ronde na ronde, per week tot de slotcapaciteit vol is).
+  const cupBracket = getCupBracketPlan(
+    input.cupTeamCount,
+    Math.max(1, effectiveSlots),
+  );
+  const cupSlotsPerCupWeek = new Map<string, number>();
+  const orderedCupWeeks = [...cup.dates].sort((a, b) => a.localeCompare(b));
+  for (const round of cupBracket.rounds) {
+    for (let i = 0; i < round.weeksNeeded; i++) {
+      const week = orderedCupWeeks[round.weekOffset + i];
+      if (!week) continue;
+      const placed = Math.min(
+        cupBracket.slotsPerWeek,
+        Math.max(0, round.matchCount - i * cupBracket.slotsPerWeek),
+      );
+      cupSlotsPerCupWeek.set(week, (cupSlotsPerCupWeek.get(week) ?? 0) + placed);
+    }
+  }
+
+  // Bekerweken met restcapaciteit: competitie mag daar de overige momenten vullen.
+  const sharedCompCandidates = canShareByDay
+    ? competitionCandidates.filter(
+        (m) =>
+          cupSet.has(m) &&
+          capacityForWeek(grids, m) > (cupSlotsPerCupWeek.get(m) ?? 0),
+      )
+    : [];
+  // Alle bruikbare weken blijven beschikbaar voor competitie (niet alleen de
   // eerste N) — anders blijven late weken (mei/juni) ten onrechte “vrij” terwijl
   // packing ze wél nodig heeft bij bekerconflicten eerder in het seizoen.
   const competitionAssigned =
-    weeksNeededComp <= 0
-      ? []
-      : hasWeekShortage
-        ? [...exclusiveComp, ...sharedCompCandidates].slice(0, weeksNeededComp)
-        : exclusiveComp;
+    weeksNeededComp <= 0 ? [] : [...exclusiveComp, ...sharedCompCandidates];
   const competitionSet = new Set(competitionAssigned);
 
   const sharedCupMondays = cup.dates.filter((d) => competitionSet.has(d));
@@ -386,7 +447,8 @@ export function buildSeasonPlan(
   );
 
   const weekPlans: SeasonWeekPlan[] = allMondays.map((weekMonday) => {
-    if (vacationSet.has(weekMonday)) {
+    // Uitzondering: vakantieweek blijft speelbaar (niet als "vacation" markeren)
+    if (vacationSet.has(weekMonday) && !exceptionSet.has(weekMonday)) {
       return {
         weekMonday,
         phases: ["vacation"],
@@ -465,7 +527,7 @@ export function buildSeasonPlan(
   }
   if (sharedCupMondays.length > 0) {
     rationale.push(
-      `Speelweken-tekort: competitie deelt ${sharedCupMondays.length} bekerweek(en) via dagscheiding (${daySeparation.earlyLabel} beker / ${daySeparation.lateLabel} competitie).`,
+      `Competitie benut de resterende speelmomenten op ${sharedCupMondays.length} bekerweek(en) (${daySeparation.earlyLabel} beker / ${daySeparation.lateLabel} competitie).`,
     );
   } else {
     const matchdaysNote =
@@ -500,7 +562,7 @@ export function buildSeasonPlan(
     notes.push(
       `${sharedCupMondays.length} gedeelde week(en): beker en competitie in dezelfde kalenderweek` +
         (daySeparation.separated
-          ? ` — plan beker op ${daySeparation.earlyLabel}, competitie op ${daySeparation.lateLabel}.`
+          ? ` — beker op ${daySeparation.earlyLabel}, competitie op de resterende momenten (${daySeparation.lateLabel}). Een ploeg met beker speelt pas ≥3 dagen later opnieuw.`
           : " — let op: teams kunnen 2× die week spelen."),
     );
   }
