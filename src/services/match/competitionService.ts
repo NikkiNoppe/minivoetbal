@@ -1156,9 +1156,9 @@ export const competitionService = {
           label: `${phase} (poging ${attempt + 1}/${PACK_ATTEMPTS})`,
         });
       };
-      type PackOk = Extract<ReturnType<typeof packCompetitionMatchdays>, { ok: true }>;
-      type PackFail = Extract<ReturnType<typeof packCompetitionMatchdays>, { ok: false }>;
-      let packResult: PackOk | PackFail | null = null;
+      type PackOk = ReturnType<typeof packCompetitionMatchdays>;
+      type PackFail = ReturnType<typeof packCompetitionMatchdays>;
+      let packResult: PackOk | null = null;
       let regularMatches: DivisionAwareMatch[] = [];
       let maxMatchdayNumber = 0;
 
