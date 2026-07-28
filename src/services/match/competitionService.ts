@@ -2608,7 +2608,7 @@ export const competitionService = {
 
       // Distributie met 7 slots/week, geen team 2x per week, met voorkeur-scoring
       const matchesPerWeek = 7;
-      const slotCtx = await loadSlotPlanningContext(config.organizationId);
+      const slotCtx = await loadSlotPlanningContext();
       const teamsPerWeek: Map<number, Set<number>> = new Map();
       const slotsPerWeek: Map<number, number> = new Map();
       for (let w = 0; w < playingWeeks.length; w++) {
