@@ -349,7 +349,7 @@ export const competitionService = {
 
       const exclusiveCupMondays = new Set(
         [...existingCupMondays, ...plannedCupMondays].filter(
-          (monday) => !(softShare && shareableCupMondays.has(monday)),
+          (monday: string) => !(softShare && shareableCupMondays.has(monday)),
         ),
       );
       const occupiedMondays = new Set(
