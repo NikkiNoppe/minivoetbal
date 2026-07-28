@@ -802,31 +802,6 @@ export type Database = {
       }
     }
     Functions: {
-      close_season_for_session: {
-        Args: {
-          p_session_token: string
-          p_season_label: string
-          p_cutoff_date: string
-          p_target_capital?: number
-        }
-        Returns: Json
-      }
-      export_season_backup_for_session: {
-        Args: {
-          p_session_token: string
-          p_season_label?: string
-          p_target_capital?: number
-        }
-        Returns: Json
-      }
-      get_latest_season_backup_for_session: {
-        Args: { p_session_token: string; p_season_label?: string }
-        Returns: Json
-      }
-      preview_close_season_for_session: {
-        Args: { p_session_token: string; p_cutoff_date: string }
-        Returns: Json
-      }
       add_team_cost: {
         Args: {
           p_amount: number
