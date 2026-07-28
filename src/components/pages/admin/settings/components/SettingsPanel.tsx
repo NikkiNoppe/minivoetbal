@@ -24,7 +24,7 @@ function GroupHeading({
   description,
   badge,
 }: {
-  icon: React.ElementType;
+  icon: LucideIcon;
   title: string;
   description: string;
   badge: string;
