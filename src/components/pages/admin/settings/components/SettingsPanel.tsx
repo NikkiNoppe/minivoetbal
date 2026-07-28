@@ -4,6 +4,7 @@ import {
   Building,
   ShieldAlert,
   Archive,
+  type LucideIcon,
 } from "lucide-react";
 import { Accordion } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,7 @@ function GroupHeading({
   description,
   badge,
 }: {
-  icon: React.ElementType;
+  icon: LucideIcon;
   title: string;
   description: string;
   badge: string;

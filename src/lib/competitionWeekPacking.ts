@@ -8,7 +8,7 @@
 export type PackableMatch = {
   home: number;
   away: number;
-  matchday?: number;
+  matchday: number;
   matchdayKey: string;
 };
 
@@ -24,26 +24,21 @@ export type PackFailureDiagnosis = {
   weeksFull: number;
   weeksTeamCompetition: number;
   weeksTeamCup: number;
-  /** Repair geprobeerd maar geen legale verplaatsing gevonden */
   repairAttempted?: boolean;
-  /** Eerste weken die wél capaciteit hadden maar team-blokkade */
   sampleBlockedWeeks: Array<{
     weekIndex: number;
     reason: Exclude<PackFailureReason, "ok" | "week_full">;
-    /** Ploegen die deze week blokkeren (beker of al competitie) */
     blockingTeamIds: number[];
   }>;
 };
 
-export type PackWeekResult =
-  | { ok: true; weekToMatches: Map<number, PackableMatch[]> }
-  | {
-      ok: false;
-      failedMatch: PackableMatch;
-      placedCount: number;
-      weekToMatches: Map<number, PackableMatch[]>;
-      diagnosis: PackFailureDiagnosis;
-    };
+export type PackWeekResult = {
+  ok: boolean;
+  weekToMatches: Map<number, PackableMatch[]>;
+  failedMatch?: PackableMatch;
+  placedCount?: number;
+  diagnosis?: PackFailureDiagnosis;
+};
 
 export type PackCompetitionOptions = {
   /**

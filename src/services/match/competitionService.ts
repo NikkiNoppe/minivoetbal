@@ -349,7 +349,7 @@ export const competitionService = {
 
       const exclusiveCupMondays = new Set(
         [...existingCupMondays, ...plannedCupMondays].filter(
-          (monday) => !(softShare && shareableCupMondays.has(monday)),
+          (monday: string) => !(softShare && shareableCupMondays.has(monday)),
         ),
       );
       const occupiedMondays = new Set(
@@ -1156,9 +1156,9 @@ export const competitionService = {
           label: `${phase} (poging ${attempt + 1}/${PACK_ATTEMPTS})`,
         });
       };
-      type PackOk = Extract<ReturnType<typeof packCompetitionMatchdays>, { ok: true }>;
-      type PackFail = Extract<ReturnType<typeof packCompetitionMatchdays>, { ok: false }>;
-      let packResult: PackOk | PackFail | null = null;
+      type PackOk = ReturnType<typeof packCompetitionMatchdays>;
+      type PackFail = ReturnType<typeof packCompetitionMatchdays>;
+      let packResult: PackOk | null = null;
       let regularMatches: DivisionAwareMatch[] = [];
       let maxMatchdayNumber = 0;
 
@@ -2608,7 +2608,7 @@ export const competitionService = {
 
       // Distributie met 7 slots/week, geen team 2x per week, met voorkeur-scoring
       const matchesPerWeek = 7;
-      const slotCtx = await loadSlotPlanningContext(config.organizationId);
+      const slotCtx = await loadSlotPlanningContext();
       const teamsPerWeek: Map<number, Set<number>> = new Map();
       const slotsPerWeek: Map<number, number> = new Map();
       for (let w = 0; w < playingWeeks.length; w++) {
