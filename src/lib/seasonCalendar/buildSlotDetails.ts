@@ -20,15 +20,18 @@ export function buildSlotDetailsFromSeasonData(seasonData: {
     })
     .sort((a, b) => (a.priority as number) - (b.priority as number));
 
-  return allTimeslots.map((ts) => ({
-    venue: normalizeVenueName(String(ts.venue_name)),
-    timeslot: {
-      day_of_week: typeof ts.day_of_week === "number" ? ts.day_of_week : null,
-      start_time: typeof ts.start_time === "string" ? ts.start_time : null,
-      venue_id: typeof ts.venue_id === "number" ? ts.venue_id : undefined,
-      timeslot_id: typeof ts.timeslot_id === "number" ? ts.timeslot_id : undefined,
-      valid_from: (ts.valid_from as string | null | undefined) ?? null,
-      valid_until: (ts.valid_until as string | null | undefined) ?? null,
-    },
-  }));
+  return allTimeslots.map((tsRaw) => {
+    const ts = tsRaw as Record<string, unknown>;
+    return {
+      venue: normalizeVenueName(String(ts.venue_name)),
+      timeslot: {
+        day_of_week: typeof ts.day_of_week === "number" ? ts.day_of_week : null,
+        start_time: typeof ts.start_time === "string" ? ts.start_time : null,
+        venue_id: typeof ts.venue_id === "number" ? ts.venue_id : undefined,
+        timeslot_id: typeof ts.timeslot_id === "number" ? ts.timeslot_id : undefined,
+        valid_from: (ts.valid_from as string | null | undefined) ?? null,
+        valid_until: (ts.valid_until as string | null | undefined) ?? null,
+      },
+    };
+  });
 }

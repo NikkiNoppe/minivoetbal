@@ -26,6 +26,7 @@ import {
 import { SuperAdminActingOrgSync } from '@/components/common/SuperAdminActingOrgSync';
 import { setResolvedOrganizationId } from '@/lib/organizationScope';
 import { applyBootOrganizationTheme } from '@/lib/bootTheme';
+import { useSuperAdminActingOrg } from '@/hooks/useSuperAdminActingOrg';
 
 export interface OrganizationContextValue {
   organization: Organization | undefined;
@@ -52,9 +53,11 @@ export const OrganizationProvider: React.FC<{ children: ReactNode }> = ({
   const { toast } = useToast();
   const location = useLocation();
   const mismatchHandled = useRef(false);
+  const actingOrg = useSuperAdminActingOrg();
+  const superAdminActingSlug = isSuperAdmin ? actingOrg?.slug ?? null : null;
   const orgSlugOverride = useMemo(
-    () => getActiveOrgSlugOverride({ isSuperAdmin }),
-    [location.pathname, location.search, isSuperAdmin],
+    () => getActiveOrgSlugOverride({ isSuperAdmin, superAdminActingSlug }),
+    [location.pathname, location.search, isSuperAdmin, superAdminActingSlug],
   );
 
   const bootOrganizationSlug = useMemo(
@@ -62,8 +65,9 @@ export const OrganizationProvider: React.FC<{ children: ReactNode }> = ({
       resolveBootOrganizationSlug({
         hostname,
         isSuperAdmin,
+        superAdminActingSlug,
       }),
-    [hostname, location.pathname, location.search, isSuperAdmin],
+    [hostname, location.pathname, location.search, isSuperAdmin, superAdminActingSlug],
   );
 
   // Theme vóór org-fetch klaar is (voorkomt Harelbeke-blauw flash op Kuurne).
@@ -74,6 +78,7 @@ export const OrganizationProvider: React.FC<{ children: ReactNode }> = ({
       slug: bootOrganizationSlug,
     });
   }, [bootOrganizationSlug, hostname, isSuperAdmin]);
+
 
   const {
     data: organization,

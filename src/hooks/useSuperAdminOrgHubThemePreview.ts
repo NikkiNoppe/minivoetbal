@@ -35,7 +35,7 @@ export function useSuperAdminOrgHubThemePreview(
 
     const org = organizations?.find((o) => o.id === actingOrg.organizationId);
     const brandingTheme = org
-      ? parseBrandingSettings(org.brandingSettings).themeColors
+      ? parseBrandingSettings((org.brandingSettings ?? {}) as Record<string, unknown>).themeColors
       : undefined;
     const slugFallback = resolveOrganizationTheme(actingOrg.slug, {
       brandingTheme,
