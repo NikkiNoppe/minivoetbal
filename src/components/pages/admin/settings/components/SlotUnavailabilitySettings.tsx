@@ -256,38 +256,44 @@ const SlotUnavailabilitySettings: React.FC = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Naam</TableHead>
-                    <TableHead>Datum</TableHead>
-                    <TableHead className="hidden sm:table-cell">Locatie</TableHead>
-                    <TableHead className="hidden md:table-cell">Tijdslot</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Acties</TableHead>
+                    <TableHead className="hidden sm:table-cell">Datum</TableHead>
+                    <TableHead className="hidden md:table-cell">Locatie</TableHead>
+                    <TableHead className="hidden lg:table-cell">Tijdslot</TableHead>
+                    <TableHead className="hidden sm:table-cell">Status</TableHead>
+                    <TableHead className="text-right w-[88px]">Acties</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {blocks.map((block) => (
                     <TableRow key={block.id}>
-                      <TableCell className="font-medium max-w-[140px] truncate">
-                        {block.name}
+                      <TableCell className="font-medium">
+                        <div className="min-w-0">
+                          <div className="truncate max-w-[180px] sm:max-w-none">{block.name}</div>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground sm:hidden">
+                            {formatDateNl(block.date)}
+                            {block.is_active ? "" : " · Inactief"}
+                          </div>
+                        </div>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-sm">
+                      <TableCell className="hidden whitespace-nowrap text-sm sm:table-cell">
                         {formatDateNl(block.date)}
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-sm">
+                      <TableCell className="hidden md:table-cell text-sm">
                         {resolveVenueName(block.venue_id)}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm">
+                      <TableCell className="hidden lg:table-cell text-sm">
                         {resolveTimeslotLabel(block.timeslot_id)}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={block.is_active ? 'default' : 'secondary'}>
-                          {block.is_active ? 'Actief' : 'Inactief'}
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge variant={block.is_active ? "default" : "secondary"}>
+                          {block.is_active ? "Actief" : "Inactief"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center gap-1">
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-0.5">
                           <Button
                             type="button"
-                            className="btn btn--icon btn--edit"
+                            className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
                             aria-label="Blokkade bewerken"
                             onClick={() => handleEdit(block)}
                           >
@@ -295,7 +301,7 @@ const SlotUnavailabilitySettings: React.FC = () => {
                           </Button>
                           <Button
                             type="button"
-                            className="btn btn--icon btn--danger"
+                            className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
                             aria-label="Blokkade verwijderen"
                             onClick={() => handleDelete(block)}
                           >

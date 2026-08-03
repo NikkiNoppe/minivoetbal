@@ -351,20 +351,28 @@ const CompetitionFormatsSettings: React.FC = () => {
                   <TableRow>
                     <TableHead>Naam</TableHead>
                     <TableHead className="hidden md:table-cell">Beschrijving</TableHead>
-                    <TableHead>Reeksen</TableHead>
+                    <TableHead className="hidden sm:table-cell">Reeksen</TableHead>
                     <TableHead className="hidden sm:table-cell">Play-offs</TableHead>
                     <TableHead className="hidden lg:table-cell">Rondes</TableHead>
-                    <TableHead className="text-right">Acties</TableHead>
+                    <TableHead className="text-right w-[88px]">Acties</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {formats.map((format) => (
                     <TableRow key={format.id}>
-                      <TableCell className="font-medium text-brand-dark">{format.name}</TableCell>
+                      <TableCell className="font-medium text-brand-dark">
+                        <div className="min-w-0">
+                          <div className="truncate">{format.name}</div>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground sm:hidden">
+                            {formatDivisionSummary(format)}
+                            {format.has_playoffs ? " · Play-offs" : ""}
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">
                         {format.description || "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Badge variant={format.has_divisions ? "default" : "secondary"}>
                           {formatDivisionSummary(format)}
                         </Badge>
@@ -375,12 +383,12 @@ const CompetitionFormatsSettings: React.FC = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">{format.regular_rounds}</TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-1.5">
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-0.5">
                           <Button
                             type="button"
                             variant="unstyled"
-                            className="btn btn--icon btn--edit"
+                            className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
                             aria-label="Bewerken"
                             onClick={() => handleEdit(format)}
                           >
@@ -389,7 +397,7 @@ const CompetitionFormatsSettings: React.FC = () => {
                           <Button
                             type="button"
                             variant="unstyled"
-                            className="btn btn--icon btn--danger"
+                            className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
                             aria-label="Verwijderen"
                             onClick={() => handleDelete(format)}
                           >

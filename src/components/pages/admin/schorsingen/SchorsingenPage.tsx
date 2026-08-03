@@ -225,6 +225,7 @@ const AdminView: React.FC = memo(() => {
               suspensions={suspensions || []}
               showTeam={true}
               isLoading={isLoading}
+              compact
             />
           )}
         </SectionCollapsibleCard>

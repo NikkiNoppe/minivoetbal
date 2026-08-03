@@ -1163,60 +1163,69 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   const cupInteractive = Boolean(setup.systems.cup);
                   const vacationInteractive = isVacation || isVacationException;
 
+                  // One status badge max — keeps week cards same height when selected
+                  const statusBadge = isVacationException ? (
+                    <Badge
+                      variant="outline"
+                      className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
+                    >
+                      Uitzondering
+                    </Badge>
+                  ) : isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
+                    <Badge
+                      variant="secondary"
+                      className="w-fit text-[10px] px-1.5 py-0 bg-amber-100 text-amber-950"
+                    >
+                      {isCupPreferred ? "Bekerkeuze" : "Beker"}
+                    </Badge>
+                  ) : selectability === "suggested" ? (
+                    <Badge
+                      variant="outline"
+                      className="w-fit text-[10px] px-1.5 py-0 border-dashed border-primary/50 text-primary"
+                    >
+                      Voorstel
+                    </Badge>
+                  ) : selectability === "tight" ? (
+                    <Badge
+                      variant="outline"
+                      className="w-fit text-[10px] px-1.5 py-0 border-orange-400/70 text-orange-950 bg-orange-50"
+                    >
+                      Krap
+                    </Badge>
+                  ) : null;
+
                   const content = (
                     <>
                       <span className="text-xs font-medium tabular-nums">
                         {formatWeekLabel(monday)}
                       </span>
-                      {isShared ? (
-                        <Badge
-                          variant="outline"
-                          className="w-fit text-[10px] px-1.5 py-0 border-amber-400/70 bg-amber-50 text-amber-950"
-                        >
-                          Gedeeld
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0">
-                          {style.label}
-                        </Badge>
-                      )}
-                      {isVacationException ? (
-                        <Badge
-                          variant="outline"
-                          className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
-                        >
-                          Uitzondering
-                        </Badge>
-                      ) : null}
+                      <div className="flex flex-wrap items-center gap-1 min-h-[18px]">
+                        {isShared ? (
+                          <Badge
+                            variant="outline"
+                            className="w-fit text-[10px] px-1.5 py-0 border-amber-400/70 bg-amber-50 text-amber-950"
+                          >
+                            Gedeeld
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0">
+                            {style.label}
+                          </Badge>
+                        )}
+                        {statusBadge}
+                      </div>
                       {week.sharedDayHint ? (
-                        <span className="text-[10px] leading-tight text-muted-foreground">
+                        <span
+                          className="text-[10px] leading-tight text-muted-foreground line-clamp-1"
+                          title={week.sharedDayHint}
+                        >
                           {week.sharedDayHint}
                         </span>
-                      ) : null}
-                      {selectability === "suggested" ? (
-                        <Badge
-                          variant="outline"
-                          className="w-fit text-[10px] px-1.5 py-0 border-dashed border-primary/50 text-primary"
-                        >
-                          Voorstel
-                        </Badge>
-                      ) : null}
-                      {isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
-                        <Badge
-                          variant="secondary"
-                          className="w-fit text-[10px] px-1.5 py-0 bg-amber-100 text-amber-950"
-                        >
-                          {isCupPreferred ? "Bekerkeuze" : "Beker"}
-                        </Badge>
-                      ) : null}
-                      {selectability === "tight" ? (
-                        <Badge
-                          variant="outline"
-                          className="w-fit text-[10px] px-1.5 py-0 border-orange-400/70 text-orange-950 bg-orange-50"
-                        >
-                          Krap
-                        </Badge>
-                      ) : null}
+                      ) : (
+                        <span className="text-[10px] leading-tight invisible" aria-hidden>
+                          —
+                        </span>
+                      )}
                       <div
                         className="mt-auto h-1.5 rounded-full bg-black/10 overflow-hidden"
                         aria-hidden
@@ -1250,10 +1259,10 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
 
                   if (!isInteractive) {
                     return (
-                      <li key={monday}>
+                      <li key={monday} className="h-full">
                         <div
                           className={cn(
-                            "rounded-lg border p-2 min-h-[72px] flex flex-col gap-1",
+                            "h-full rounded-lg border p-2 min-h-[7.5rem] flex flex-col gap-1",
                             style.className,
                             isBlocked && "opacity-60",
                           )}
@@ -1285,7 +1294,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                                 : null;
 
                   return (
-                    <li key={monday} className="space-y-1">
+                    <li key={monday} className="h-full flex flex-col gap-1">
                       <button
                         type="button"
                         onClick={handleWeekClick}
@@ -1321,10 +1330,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                               : weekAdvice?.blockReason ??
                                 weekAdvice?.warningWhileSelected ??
                                 weekAdvice?.warningOnSelect ??
+                                week.sharedDayHint ??
                                 undefined
                         }
                         className={cn(
-                          "w-full rounded-lg border p-2 min-h-[72px] flex flex-col gap-1 text-left",
+                          "w-full h-full rounded-lg border p-2 min-h-[7.5rem] flex flex-col gap-1 text-left",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           "transition-shadow hover:shadow-md",
                           style.className,

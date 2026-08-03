@@ -868,31 +868,57 @@ const AdminCompetitionPage: React.FC<{ embedded?: boolean }> = ({ embedded = fal
                     </div>
                   </div>
                 )}
-                <div className="w-full overflow-x-auto">
+                <div className="w-full min-w-0 overflow-x-auto">
                   <table className="table w-full text-sm">
                     <thead className="tableHead">
                       <tr>
-                        <th className="text-left">Speeldag</th>
-                        <th className="text-left">Home</th>
-                        <th className="text-left">Away</th>
-                        <th className="text-left">Datum</th>
-                        <th className="text-left">Tijd</th>
-                        <th className="text-left">Venue</th>
-                        <th className="text-left">Score (home+away/max)</th>
+                        <th className="hidden text-left sm:table-cell">Speeldag</th>
+                        <th className="text-left">Wedstrijd</th>
+                        <th className="hidden text-left md:table-cell">Datum</th>
+                        <th className="hidden text-left md:table-cell">Tijd</th>
+                        <th className="hidden text-left lg:table-cell">Venue</th>
+                        <th className="text-left">Score</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {previewPlan.map((p, idx) => (
-                        <tr key={idx}>
-                          <td>{p.speeldag}</td>
-                          <td>{p.home_team_id ? (teamNameById.get(p.home_team_id) || p.home_team_id) : '-'}</td>
-                          <td>{p.away_team_id ? (teamNameById.get(p.away_team_id) || p.away_team_id) : '-'}</td>
-                          <td>{p.match_date ? new Date(p.match_date).toLocaleDateString('nl-NL') : ''}</td>
-                          <td>{p.match_time || ''}</td>
-                          <td>{p.venue || ''}</td>
-                          <td>{(p.details?.homeScore ?? 0)} + {(p.details?.awayScore ?? 0)} = {(p.details?.combined ?? 0)} / {p.details?.maxCombined}</td>
-                        </tr>
-                      ))}
+                      {previewPlan.map((p, idx) => {
+                        const home =
+                          p.home_team_id
+                            ? teamNameById.get(p.home_team_id) || p.home_team_id
+                            : "-";
+                        const away =
+                          p.away_team_id
+                            ? teamNameById.get(p.away_team_id) || p.away_team_id
+                            : "-";
+                        const dateLabel = p.match_date
+                          ? new Date(p.match_date).toLocaleDateString("nl-NL")
+                          : "";
+                        return (
+                          <tr key={idx}>
+                            <td className="hidden sm:table-cell">{p.speeldag}</td>
+                            <td>
+                              <div className="min-w-0 font-medium">
+                                <div className="truncate">
+                                  {home} vs {away}
+                                </div>
+                                <div className="mt-0.5 text-[11px] text-muted-foreground md:hidden">
+                                  Speeldag {p.speeldag}
+                                  {dateLabel ? ` · ${dateLabel}` : ""}
+                                  {p.match_time ? ` · ${p.match_time}` : ""}
+                                  {p.venue ? ` · ${p.venue}` : ""}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="hidden md:table-cell">{dateLabel}</td>
+                            <td className="hidden md:table-cell">{p.match_time || ""}</td>
+                            <td className="hidden lg:table-cell">{p.venue || ""}</td>
+                            <td className="tabular-nums whitespace-nowrap">
+                              {(p.details?.homeScore ?? 0)} + {(p.details?.awayScore ?? 0)} ={" "}
+                              {(p.details?.combined ?? 0)} / {p.details?.maxCombined}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -380,7 +381,72 @@ const PlayerListLockSettings: React.FC = () => {
             </Button>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-primary/10">
+          <div className="space-y-3 md:hidden">
+            {periods.map((period, index) => {
+              const hint = periodHint(index, periods.length);
+              const ariaName = periodDisplayLabel(period, index, periods.length);
+              return (
+                <div
+                  key={`lock-period-mobile-${index}`}
+                  className="rounded-lg border border-primary/10 p-3 space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <Input
+                      id={`lock-label-mobile-${index}`}
+                      aria-label={`Label periode ${index + 1}`}
+                      placeholder={hint}
+                      value={period.label ?? ""}
+                      onChange={(e) => updatePeriod(index, { label: e.target.value })}
+                      className="min-h-[44px]"
+                    />
+                    <Button
+                      type="button"
+                      variant="unstyled"
+                      className="btn btn--icon btn--danger shrink-0 min-h-[44px] min-w-[44px]"
+                      onClick={() => removePeriod(index)}
+                      aria-label={`${ariaName} verwijderen`}
+                      disabled={
+                        periods.length <= 1 && !period.from && !period.until && !period.label
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor={`lock-from-mobile-${index}`} className="text-xs">
+                        Vanaf
+                      </Label>
+                      <Input
+                        id={`lock-from-mobile-${index}`}
+                        type="date"
+                        aria-label={`${ariaName} vanaf`}
+                        value={period.from}
+                        onChange={(e) => updatePeriod(index, { from: e.target.value })}
+                        className="min-h-[44px]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`lock-until-mobile-${index}`} className="text-xs">
+                        Tot
+                      </Label>
+                      <Input
+                        id={`lock-until-mobile-${index}`}
+                        type="date"
+                        aria-label={`${ariaName} tot`}
+                        value={period.until ?? ""}
+                        onChange={(e) => updatePeriod(index, { until: e.target.value })}
+                        className="min-h-[44px]"
+                        min={period.from || undefined}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-primary/10 md:block">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">

@@ -241,14 +241,13 @@ const VenuesSettings: React.FC = () => {
                   Toevoegen
                 </Button>
               </div>
-              <div className="w-full overflow-x-auto">
-                <div className="min-w-[600px]">
+              <div className="w-full min-w-0 overflow-x-auto">
                   <Table className="table w-full">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[200px]">Naam</TableHead>
-                        <TableHead className="min-w-[300px]">Adres</TableHead>
-                        <TableHead className="text-center min-w-[120px]">Acties</TableHead>
+                        <TableHead>Naam</TableHead>
+                        <TableHead className="hidden sm:table-cell">Adres</TableHead>
+                        <TableHead className="text-right w-[88px]">Acties</TableHead>
                       </TableRow>
                     </TableHeader>
                 <TableBody>
@@ -268,19 +267,30 @@ const VenuesSettings: React.FC = () => {
                   ) : (
                     venues.map((venue) => (
                       <TableRow key={venue.venue_id}>
-                        <TableCell className="font-medium">{venue.name}</TableCell>
-                        <TableCell>{venue.address}</TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex justify-center gap-1">
+                        <TableCell className="font-medium">
+                          <div className="min-w-0">
+                            <div className="truncate">{venue.name}</div>
+                            {venue.address ? (
+                              <div className="mt-0.5 truncate text-[11px] text-muted-foreground sm:hidden">
+                                {venue.address}
+                              </div>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">{venue.address}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-0.5">
                             <Button
-                              className="btn btn--icon btn--edit"
+                              type="button"
+                              className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
                               onClick={() => handleEdit(venue)}
                               aria-label={`Bewerk ${venue.name}`}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
-                              className="btn btn--icon btn--danger"
+                              type="button"
+                              className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
                               onClick={() => handleDelete(venue)}
                               aria-label={`Verwijder ${venue.name}`}
                             >
@@ -293,7 +303,6 @@ const VenuesSettings: React.FC = () => {
                   )}
                 </TableBody>
                   </Table>
-                </div>
               </div>
             </div>
           </div>

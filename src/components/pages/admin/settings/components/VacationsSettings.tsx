@@ -237,28 +237,39 @@ const VacationsSettings: React.FC = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Naam</TableHead>
-                        <TableHead>Start</TableHead>
-                        <TableHead>Eind</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Acties</TableHead>
+                        <TableHead className="hidden sm:table-cell">Start</TableHead>
+                        <TableHead className="hidden sm:table-cell">Eind</TableHead>
+                        <TableHead className="hidden md:table-cell">Status</TableHead>
+                        <TableHead className="text-right w-[88px]">Acties</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {vacationsSorted.map((vacation) => (
                         <TableRow key={vacation.id}>
-                          <TableCell className="font-medium">{vacation.name}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatDate(vacation.start_date)}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatDate(vacation.end_date)}</TableCell>
-                          <TableCell>
-                            <Badge variant={vacation.is_active ? 'default' : 'secondary'}>
-                              {vacation.is_active ? 'Actief' : 'Inactief'}
+                          <TableCell className="font-medium">
+                            <div className="min-w-0">
+                              <div className="truncate">{vacation.name}</div>
+                              <div className="mt-0.5 text-[11px] text-muted-foreground sm:hidden">
+                                {formatDate(vacation.start_date)} – {formatDate(vacation.end_date)}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden whitespace-nowrap sm:table-cell">
+                            {formatDate(vacation.start_date)}
+                          </TableCell>
+                          <TableCell className="hidden whitespace-nowrap sm:table-cell">
+                            {formatDate(vacation.end_date)}
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <Badge variant={vacation.is_active ? "default" : "secondary"}>
+                              {vacation.is_active ? "Actief" : "Inactief"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex justify-center gap-1">
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-0.5">
                               <Button
                                 type="button"
-                                className="btn btn--icon btn--edit"
+                                className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
                                 aria-label="Vakantieperiode bewerken"
                                 onClick={() => handleEdit(vacation)}
                               >
@@ -266,7 +277,7 @@ const VacationsSettings: React.FC = () => {
                               </Button>
                               <Button
                                 type="button"
-                                className="btn btn--icon btn--danger"
+                                className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
                                 aria-label="Vakantieperiode verwijderen"
                                 onClick={() => handleDelete(vacation)}
                               >

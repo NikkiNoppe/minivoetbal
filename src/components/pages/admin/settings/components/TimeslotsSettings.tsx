@@ -287,39 +287,55 @@ const TimeslotsSettings: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Locatie</TableHead>
-                  <TableHead>Dag</TableHead>
+                  <TableHead className="hidden sm:table-cell">Locatie</TableHead>
+                  <TableHead className="hidden sm:table-cell">Dag</TableHead>
                   <TableHead>Tijd</TableHead>
                   <TableHead>Periode</TableHead>
-                  <TableHead>Prioriteit</TableHead>
-                  <TableHead>Acties</TableHead>
+                  <TableHead className="hidden md:table-cell">Prioriteit</TableHead>
+                  <TableHead className="text-right w-[88px]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {timeslotsSorted.map((timeslot) => (
                   <TableRow key={timeslot.timeslot_id}>
-                    <TableCell className="font-medium">
+                    <TableCell className="hidden sm:table-cell font-medium">
                       {getVenueName(timeslot.venue_id)}
                     </TableCell>
-                    <TableCell>{dayNames[timeslot.day_of_week]}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {dayNames[timeslot.day_of_week]}
+                    </TableCell>
                     <TableCell>
-                      {timeslot.start_time} - {timeslot.end_time}
+                      <div className="font-medium tabular-nums">
+                        {timeslot.start_time} - {timeslot.end_time}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground sm:hidden">
+                        {dayNames[timeslot.day_of_week]}
+                        {getVenueName(timeslot.venue_id)
+                          ? ` · ${getVenueName(timeslot.venue_id)}`
+                          : ""}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatTimeslotPeriod(timeslot)}
+                      <span className="line-clamp-2 sm:line-clamp-none">
+                        {formatTimeslotPeriod(timeslot)}
+                      </span>
                     </TableCell>
-                    <TableCell>{timeslot.priority || 'N/A'}</TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex justify-center gap-1">
+                    <TableCell className="hidden md:table-cell">
+                      {timeslot.priority || "N/A"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-0.5">
                         <Button
-                          className="btn btn--icon btn--edit"
+                          type="button"
+                          className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
                           onClick={() => handleEdit(timeslot)}
                           aria-label="Tijdslot bewerken"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
-                          className="btn btn--icon btn--danger"
+                          type="button"
+                          className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
                           onClick={() => handleDelete(timeslot)}
                           aria-label="Tijdslot verwijderen"
                         >

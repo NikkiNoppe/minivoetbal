@@ -107,15 +107,15 @@ const DateGeneratorPreview: React.FC<DateGeneratorPreviewProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
+            <div className="rounded-md border min-w-0 overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Datum</TableHead>
-                    <TableHead>Dag</TableHead>
+                    <TableHead className="hidden sm:table-cell">Dag</TableHead>
                     <TableHead>Tijd</TableHead>
-                    <TableHead>Locatie</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead className="hidden md:table-cell">Locatie</TableHead>
+                    <TableHead className="hidden sm:table-cell">Type</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -124,31 +124,36 @@ const DateGeneratorPreview: React.FC<DateGeneratorPreviewProps> = ({
                     return (
                       <TableRow key={index}>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-4 w-4" />
+                          <div className="flex items-center gap-1 font-medium">
+                            <CalendarIcon className="h-4 w-4 shrink-0" aria-hidden />
                             {format(dateObj, "dd/MM/yyyy", { locale: nl })}
                           </div>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground sm:hidden">
+                            {format(dateObj, "EEEE", { locale: nl })}
+                            {date.venue_name ? ` · ${date.venue_name}` : ""}
+                            {` · ${date.is_cup_date ? "Beker" : "Competitie"}`}
+                          </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           {format(dateObj, "EEEE", { locale: nl })}
                         </TableCell>
                         <TableCell>
-                          {date.start_time && date.end_time && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
+                          {date.start_time && date.end_time ? (
+                            <div className="flex items-center gap-1 tabular-nums">
+                              <Clock className="h-4 w-4 shrink-0" aria-hidden />
                               {date.start_time} - {date.end_time}
                             </div>
-                          )}
+                          ) : null}
                         </TableCell>
-                        <TableCell>
-                          {date.venue_name && (
+                        <TableCell className="hidden md:table-cell">
+                          {date.venue_name ? (
                             <div className="flex items-center gap-1">
-                              <MapPin className="h-4 w-4" />
+                              <MapPin className="h-4 w-4 shrink-0" aria-hidden />
                               {date.venue_name}
                             </div>
-                          )}
+                          ) : null}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <Badge variant={date.is_cup_date ? "destructive" : "secondary"}>
                             {date.is_cup_date ? "Beker" : "Competitie"}
                           </Badge>

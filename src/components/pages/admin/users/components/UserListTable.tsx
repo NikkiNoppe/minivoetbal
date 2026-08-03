@@ -1,12 +1,12 @@
 
 import React, { useState } from "react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { User, Edit, Trash2, Loader2, ShieldCheck, Users2, UserCog } from "lucide-react";
@@ -14,12 +14,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import SearchInput from "@/components/ui/search-input";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { AppAlertModal, DestructiveConfirmDescription } from "@/components/modals";
 import { DbUser } from "../userTypes";
@@ -35,7 +35,6 @@ interface UserListProps {
   onEditUser?: (user: DbUser) => void;
   onDeleteUser?: (userId: number) => void;
   editMode?: boolean;
-  // Search and filter props
   searchTerm: string;
   onSearchTermChange: (term: string) => void;
   roleFilter: string;
@@ -46,23 +45,144 @@ interface UserListProps {
   addUserButton?: React.ReactNode;
 }
 
-const UserListTable: React.FC<UserListProps> = ({ 
-  users, 
-  loading, 
+const roleLabel = (role: string) => {
+  if (role === "admin") return "Administrator";
+  if (role === "player_manager") return "Teamverantwoordelijke";
+  if (role === "referee") return "Scheidsrechter";
+  return role;
+};
+
+const roleIcon = (role: string) => {
+  if (role === "admin") return UserCog;
+  if (role === "player_manager") return Users2;
+  return ShieldCheck;
+};
+
+const roleBadgeVariant = (role: string): "default" | "secondary" | "outline" => {
+  if (role === "admin") return "default";
+  if (role === "player_manager") return "outline";
+  return "secondary";
+};
+
+function MobileUserSkeleton() {
+  return (
+    <ul className="divide-y divide-border/60 md:hidden" aria-busy="true" aria-label="Gebruikers laden">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <li key={`user-mobile-skeleton-${index}`} className="flex items-center gap-3 px-3 py-2.5">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-28" />
+            <Skeleton className="h-3 w-36" />
+            <Skeleton className="h-4 w-24 rounded-full" />
+          </div>
+          <div className="flex gap-1">
+            <Skeleton className="h-10 w-10 rounded-md" />
+            <Skeleton className="h-10 w-10 rounded-md" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+interface UserMobileCardProps {
+  user: DbUser;
+  editMode: boolean;
+  isUpdating: boolean;
+  isDeleting: boolean;
+  onEdit?: (user: DbUser) => void;
+  onDelete: (user: DbUser) => void;
+}
+
+function UserMobileCard({
+  user,
+  editMode,
   isUpdating,
   isDeleting,
-  onEditUser, 
+  onEdit,
+  onDelete,
+}: UserMobileCardProps) {
+  const Icon = roleIcon(user.role);
+  const teams = user.teams ?? [];
+  const teamSummary =
+    teams.length === 0
+      ? "Geen teams"
+      : teams.length === 1
+        ? teams[0].team_name
+        : `${teams[0].team_name} +${teams.length - 1}`;
+
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-2.5">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
+        <User className="h-3.5 w-3.5" aria-hidden />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <p className="truncate text-sm font-semibold text-brand-dark">{user.username}</p>
+          <Badge
+            variant={roleBadgeVariant(user.role)}
+            className="shrink-0 inline-flex items-center gap-1 border border-primary/20 px-1.5 py-0 text-[10px]"
+          >
+            <Icon className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="max-w-[7.5rem] truncate">{roleLabel(user.role)}</span>
+          </Badge>
+        </div>
+        <p className="truncate text-[11px] text-muted-foreground">{user.email || "—"}</p>
+        <p className="truncate text-[11px] text-muted-foreground/90" title={teams.map((t) => t.team_name).join(", ")}>
+          {teamSummary}
+        </p>
+      </div>
+
+      {editMode ? (
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            type="button"
+            variant="unstyled"
+            className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
+            onClick={() => onEdit?.(user)}
+            disabled={isUpdating || isDeleting}
+            aria-label={`Bewerk ${user.username}`}
+          >
+            {isUpdating ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Edit className="h-4 w-4" aria-hidden />
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="unstyled"
+            className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
+            onClick={() => onDelete(user)}
+            disabled={isUpdating || isDeleting}
+            aria-label={`Verwijder ${user.username}`}
+          >
+            {isDeleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Trash2 className="h-4 w-4" aria-hidden />
+            )}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const UserListTable: React.FC<UserListProps> = ({
+  users,
+  loading,
+  isUpdating,
+  isDeleting,
+  onEditUser,
   onDeleteUser,
   editMode = false,
-  // Search and filter props
   searchTerm,
   onSearchTermChange,
   roleFilter,
   onRoleFilterChange,
-  teamFilter,
-  onTeamFilterChange,
-  teams,
-  addUserButton
+  addUserButton,
 }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<DbUser | null>(null);
@@ -85,113 +205,57 @@ const UserListTable: React.FC<UserListProps> = ({
     setUserToDelete(null);
   };
 
-  const roleLabel = (role: string) => {
-    if (role === "admin") return "Administrator";
-    if (role === "player_manager") return "Teamverantwoordelijke";
-    if (role === "referee") return "Scheidsrechter";
-    return role;
-  };
-
-  const roleIcon = (role: string) => {
-    if (role === "admin") return UserCog;
-    if (role === "player_manager") return Users2;
-    return ShieldCheck;
-  };
-
-  const roleBadgeVariant = (role: string): "default" | "secondary" | "outline" => {
-    if (role === "admin") return "default";
-    if (role === "player_manager") return "outline";
-    return "secondary";
-  };
+  const isFiltered = searchTerm.trim().length > 0 || roleFilter !== "all";
+  const emptyMessage = isFiltered
+    ? "Geen gebruikers gevonden voor deze filters"
+    : "Geen gebruikers gevonden";
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2">
         <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <CardContent className="p-2.5 sm:p-4">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
               Gebruikers
             </p>
-            <p className="mt-2 text-2xl font-semibold text-brand-dark">{users.length}</p>
+            <p className="mt-0.5 text-lg font-semibold text-brand-dark sm:mt-2 sm:text-2xl">
+              {users.length}
+            </p>
           </CardContent>
         </Card>
         <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Administrators
+          <CardContent className="p-2.5 sm:p-4">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+              Admins
             </p>
-            <p className="mt-2 text-2xl font-semibold text-brand-dark">
+            <p className="mt-0.5 text-lg font-semibold text-brand-dark sm:mt-2 sm:text-2xl">
               {users.filter((user) => user.role === "admin").length}
             </p>
           </CardContent>
         </Card>
         <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <CardContent className="p-2.5 sm:p-4">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
               Teamrollen
             </p>
-            <p className="mt-2 text-2xl font-semibold text-brand-dark">
+            <p className="mt-0.5 text-lg font-semibold text-brand-dark sm:mt-2 sm:text-2xl">
               {users.filter((user) => user.role !== "admin").length}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Filter Section */}
       <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
-        <CardContent className="space-y-4 p-4 sm:p-5">
-        {/* Mobile: Stacked layout */}
-        <div className="block md:hidden space-y-3">
-          {/* Search by name */}
-          <SearchInput
-            placeholder="Zoeken op naam..."
-            value={searchTerm}
-            onChange={onSearchTermChange}
-            className="min-h-[44px]"
-          />
-
-          {/* Filter by role */}
-          <Select
-            value={roleFilter}
-            onValueChange={onRoleFilterChange}
-          >
-            <SelectTrigger className="w-full min-h-[44px]">
-              <SelectValue placeholder="Alle rollen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle rollen</SelectItem>
-              <SelectItem value="admin">Administrator</SelectItem>
-              <SelectItem value="player_manager">Teamverantwoordelijke</SelectItem>
-              <SelectItem value="referee">Scheidsrechter</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Team filter removed as requested */}
-
-          {/* Add User Button - Mobile */}
-          {addUserButton && (
-            <div className="pt-2">
-              {addUserButton}
-            </div>
-          )}
-        </div>
-
-        {/* Desktop: Grid layout */}
-        <div className="hidden md:flex md:items-end md:gap-4">
-          <div className="flex-1 grid grid-cols-2 gap-4">
-            {/* Search by name */}
+        <CardContent className="space-y-3 p-3 sm:space-y-4 sm:p-5">
+          <div className="block space-y-2 md:hidden">
             <SearchInput
               placeholder="Zoeken op naam..."
               value={searchTerm}
               onChange={onSearchTermChange}
+              className="min-h-[44px]"
             />
-
-            {/* Filter by role */}
-            <Select
-              value={roleFilter}
-              onValueChange={onRoleFilterChange}
-            >
-              <SelectTrigger className="min-h-[44px]">
+            <Select value={roleFilter} onValueChange={onRoleFilterChange}>
+              <SelectTrigger className="w-full min-h-[44px]">
                 <SelectValue placeholder="Alle rollen" />
               </SelectTrigger>
               <SelectContent>
@@ -201,216 +265,249 @@ const UserListTable: React.FC<UserListProps> = ({
                 <SelectItem value="referee">Scheidsrechter</SelectItem>
               </SelectContent>
             </Select>
-
-            {/* Team filter removed as requested */}
+            {addUserButton ? <div>{addUserButton}</div> : null}
           </div>
-          
-          {/* Add User Button - Desktop */}
-          {addUserButton && (
-            <div className="flex-shrink-0">
-              {addUserButton}
+
+          <div className="hidden md:flex md:items-end md:gap-4">
+            <div className="flex-1 grid grid-cols-2 gap-4">
+              <SearchInput
+                placeholder="Zoeken op naam..."
+                value={searchTerm}
+                onChange={onSearchTermChange}
+              />
+              <Select value={roleFilter} onValueChange={onRoleFilterChange}>
+                <SelectTrigger className="min-h-[44px]">
+                  <SelectValue placeholder="Alle rollen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle rollen</SelectItem>
+                  <SelectItem value="admin">Administrator</SelectItem>
+                  <SelectItem value="player_manager">Teamverantwoordelijke</SelectItem>
+                  <SelectItem value="referee">Scheidsrechter</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-        </div>
+            {addUserButton ? <div className="flex-shrink-0">{addUserButton}</div> : null}
+          </div>
         </CardContent>
       </Card>
 
-      {/* User Table */}
-      <div className="w-full overflow-x-auto">
-        <div className="w-full min-w-0">
-          <Table className="table w-full">
-            <TableHeader>
-              <TableRow className="table-header-row">
-                <TableHead className="left min-w-[220px]">Naam</TableHead>
-                <TableHead className="hidden min-w-[240px] lg:table-cell">Email</TableHead>
-                <TableHead className="min-w-[150px]">Rol</TableHead>
-                <TableHead className="hidden min-w-[280px] xl:table-cell">Teams</TableHead>
-                {editMode && <TableHead className="right min-w-[104px]">Acties</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                // Loading skeleton
-                Array.from({ length: 5 }).map((_, index) => (
-                  <TableRow key={`skeleton-${index}`}>
-                    <TableCell className="left table-skeleton-cell">
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-                        <Skeleton className="h-4 w-32" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="table-skeleton-cell hidden lg:table-cell">
-                      <div className="flex justify-center">
-                        <Skeleton className="h-4 w-40" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="table-skeleton-cell">
-                      <div className="flex justify-center">
-                        <Skeleton className="h-6 w-28 rounded-full" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="table-skeleton-cell hidden xl:table-cell">
-                      <div className="flex justify-center">
-                        <Skeleton className="h-6 w-28 rounded-full" />
-                      </div>
-                    </TableCell>
-                    {editMode && (
-                      <TableCell className="right table-skeleton-cell">
-                        <div className="flex justify-end gap-1.5">
-                          <Skeleton className="h-11 w-11 rounded-md" />
-                          <Skeleton className="h-11 w-11 rounded-md" />
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              ) : !users || users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={editMode ? 5 : 4} className="py-6 text-center text-muted-foreground">
-                    {loading ? 'Laden...' : 'Geen gebruikers gevonden'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map(user => (
-                  <TableRow key={user.user_id}>
-                    <TableCell className="left font-medium">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary shadow-sm">
-                          <User className="h-4 w-4" aria-hidden />
-                        </span>
-                        <div className="min-w-0 text-left">
-                          <span className="block truncate max-w-[140px] sm:max-w-[220px] text-brand-dark">
-                            {user.username}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground lg:hidden">
-                            {user.email || "—"}
-                          </span>
-                          <div className="mt-1 flex flex-wrap gap-1 xl:hidden">
-                            {user.teams && user.teams.length > 0 ? (
-                              user.teams.slice(0, 2).map((team) => (
-                                <Badge
-                                  key={team.team_id}
-                                  variant="outline"
-                                  className="border-primary/20 bg-brand-50 text-[10px] sm:text-xs"
-                                >
-                                  {team.team_name}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground sm:text-xs">Geen teams</span>
-                            )}
-                            {user.teams && user.teams.length > 2 ? (
-                              <Badge variant="secondary" className="border border-border/70 text-[10px] sm:text-xs">
-                                +{user.teams.length - 2}
-                              </Badge>
-                            ) : null}
+      <Card className={cn(PUBLIC_CARD_CLASS, "shadow-lg")}>
+        <CardContent className="min-w-0 overflow-hidden p-0">
+          {loading ? (
+            <>
+              <MobileUserSkeleton />
+              <div className="hidden overflow-x-auto md:block">
+                <Table className="table w-full">
+                  <TableHeader>
+                    <TableRow className="table-header-row">
+                      <TableHead className="left min-w-[220px]">Naam</TableHead>
+                      <TableHead className="min-w-[240px]">Email</TableHead>
+                      <TableHead className="min-w-[150px]">Rol</TableHead>
+                      <TableHead className="min-w-[280px]">Teams</TableHead>
+                      {editMode ? (
+                        <TableHead className="right min-w-[104px]">Acties</TableHead>
+                      ) : null}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={`skeleton-${index}`}>
+                        <TableCell className="left table-skeleton-cell">
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                            <Skeleton className="h-4 w-32" />
                           </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell">
-                      <div className="truncate max-w-[200px] mx-auto" title={user.email || undefined}>
-                        {user.email || "—"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center">
-                        <Badge
-                          variant={roleBadgeVariant(user.role)}
-                          className="inline-flex items-center gap-1.5 border border-primary/20"
-                        >
-                          {React.createElement(roleIcon(user.role), {
-                            className: "h-3.5 w-3.5 shrink-0",
-                            "aria-hidden": true,
-                          })}
-                          {roleLabel(user.role)}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden xl:table-cell">
-                      {user.teams && user.teams.length > 0 ? (
-                        <div className="flex flex-wrap justify-center gap-1.5">
-                          {user.teams.length <= 2 ? (
-                            user.teams.map(team => (
-                              <Badge
-                                key={team.team_id}
-                                variant="outline"
-                                className="border-primary/20 bg-brand-50"
-                              >
-                                {team.team_name}
-                              </Badge>
-                            ))
-                          ) : (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <Badge variant="outline" className="border-primary/20 bg-brand-50">
-                                      {user.teams[0].team_name}
-                                    </Badge>
-                                    <Badge variant="secondary" className="border border-border/70">
-                                      +{user.teams.length - 1}
-                                    </Badge>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <div className="space-y-1">
-                                    {user.teams.map(team => (
-                                      <div key={team.team_id}>{team.team_name}</div>
-                                    ))}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    {editMode && (
-                      <TableCell className="right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            type="button"
-                            onClick={() => onEditUser?.(user)}
-                            variant="unstyled"
-                            className="btn btn--icon btn--edit"
-                            disabled={isUpdating || isDeleting}
-                            aria-label={`Bewerk ${user.username}`}
-                          >
-                            {isUpdating ? (
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            ) : (
-                              <Edit className="h-4 w-4" aria-hidden />
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            onClick={() => handleDeleteClick(user)}
-                            variant="unstyled"
-                            className="btn btn--icon btn--danger"
-                            disabled={isUpdating || isDeleting}
-                            aria-label={`Verwijder ${user.username}`}
-                          >
-                            {isDeleting ? (
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            ) : (
-                              <Trash2 className="h-4 w-4" aria-hidden />
-                            )}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+                        </TableCell>
+                        <TableCell className="table-skeleton-cell">
+                          <Skeleton className="mx-auto h-4 w-40" />
+                        </TableCell>
+                        <TableCell className="table-skeleton-cell">
+                          <Skeleton className="mx-auto h-6 w-28 rounded-full" />
+                        </TableCell>
+                        <TableCell className="table-skeleton-cell">
+                          <Skeleton className="mx-auto h-6 w-28 rounded-full" />
+                        </TableCell>
+                        {editMode ? (
+                          <TableCell className="right table-skeleton-cell">
+                            <div className="flex justify-end gap-1.5">
+                              <Skeleton className="h-11 w-11 rounded-md" />
+                              <Skeleton className="h-11 w-11 rounded-md" />
+                            </div>
+                          </TableCell>
+                        ) : null}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : !users || users.length === 0 ? (
+            <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+              <User className="mb-3 h-10 w-10 text-muted-foreground/50" aria-hidden />
+              <p className="text-sm font-medium text-brand-dark">{emptyMessage}</p>
+              {isFiltered ? (
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  Pas je zoekterm of rolfilter aan.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <ul className="divide-y divide-border/60 md:hidden" aria-label="Gebruikerslijst">
+                {users.map((user) => (
+                  <li key={user.user_id}>
+                    <UserMobileCard
+                      user={user}
+                      editMode={editMode}
+                      isUpdating={isUpdating}
+                      isDeleting={isDeleting}
+                      onEdit={onEditUser}
+                      onDelete={handleDeleteClick}
+                    />
+                  </li>
+                ))}
+              </ul>
 
-      {/* Delete Confirmation Dialog */}
+              <div className="hidden overflow-x-auto md:block">
+                <Table className="table w-full">
+                  <TableHeader>
+                    <TableRow className="table-header-row">
+                      <TableHead className="left min-w-[220px]">Naam</TableHead>
+                      <TableHead className="min-w-[240px]">Email</TableHead>
+                      <TableHead className="min-w-[150px]">Rol</TableHead>
+                      <TableHead className="min-w-[280px]">Teams</TableHead>
+                      {editMode ? (
+                        <TableHead className="right min-w-[104px]">Acties</TableHead>
+                      ) : null}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.user_id}>
+                        <TableCell className="left font-medium">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary shadow-sm">
+                              <User className="h-4 w-4" aria-hidden />
+                            </span>
+                            <span className="block truncate max-w-[220px] text-brand-dark">
+                              {user.username}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          <div
+                            className="mx-auto truncate max-w-[200px]"
+                            title={user.email || undefined}
+                          >
+                            {user.email || "—"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-center">
+                            <Badge
+                              variant={roleBadgeVariant(user.role)}
+                              className="inline-flex items-center gap-1.5 border border-primary/20"
+                            >
+                              {React.createElement(roleIcon(user.role), {
+                                className: "h-3.5 w-3.5 shrink-0",
+                                "aria-hidden": true,
+                              })}
+                              {roleLabel(user.role)}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {user.teams && user.teams.length > 0 ? (
+                            <div className="flex flex-wrap justify-center gap-1.5">
+                              {user.teams.length <= 2 ? (
+                                user.teams.map((team) => (
+                                  <Badge
+                                    key={team.team_id}
+                                    variant="outline"
+                                    className="border-primary/20 bg-brand-50"
+                                  >
+                                    {team.team_name}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        <Badge
+                                          variant="outline"
+                                          className="border-primary/20 bg-brand-50"
+                                        >
+                                          {user.teams[0].team_name}
+                                        </Badge>
+                                        <Badge
+                                          variant="secondary"
+                                          className="border border-border/70"
+                                        >
+                                          +{user.teams.length - 1}
+                                        </Badge>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <div className="space-y-1">
+                                        {user.teams.map((team) => (
+                                          <div key={team.team_id}>{team.team_name}</div>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        {editMode ? (
+                          <TableCell className="right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                type="button"
+                                onClick={() => onEditUser?.(user)}
+                                variant="unstyled"
+                                className="btn btn--icon btn--edit"
+                                disabled={isUpdating || isDeleting}
+                                aria-label={`Bewerk ${user.username}`}
+                              >
+                                {isUpdating ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                ) : (
+                                  <Edit className="h-4 w-4" aria-hidden />
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                onClick={() => handleDeleteClick(user)}
+                                variant="unstyled"
+                                className="btn btn--icon btn--danger"
+                                disabled={isUpdating || isDeleting}
+                                aria-label={`Verwijder ${user.username}`}
+                              >
+                                {isDeleting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        ) : null}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       <AppAlertModal
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}

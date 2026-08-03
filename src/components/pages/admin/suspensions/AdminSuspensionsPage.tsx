@@ -437,7 +437,7 @@ const AdminSuspensionsPage: React.FC = () => {
             </div>
           ) : (
             <div className="w-full overflow-x-auto">
-              <div className="min-w-0 lg:min-w-[1000px] table-no-inner-scroll-mobile">
+              <div className="min-w-0 table-no-inner-scroll-mobile">
                 <Table className="table w-full text-sm md:text-base">
                   <TableHeader>
                     <TableRow>
@@ -452,8 +452,21 @@ const AdminSuspensionsPage: React.FC = () => {
                   <TableBody>
                     {manualSuspensions.map(suspension => (
                       <TableRow key={suspension.id}>
-                        <TableCell className="font-medium truncate max-w-[200px] sm:max-w-[260px] text-xs sm:text-sm" title={getPlayerName(suspension.playerId)}>
-                          {getPlayerName(suspension.playerId)}
+                        <TableCell className="font-medium text-xs sm:text-sm">
+                          <div className="min-w-0">
+                            <div
+                              className="truncate max-w-[200px] sm:max-w-[260px]"
+                              title={getPlayerName(suspension.playerId)}
+                            >
+                              {getPlayerName(suspension.playerId)}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-muted-foreground lg:hidden">
+                              {suspension.matches} wedstrijd{suspension.matches === 1 ? "" : "en"}
+                              {" · "}
+                              {suspension.isActive ? "Actief" : "Inactief"}
+                              {suspension.reason ? ` · ${suspension.reason}` : ""}
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell truncate max-w-[260px] text-xs sm:text-sm">{suspension.reason}</TableCell>
                         <TableCell className="hidden sm:table-cell">{suspension.matches}</TableCell>

@@ -351,8 +351,15 @@ const PlayerCardRow = memo(({
           </>
         ) : (
           <>
-            <span className="min-w-0 truncate font-medium text-foreground" title={card.playerName}>
-              {card.playerName}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-foreground" title={card.playerName}>
+                {card.playerName}
+              </span>
+              {showTeam ? (
+                <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                  {card.teamName}
+                </span>
+              ) : null}
             </span>
             {compact ? (
               <span className="flex shrink-0 items-center gap-1.5">

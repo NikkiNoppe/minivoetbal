@@ -402,21 +402,36 @@ export const SuspensionRulesSettings: React.FC = () => {
                 Nog geen drempels. Voeg een regel toe.
               </p>
             ) : (
-              <div className="overflow-x-auto -mx-1 px-1">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[8rem]">Vanaf (gele kaarten)</TableHead>
-                      <TableHead className="min-w-[8rem]">Schorsing (wedstrijden)</TableHead>
-                      <TableHead className="w-[72px] text-center">Acties</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rules.yellow_card_rules.map((rule, index) => (
-                      <TableRow key={`yellow-rule-${index}`}>
-                        <TableCell className="align-middle">
+              <div className="space-y-3">
+                <div className="space-y-3 sm:hidden">
+                  {rules.yellow_card_rules.map((rule, index) => (
+                    <div
+                      key={`yellow-rule-mobile-${index}`}
+                      className="rounded-lg border border-primary/10 p-3 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-brand-dark">
+                          Drempel {index + 1}
+                        </p>
+                        <Button
+                          type="button"
+                          className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
+                          onClick={() => removeYellowCardRule(index)}
+                          aria-label={`Drempel bij ${rule.card_count} gele kaarten verwijderen`}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label
+                            htmlFor={`yellow-count-mobile-${index}`}
+                            className="text-xs text-muted-foreground"
+                          >
+                            Vanaf (geel)
+                          </label>
                           <Input
-                            id={`yellow-count-${index}`}
+                            id={`yellow-count-mobile-${index}`}
                             type="number"
                             inputMode="numeric"
                             aria-label={`Vanaf ${rule.card_count} gele kaarten`}
@@ -428,13 +443,19 @@ export const SuspensionRulesSettings: React.FC = () => {
                                 parseInt(e.target.value, 10) || 1,
                               )
                             }
-                            className="min-h-[44px] w-full max-w-[9rem]"
+                            className="min-h-[44px] w-full"
                             min={1}
                           />
-                        </TableCell>
-                        <TableCell className="align-middle">
+                        </div>
+                        <div className="space-y-1">
+                          <label
+                            htmlFor={`yellow-suspension-mobile-${index}`}
+                            className="text-xs text-muted-foreground"
+                          >
+                            Schorsing
+                          </label>
                           <Input
-                            id={`yellow-suspension-${index}`}
+                            id={`yellow-suspension-mobile-${index}`}
                             type="number"
                             inputMode="numeric"
                             aria-label={`Schorsing ${rule.suspension_matches} wedstrijden`}
@@ -446,26 +467,80 @@ export const SuspensionRulesSettings: React.FC = () => {
                                 parseInt(e.target.value, 10) || 0,
                               )
                             }
-                            className="min-h-[44px] w-full max-w-[9rem]"
+                            className="min-h-[44px] w-full"
                             min={0}
                           />
-                        </TableCell>
-                        <TableCell className="align-middle text-center">
-                          <div className="flex justify-center">
-                            <Button
-                              type="button"
-                              className="btn btn--icon btn--danger"
-                              onClick={() => removeYellowCardRule(index)}
-                              aria-label={`Drempel bij ${rule.card_count} gele kaarten verwijderen`}
-                            >
-                              <Trash2 className="h-4 w-4" aria-hidden />
-                            </Button>
-                          </div>
-                        </TableCell>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto -mx-1 px-1 sm:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[8rem]">Vanaf (gele kaarten)</TableHead>
+                        <TableHead className="min-w-[8rem]">Schorsing (wedstrijden)</TableHead>
+                        <TableHead className="w-[72px] text-center">Acties</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {rules.yellow_card_rules.map((rule, index) => (
+                        <TableRow key={`yellow-rule-${index}`}>
+                          <TableCell className="align-middle">
+                            <Input
+                              id={`yellow-count-${index}`}
+                              type="number"
+                              inputMode="numeric"
+                              aria-label={`Vanaf ${rule.card_count} gele kaarten`}
+                              value={rule.card_count}
+                              onChange={(e) =>
+                                updateYellowCardRule(
+                                  index,
+                                  "card_count",
+                                  parseInt(e.target.value, 10) || 1,
+                                )
+                              }
+                              className="min-h-[44px] w-full max-w-[9rem]"
+                              min={1}
+                            />
+                          </TableCell>
+                          <TableCell className="align-middle">
+                            <Input
+                              id={`yellow-suspension-${index}`}
+                              type="number"
+                              inputMode="numeric"
+                              aria-label={`Schorsing ${rule.suspension_matches} wedstrijden`}
+                              value={rule.suspension_matches}
+                              onChange={(e) =>
+                                updateYellowCardRule(
+                                  index,
+                                  "suspension_matches",
+                                  parseInt(e.target.value, 10) || 0,
+                                )
+                              }
+                              className="min-h-[44px] w-full max-w-[9rem]"
+                              min={0}
+                            />
+                          </TableCell>
+                          <TableCell className="align-middle text-center">
+                            <div className="flex justify-center">
+                              <Button
+                                type="button"
+                                className="btn btn--icon btn--danger"
+                                onClick={() => removeYellowCardRule(index)}
+                                aria-label={`Drempel bij ${rule.card_count} gele kaarten verwijderen`}
+                              >
+                                <Trash2 className="h-4 w-4" aria-hidden />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
           </div>

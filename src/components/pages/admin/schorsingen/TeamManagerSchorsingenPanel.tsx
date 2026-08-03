@@ -351,6 +351,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
                   suspensions={teamSuspensions}
                   showTeam={false}
                   isLoading={isLoading}
+                  compact
                 />
               )}
             </CardContent>

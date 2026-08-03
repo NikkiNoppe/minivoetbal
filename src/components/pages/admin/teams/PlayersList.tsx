@@ -268,32 +268,46 @@ const PlayersList: React.FC<PlayersListProps> = ({ teamId, teamName, teamEmail }
             <Table className="table w-full text-sm md:text-base">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky top-0 bg-inherit z-10">Voornaam</TableHead>
-                  <TableHead className="sticky top-0 bg-inherit z-10">Achternaam</TableHead>
-                  <TableHead className="sticky top-0 bg-inherit z-10">Geboortedatum</TableHead>
-                  <TableHead className="text-right sticky top-0 bg-inherit z-10">Actie</TableHead>
+                  <TableHead className="sticky top-0 bg-inherit z-10">Naam</TableHead>
+                  <TableHead className="hidden sticky top-0 bg-inherit z-10 sm:table-cell">
+                    Geboortedatum
+                  </TableHead>
+                  <TableHead className="sticky top-0 bg-inherit z-10 text-right w-[88px]">
+                    Actie
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {players.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                    <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
                       Geen spelers toegevoegd
                     </TableCell>
                   </TableRow>
                 ) : (
                   players.map((player) => (
                     <TableRow key={player.player_id}>
-                      <TableCell className="font-medium">{player.first_name}</TableCell>
-                      <TableCell>{player.last_name}</TableCell>
-                      <TableCell>{formatDateShort(player.birth_date)}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="min-w-0">
+                          <div className="truncate">
+                            {player.first_name} {player.last_name}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground sm:hidden">
+                            {formatDateShort(player.birth_date)}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {formatDateShort(player.birth_date)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button
+                          type="button"
                           variant="ghost"
-                          size="sm"
                           onClick={() => handleRemovePlayer(player.player_id)}
                           disabled={!canEdit}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-100 disabled:opacity-50"
+                          className="min-h-[44px] min-w-[44px] text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                          aria-label={`${player.first_name} ${player.last_name} verwijderen`}
                         >
                           Verwijderen
                         </Button>
