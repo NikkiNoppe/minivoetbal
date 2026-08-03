@@ -5,8 +5,10 @@ import {
   AppModalBody,
 } from "@/components/modals/base/app-modal";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Eye, EyeOff, Mail } from "lucide-react";
+import { Eye, EyeOff, Mail } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TeamOption {
   id: number;
@@ -54,6 +56,7 @@ export const UserModal: React.FC<UserModalProps> = ({
     selectedTeamId: null
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [sendPasswordSetupEmail, setSendPasswordSetupEmail] = useState(false);
 
   // Memoized initial form data to prevent unnecessary recalculations
   const initialFormData = useMemo((): FormData | null => {
@@ -86,9 +89,11 @@ export const UserModal: React.FC<UserModalProps> = ({
   useEffect(() => {
     if (initialFormData) {
       setFormData(initialFormData);
+      setSendPasswordSetupEmail(false);
     }
     if (!open) {
       setShowPassword(false);
+      setSendPasswordSetupEmail(false);
     }
   }, [initialFormData, open]);
 
@@ -104,6 +109,10 @@ export const UserModal: React.FC<UserModalProps> = ({
       
       return newData;
     });
+
+    if (field === "email" && typeof value === "string" && !value.trim().includes("@")) {
+      setSendPasswordSetupEmail(false);
+    }
   }, []);
 
   // Memoized submit handler
@@ -128,7 +137,11 @@ export const UserModal: React.FC<UserModalProps> = ({
         password: formData.password,
         role: formData.role,
         teamId: (formData.role === 'player_manager' && formData.selectedTeamId) ? formData.selectedTeamId : null,
-        teamIds: (formData.role === 'player_manager' && formData.selectedTeamId) ? [formData.selectedTeamId] : []
+        teamIds: (formData.role === 'player_manager' && formData.selectedTeamId) ? [formData.selectedTeamId] : [],
+        sendPasswordSetupEmail:
+          Boolean(editingUser) &&
+          sendPasswordSetupEmail &&
+          formData.email.trim().includes("@"),
       };
 
       const success = await onSave(submitData);
@@ -139,7 +152,7 @@ export const UserModal: React.FC<UserModalProps> = ({
     } catch (error) {
       console.error('Error saving user:', error);
     }
-  }, [formData, onSave, onOpenChange]);
+  }, [formData, sendPasswordSetupEmail, editingUser, onSave, onOpenChange]);
 
   // Memoized cancel handler
   const handleCancel = useCallback(() => {
@@ -169,6 +182,11 @@ export const UserModal: React.FC<UserModalProps> = ({
 
   const hasInviteEmail = useMemo(
     () => !editingUser && formData.email.trim().includes("@"),
+    [editingUser, formData.email],
+  );
+
+  const canSendPasswordSetupEmail = useMemo(
+    () => Boolean(editingUser) && formData.email.trim().includes("@"),
     [editingUser, formData.email],
   );
 
@@ -320,6 +338,42 @@ export const UserModal: React.FC<UserModalProps> = ({
               </Alert>
             )}
           </div>
+
+          {editingUser ? (
+            <div
+              className={cn(
+                "flex items-start gap-3 rounded-lg border border-primary/15 bg-brand-50/40 p-3",
+                !canSendPasswordSetupEmail && "opacity-70",
+              )}
+            >
+              <Checkbox
+                id="send-password-setup-email"
+                checked={sendPasswordSetupEmail && canSendPasswordSetupEmail}
+                onCheckedChange={(checked) =>
+                  setSendPasswordSetupEmail(checked === true)
+                }
+                disabled={isLoading || !canSendPasswordSetupEmail}
+                className="mt-1"
+                aria-describedby="send-password-setup-email-hint"
+              />
+              <div className="min-w-0 space-y-1">
+                <label
+                  htmlFor="send-password-setup-email"
+                  className="block text-sm font-medium text-brand-dark cursor-pointer"
+                >
+                  Stuur e-mail om wachtwoord in te stellen
+                </label>
+                <p
+                  id="send-password-setup-email-hint"
+                  className="text-xs text-muted-foreground leading-relaxed"
+                >
+                  {canSendPasswordSetupEmail
+                    ? "Na het bijwerken ontvangt de gebruiker een link om een (nieuw) wachtwoord te kiezen."
+                    : "Vul eerst een geldig e-mailadres in om deze optie te gebruiken."}
+                </p>
+              </div>
+            </div>
+          ) : null}
           
           {/* Role */}
           <div className="space-y-2">

@@ -189,6 +189,7 @@ export const useUserOperations = (teams: Team[], refreshData: () => Promise<void
     role: "admin" | "referee" | "player_manager";
     teamId?: number;
     teamIds?: number[];
+    sendPasswordSetupEmail?: boolean;
   }) => {
     try {
       // Update user in users table (including password if provided)
@@ -227,6 +228,49 @@ export const useUserOperations = (teams: Team[], refreshData: () => Promise<void
         throw new Error('Gebruiker niet bijgewerkt');
       }
 
+      const shouldSendPasswordSetupEmail =
+        Boolean(formData.sendPasswordSetupEmail) &&
+        Boolean(formData.email && formData.email.includes("@"));
+
+      let passwordEmailSent = false;
+      let passwordEmailError: string | null = null;
+
+      if (shouldSendPasswordSetupEmail) {
+        try {
+          const { data: emailResponse, error: emailError } = await supabase.functions.invoke(
+            "send-welcome-email",
+            {
+              body: {
+                email: formData.email,
+                username: formData.username,
+                userId,
+              },
+              headers: getEdgeFunctionHeaders(),
+            },
+          );
+
+          if (
+            emailError ||
+            emailResponse?.error ||
+            emailResponse?.success === false
+          ) {
+            passwordEmailError =
+              emailError?.message ||
+              emailResponse?.error ||
+              "Versturen van wachtwoordmail mislukt";
+          } else {
+            passwordEmailSent = true;
+          }
+        } catch (e) {
+          console.warn("Kon wachtwoord-instelmail niet verzenden:", e);
+          passwordEmailError = e instanceof Error ? e.message : "Onbekende fout";
+        }
+      }
+
+      const emailSuffix = passwordEmailSent
+        ? " Een e-mail om het wachtwoord in te stellen is verzonden."
+        : "";
+
       if (formData.role === "player_manager") {
         const teamIds = formData.teamIds || (formData.teamId ? [formData.teamId] : []);
 
@@ -250,7 +294,7 @@ export const useUserOperations = (teams: Team[], refreshData: () => Promise<void
 
           toast({
             title: "Gebruiker bijgewerkt",
-            description: `${formData.username || 'Gebruiker'} is bijgewerkt als teamverantwoordelijke voor ${teamNames}`,
+            description: `${formData.username || 'Gebruiker'} is bijgewerkt als teamverantwoordelijke voor ${teamNames}.${emailSuffix}`,
           });
         } else {
           await supabase.rpc('manage_team_user_for_session', {
@@ -262,7 +306,7 @@ export const useUserOperations = (teams: Team[], refreshData: () => Promise<void
           } as any);
           toast({
             title: "Gebruiker bijgewerkt",
-            description: `${formData.username || 'Gebruiker'} is bijgewerkt zonder teamkoppeling`,
+            description: `${formData.username || 'Gebruiker'} is bijgewerkt zonder teamkoppeling.${emailSuffix}`,
           });
         }
       } else {
@@ -275,7 +319,16 @@ export const useUserOperations = (teams: Team[], refreshData: () => Promise<void
         } as any);
         toast({
           title: "Gebruiker bijgewerkt",
-          description: `${formData.username || 'Gebruiker'} is bijgewerkt als ${formData.role}`,
+          description: `${formData.username || 'Gebruiker'} is bijgewerkt als ${formData.role}.${emailSuffix}`,
+        });
+      }
+
+      if (passwordEmailError) {
+        toast({
+          title: "Gebruiker bijgewerkt",
+          description: `De gebruiker is bijgewerkt, maar de wachtwoordmail kon niet worden verzonden (${passwordEmailError}).`,
+          variant: "destructive",
+          duration: 15000,
         });
       }
 
