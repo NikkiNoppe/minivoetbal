@@ -32,7 +32,8 @@ const Logo: React.FC<LogoProps> = ({ onClick }) => {
           draggable={false}
           onError={(e) => {
             e.currentTarget.onerror = null;
-            e.currentTarget.src = branding.logoIconPath;
+            e.currentTarget.src = resolveLogoIconPath(branding, { onDark: true });
+
           }}
         />
       </div>
