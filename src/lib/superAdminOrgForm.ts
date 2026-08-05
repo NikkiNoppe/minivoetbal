@@ -50,6 +50,8 @@ export function organizationToFormState(org: Organization): SuperAdminOrgFormSta
     siteUrl: branding.siteUrl,
     hostnamesText: (branding.hostnames ?? []).join('\n'),
     logoPath: branding.logoPath,
+    logoHorizontalPath: branding.logoHorizontalPath ?? '',
+    logoLayout: branding.logoLayout === 'horizontal' ? 'horizontal' : 'stacked',
     logoIconPath: branding.logoIconPath,
     faviconPath: branding.faviconPath,
     metaTitle: branding.meta?.defaultTitle ?? '',
