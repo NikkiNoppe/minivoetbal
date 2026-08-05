@@ -137,6 +137,8 @@ export function createEmptyOrgFormState(nextId: number): SuperAdminOrgFormState 
     siteUrl: '',
     hostnamesText: '',
     logoPath: '/images/logos/minivoetbal-text.png',
+    logoHorizontalPath: '',
+    logoLayout: 'stacked',
     logoIconPath: '/images/logos/minivoetbal-icon.png',
     faviconPath: '/favicon.ico',
     metaTitle: '',
