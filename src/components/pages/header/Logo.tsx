@@ -1,5 +1,6 @@
 import React from "react";
 import { useBranding } from "@/hooks/useBranding";
+import { resolveHeaderLogoPath } from "@/types/branding";
 
 interface LogoProps {
   onClick: () => void;
@@ -7,6 +8,7 @@ interface LogoProps {
 
 const Logo: React.FC<LogoProps> = ({ onClick }) => {
   const branding = useBranding();
+  const logoSrc = resolveHeaderLogoPath(branding);
 
   return (
     <button
@@ -17,8 +19,9 @@ const Logo: React.FC<LogoProps> = ({ onClick }) => {
     >
       <div className="h-14 w-[189px] flex items-center justify-center">
         <img
-          src={branding.logoPath}
+          src={logoSrc}
           alt={`${branding.displayName} Logo`}
+
           className="h-14 w-auto object-contain px-2"
           width={189}
           height={56}
