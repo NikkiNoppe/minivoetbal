@@ -18,6 +18,8 @@ export interface SuperAdminOrgFormState {
   siteUrl: string;
   hostnamesText: string;
   logoPath: string;
+  logoHorizontalPath: string;
+  logoLayout: 'stacked' | 'horizontal';
   logoIconPath: string;
   faviconPath: string;
   metaTitle: string;
