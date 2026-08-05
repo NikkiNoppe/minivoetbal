@@ -96,6 +96,8 @@ export function formStateToBrandingSettings(
     siteUrl: form.siteUrl.trim(),
     hostnames,
     logoPath: form.logoPath.trim(),
+    logoHorizontalPath: form.logoHorizontalPath.trim(),
+    logoLayout: form.logoLayout,
     logoIconPath: form.logoIconPath.trim(),
     faviconPath: form.faviconPath.trim(),
     meta: {
