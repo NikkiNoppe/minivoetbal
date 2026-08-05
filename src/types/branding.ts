@@ -18,12 +18,18 @@ export interface OrganizationEmailSettings {
 
 export const DEFAULT_HARELBEKE_INFO_EMAIL = 'info@harelbekeminivoetbal.be';
 
+/** Weergavevariant van het headerlogo. */
+export type OrganizationLogoLayout = 'stacked' | 'horizontal';
+
 export interface OrganizationBranding {
   displayName: string;
   shortName: string;
   siteUrl: string;
   hostnames?: string[];
   logoPath: string;
+  /** Variant met de tekst naast het logo (optioneel). */
+  logoHorizontalPath?: string;
+  logoLayout?: OrganizationLogoLayout;
   logoIconPath: string;
   faviconPath: string;
   themeColors?: ThemeColors;
@@ -31,6 +37,15 @@ export interface OrganizationBranding {
   links?: OrganizationExternalLink[];
   email?: OrganizationEmailSettings;
 }
+
+/** Kiest het te tonen headerlogo op basis van de gekozen variant. */
+export function resolveHeaderLogoPath(branding: OrganizationBranding): string {
+  if (branding.logoLayout === 'horizontal' && branding.logoHorizontalPath) {
+    return branding.logoHorizontalPath;
+  }
+  return branding.logoPath;
+}
+
 
 export function deriveDefaultInfoEmail(siteUrl: string): string {
   try {
@@ -132,6 +147,9 @@ export function parseBrandingSettings(
       typeof raw.logoPath === 'string'
         ? raw.logoPath
         : DEFAULT_BRANDING.logoPath,
+    logoHorizontalPath:
+      typeof raw.logoHorizontalPath === 'string' ? raw.logoHorizontalPath : undefined,
+    logoLayout: raw.logoLayout === 'horizontal' ? 'horizontal' : 'stacked',
     logoIconPath:
       typeof raw.logoIconPath === 'string'
         ? raw.logoIconPath

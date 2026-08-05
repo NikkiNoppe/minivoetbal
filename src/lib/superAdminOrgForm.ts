@@ -18,6 +18,8 @@ export interface SuperAdminOrgFormState {
   siteUrl: string;
   hostnamesText: string;
   logoPath: string;
+  logoHorizontalPath: string;
+  logoLayout: 'stacked' | 'horizontal';
   logoIconPath: string;
   faviconPath: string;
   metaTitle: string;
@@ -48,6 +50,8 @@ export function organizationToFormState(org: Organization): SuperAdminOrgFormSta
     siteUrl: branding.siteUrl,
     hostnamesText: (branding.hostnames ?? []).join('\n'),
     logoPath: branding.logoPath,
+    logoHorizontalPath: branding.logoHorizontalPath ?? '',
+    logoLayout: branding.logoLayout === 'horizontal' ? 'horizontal' : 'stacked',
     logoIconPath: branding.logoIconPath,
     faviconPath: branding.faviconPath,
     metaTitle: branding.meta?.defaultTitle ?? '',
@@ -92,6 +96,8 @@ export function formStateToBrandingSettings(
     siteUrl: form.siteUrl.trim(),
     hostnames,
     logoPath: form.logoPath.trim(),
+    logoHorizontalPath: form.logoHorizontalPath.trim(),
+    logoLayout: form.logoLayout,
     logoIconPath: form.logoIconPath.trim(),
     faviconPath: form.faviconPath.trim(),
     meta: {
@@ -131,6 +137,8 @@ export function createEmptyOrgFormState(nextId: number): SuperAdminOrgFormState 
     siteUrl: '',
     hostnamesText: '',
     logoPath: '/images/logos/minivoetbal-text.png',
+    logoHorizontalPath: '',
+    logoLayout: 'stacked',
     logoIconPath: '/images/logos/minivoetbal-icon.png',
     faviconPath: '/favicon.ico',
     metaTitle: '',
