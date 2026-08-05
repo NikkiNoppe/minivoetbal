@@ -9,6 +9,8 @@ export const HOSTNAME_TO_SLUG: Record<string, string> = {
   'harelbekeminivoetbal.nikkinoppe.be': 'harelbeke',
   'kuurneminivoetbal.nikkinoppe.be': 'kuurne',
   'mvvkuurne.nikkinoppe.be': 'kuurne',
+  'mvvkuurne.be': 'kuurne',
+  'www.mvvkuurne.be': 'kuurne',
   'harelbekeminivoetbal.be': 'harelbeke',
   'www.harelbekeminivoetbal.be': 'harelbeke',
 };
