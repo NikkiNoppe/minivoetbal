@@ -141,6 +141,27 @@ export function OrgHubBrandingPanel({
           accept="image/png,image/jpeg,image/webp,image/svg+xml"
           previewClassName="max-h-16"
         />
+        <OrgHubAssetUploadField
+          label="Logo (wit, donkere achtergrond)"
+          description="Witte variant, gebruikt in de header op de donkere merkkleur."
+          value={form.logoWhitePath}
+          onChange={(value) => update('logoWhitePath', value)}
+          organizationId={form.organizationId}
+          assetType="logo"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          previewClassName="max-h-16 bg-brand-600 rounded-md p-1"
+        />
+        <OrgHubAssetUploadField
+          label="Logo wit (tekst naast logo)"
+          description="Witte horizontale variant voor donkere achtergronden."
+          value={form.logoHorizontalWhitePath}
+          onChange={(value) => update('logoHorizontalWhitePath', value)}
+          organizationId={form.organizationId}
+          assetType="logo"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          previewClassName="max-h-16 bg-brand-600 rounded-md p-1"
+        />
+
         <div className="space-y-2 sm:col-span-2">
           <Label>Logovariant in header</Label>
           <div className="flex flex-wrap gap-2">
