@@ -19,6 +19,8 @@ export interface SuperAdminOrgFormState {
   hostnamesText: string;
   logoPath: string;
   logoHorizontalPath: string;
+  logoWhitePath: string;
+  logoHorizontalWhitePath: string;
   logoLayout: 'stacked' | 'horizontal';
   logoIconPath: string;
   faviconPath: string;
@@ -51,6 +53,8 @@ export function organizationToFormState(org: Organization): SuperAdminOrgFormSta
     hostnamesText: (branding.hostnames ?? []).join('\n'),
     logoPath: branding.logoPath,
     logoHorizontalPath: branding.logoHorizontalPath ?? '',
+    logoWhitePath: branding.logoWhitePath ?? '',
+    logoHorizontalWhitePath: branding.logoHorizontalWhitePath ?? '',
     logoLayout: branding.logoLayout === 'horizontal' ? 'horizontal' : 'stacked',
     logoIconPath: branding.logoIconPath,
     faviconPath: branding.faviconPath,
@@ -97,6 +101,8 @@ export function formStateToBrandingSettings(
     hostnames,
     logoPath: form.logoPath.trim(),
     logoHorizontalPath: form.logoHorizontalPath.trim(),
+    logoWhitePath: form.logoWhitePath.trim(),
+    logoHorizontalWhitePath: form.logoHorizontalWhitePath.trim(),
     logoLayout: form.logoLayout,
     logoIconPath: form.logoIconPath.trim(),
     faviconPath: form.faviconPath.trim(),
@@ -138,6 +144,8 @@ export function createEmptyOrgFormState(nextId: number): SuperAdminOrgFormState 
     hostnamesText: '',
     logoPath: '/images/logos/minivoetbal-text.png',
     logoHorizontalPath: '',
+    logoWhitePath: '',
+    logoHorizontalWhitePath: '',
     logoLayout: 'stacked',
     logoIconPath: '/images/logos/minivoetbal-icon.png',
     faviconPath: '/favicon.ico',
