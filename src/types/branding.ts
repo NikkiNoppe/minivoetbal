@@ -147,6 +147,9 @@ export function parseBrandingSettings(
       typeof raw.logoPath === 'string'
         ? raw.logoPath
         : DEFAULT_BRANDING.logoPath,
+    logoHorizontalPath:
+      typeof raw.logoHorizontalPath === 'string' ? raw.logoHorizontalPath : undefined,
+    logoLayout: raw.logoLayout === 'horizontal' ? 'horizontal' : 'stacked',
     logoIconPath:
       typeof raw.logoIconPath === 'string'
         ? raw.logoIconPath
