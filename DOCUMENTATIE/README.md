@@ -18,6 +18,14 @@ Overzicht van actieve projectdocumentatie voor Harelbeekse Minivoetbal.
 | [SUPABASE_GRANTS_CONVENTION.md](./SUPABASE_GRANTS_CONVENTION.md) | Conventie voor GRANT + RLS in nieuwe migraties |
 | [EMAIL_DNS_SETUP.md](./EMAIL_DNS_SETUP.md) | DNS/ImprovMX/Resend setup voor `info@harelbekeminivoetbal.be` |
 
+## Gebruikers
+
+| Document | Beschrijving |
+|----------|--------------|
+| [HANDLEIDING_TEAMMANAGER.md](./HANDLEIDING_TEAMMANAGER.md) | Stap-voor-stap voor teamverantwoordelijken: wachtwoord, inloggen, spelers toevoegen |
+| [HANDLEIDING_TEAMMANAGER.docx](./HANDLEIDING_TEAMMANAGER.docx) | Word-versie van de teamverantwoordelijke-handleiding |
+| [HANDLEIDING_TEAMMANAGER.pdf](./HANDLEIDING_TEAMMANAGER.pdf) | PDF-versie van de teamverantwoordelijke-handleiding |
+
 ## Onderhoud
 
 Eenmalige audit- en migratierapporten zijn verwijderd zodra de werkzaamheden afgerond waren. Houd deze map beperkt tot levende referentiedocumentatie.
