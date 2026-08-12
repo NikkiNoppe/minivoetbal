@@ -132,6 +132,62 @@ export function OrgHubBrandingPanel({
           previewClassName="max-h-16"
         />
         <OrgHubAssetUploadField
+          label="Logo (tekst naast logo)"
+          description="Horizontale variant: beeldmerk links, tekst ernaast."
+          value={form.logoHorizontalPath}
+          onChange={(value) => update('logoHorizontalPath', value)}
+          organizationId={form.organizationId}
+          assetType="logo"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          previewClassName="max-h-16"
+        />
+        <OrgHubAssetUploadField
+          label="Logo (wit, donkere achtergrond)"
+          description="Witte variant, gebruikt in de header op de donkere merkkleur."
+          value={form.logoWhitePath}
+          onChange={(value) => update('logoWhitePath', value)}
+          organizationId={form.organizationId}
+          assetType="logo"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          previewClassName="max-h-16 bg-brand-600 rounded-md p-1"
+        />
+        <OrgHubAssetUploadField
+          label="Logo wit (tekst naast logo)"
+          description="Witte horizontale variant voor donkere achtergronden."
+          value={form.logoHorizontalWhitePath}
+          onChange={(value) => update('logoHorizontalWhitePath', value)}
+          organizationId={form.organizationId}
+          assetType="logo"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          previewClassName="max-h-16 bg-brand-600 rounded-md p-1"
+        />
+
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Logovariant in header</Label>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { value: 'stacked', label: 'Tekst onder logo' },
+                { value: 'horizontal', label: 'Tekst naast logo' },
+              ] as const
+            ).map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={form.logoLayout === option.value ? 'default' : 'outline'}
+                className="min-h-[44px]"
+                disabled={option.value === 'horizontal' && !form.logoHorizontalPath}
+                onClick={() => update('logoLayout', option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Bepaalt welk logobestand in de header en e-mails getoond wordt.
+          </p>
+        </div>
+        <OrgHubAssetUploadField
           label="Logo icoon"
           description="Vierkant icoon als fallback."
           value={form.logoIconPath}
@@ -141,6 +197,7 @@ export function OrgHubBrandingPanel({
           accept="image/png,image/jpeg,image/webp,image/svg+xml"
           previewClassName="max-h-16 max-w-[64px]"
         />
+
         <div className="sm:col-span-2">
           <OrgHubAssetUploadField
             label="Favicon"

@@ -1,5 +1,6 @@
 import React from "react";
 import { useBranding } from "@/hooks/useBranding";
+import { resolveHeaderLogoPath, resolveLogoIconPath } from "@/types/branding";
 
 interface LogoProps {
   onClick: () => void;
@@ -7,6 +8,9 @@ interface LogoProps {
 
 const Logo: React.FC<LogoProps> = ({ onClick }) => {
   const branding = useBranding();
+  // Header heeft een donkere merkachtergrond -> witte logovariant indien beschikbaar
+  const logoSrc = resolveHeaderLogoPath(branding, { onDark: true });
+
 
   return (
     <button
@@ -17,8 +21,9 @@ const Logo: React.FC<LogoProps> = ({ onClick }) => {
     >
       <div className="h-14 w-[189px] flex items-center justify-center">
         <img
-          src={branding.logoPath}
+          src={logoSrc}
           alt={`${branding.displayName} Logo`}
+
           className="h-14 w-auto object-contain px-2"
           width={189}
           height={56}
@@ -27,7 +32,8 @@ const Logo: React.FC<LogoProps> = ({ onClick }) => {
           draggable={false}
           onError={(e) => {
             e.currentTarget.onerror = null;
-            e.currentTarget.src = branding.logoIconPath;
+            e.currentTarget.src = resolveLogoIconPath(branding, { onDark: true });
+
           }}
         />
       </div>

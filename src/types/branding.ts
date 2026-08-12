@@ -18,19 +18,63 @@ export interface OrganizationEmailSettings {
 
 export const DEFAULT_HARELBEKE_INFO_EMAIL = 'info@harelbekeminivoetbal.be';
 
+/** Weergavevariant van het headerlogo. */
+export type OrganizationLogoLayout = 'stacked' | 'horizontal';
+
 export interface OrganizationBranding {
   displayName: string;
   shortName: string;
   siteUrl: string;
   hostnames?: string[];
   logoPath: string;
+  /** Variant met de tekst naast het logo (optioneel). */
+  logoHorizontalPath?: string;
+  /** Witte variant voor donkere achtergronden (header). */
+  logoWhitePath?: string;
+  /** Witte horizontale variant voor donkere achtergronden. */
+  logoHorizontalWhitePath?: string;
+  logoLayout?: OrganizationLogoLayout;
   logoIconPath: string;
+  /** Wit icoon voor donkere achtergronden. */
+  logoIconWhitePath?: string;
   faviconPath: string;
   themeColors?: ThemeColors;
   meta?: OrganizationBrandingMeta;
   links?: OrganizationExternalLink[];
   email?: OrganizationEmailSettings;
 }
+
+/**
+ * Kiest het te tonen headerlogo op basis van de gekozen variant.
+ * Op donkere achtergronden wordt de witte variant gebruikt indien beschikbaar.
+ */
+export function resolveHeaderLogoPath(
+  branding: OrganizationBranding,
+  options: { onDark?: boolean } = {},
+): string {
+  const horizontal = branding.logoLayout === 'horizontal' && branding.logoHorizontalPath;
+
+  if (options.onDark) {
+    if (horizontal && branding.logoHorizontalWhitePath) {
+      return branding.logoHorizontalWhitePath;
+    }
+    if (!horizontal && branding.logoWhitePath) {
+      return branding.logoWhitePath;
+    }
+  }
+
+  return horizontal ? (branding.logoHorizontalPath as string) : branding.logoPath;
+}
+
+/** Fallback-icoon, wit op donkere achtergrond indien aanwezig. */
+export function resolveLogoIconPath(
+  branding: OrganizationBranding,
+  options: { onDark?: boolean } = {},
+): string {
+  if (options.onDark && branding.logoIconWhitePath) return branding.logoIconWhitePath;
+  return branding.logoIconPath;
+}
+
 
 export function deriveDefaultInfoEmail(siteUrl: string): string {
   try {
@@ -132,6 +176,17 @@ export function parseBrandingSettings(
       typeof raw.logoPath === 'string'
         ? raw.logoPath
         : DEFAULT_BRANDING.logoPath,
+    logoHorizontalPath:
+      typeof raw.logoHorizontalPath === 'string' ? raw.logoHorizontalPath : undefined,
+    logoWhitePath:
+      typeof raw.logoWhitePath === 'string' ? raw.logoWhitePath : undefined,
+    logoHorizontalWhitePath:
+      typeof raw.logoHorizontalWhitePath === 'string'
+        ? raw.logoHorizontalWhitePath
+        : undefined,
+    logoIconWhitePath:
+      typeof raw.logoIconWhitePath === 'string' ? raw.logoIconWhitePath : undefined,
+    logoLayout: raw.logoLayout === 'horizontal' ? 'horizontal' : 'stacked',
     logoIconPath:
       typeof raw.logoIconPath === 'string'
         ? raw.logoIconPath

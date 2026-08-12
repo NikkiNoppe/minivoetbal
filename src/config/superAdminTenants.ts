@@ -12,7 +12,7 @@ export const SUPER_ADMIN_TENANTS = [
     id: 2,
     slug: 'kuurne',
     name: 'Kuurne Minivoetbal',
-    description: 'Organisatie id=2 — kuurneminivoetbal.nikkinoppe.be',
+    description: 'Organisatie id=2 — www.mvvkuurne.be',
   },
 ] as const;
 
