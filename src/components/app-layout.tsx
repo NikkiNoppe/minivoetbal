@@ -95,10 +95,11 @@ const Layout: React.FC = () => {
 
   const handleLoginSuccess = () => {
     closeLoginModal();
-    // Always redirect to profile page after login
-    navigate(ADMIN_ROUTES.profile, { replace: true });
-    // Scroll to top after navigation
-    window.scrollTo(0, 0);
+    // Wait one tick so AuthProvider state is committed before ProtectedRoute.
+    window.setTimeout(() => {
+      navigate(ADMIN_ROUTES.profile, { replace: true });
+      window.scrollTo(0, 0);
+    }, 0);
   };
 
   // Check if active tab is visible (for tab visibility settings)

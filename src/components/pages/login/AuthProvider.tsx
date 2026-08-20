@@ -310,14 +310,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (error) {
         console.error('Login RPC error:', error);
         throw new LoginError(
-          'Gebruikersnaam/e-mail of wachtwoord is incorrect.',
+          `Gebruikersnaam/e-mail of wachtwoord is onjuist voor ${hostOrg.name}. Controleer of je op de juiste competitie zit.`,
           'invalid_credentials',
         );
       }
 
       if (!data?.[0]) {
         throw new LoginError(
-          'Gebruikersnaam/e-mail of wachtwoord is incorrect.',
+          `Gebruikersnaam/e-mail of wachtwoord is onjuist voor ${hostOrg.name}. Controleer of je op de juiste competitie zit.`,
           'invalid_credentials',
         );
       }

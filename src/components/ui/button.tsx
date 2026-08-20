@@ -57,7 +57,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       role: props.role || "button",
       tabIndex: props.tabIndex ?? 0,
       onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        // Native <button> already handles Enter/Space. preventDefault on a
+        // type="submit" control blocks form submit and often has no onClick.
+        if (asChild && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
           if (!props.disabled && !loading) {
             props.onClick?.(e as any);

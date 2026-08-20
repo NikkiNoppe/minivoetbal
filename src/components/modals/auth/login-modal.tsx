@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ForgotPasswordModal } from "./forgot-password-modal";
 import { useLoginHook } from "@/components/pages/login/hooks/useLoginHook";
 import LoginFields from "@/components/pages/login/components/LoginFields";
@@ -9,6 +10,7 @@ import { loginValidationSchema, LoginFormData } from "@/components/pages/login/v
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ZodError } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { AlertCircle } from "lucide-react";
 
 interface LoginModalProps {
   onLoginSuccess: () => void;
@@ -23,7 +25,7 @@ interface LoginModalProps {
  */
 export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
-  const { login, isLoading } = useLoginHook(onLoginSuccess);
+  const { login, isLoading, errorMessage } = useLoginHook(onLoginSuccess);
   const { toast } = useToast();
 
   const form = useForm<LoginFormData>({
@@ -61,6 +63,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <LoginFields form={form} isLoading={isLoading} />
+
+          {errorMessage ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" aria-hidden />
+              <AlertTitle>Login mislukt</AlertTitle>
+              <AlertDescription className="text-destructive">
+                {errorMessage}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           
           <div className="flex flex-col-reverse gap-3 mt-6">
             <Button 
