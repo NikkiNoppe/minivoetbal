@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -122,9 +122,10 @@ interface AvailabilityMatrixProps {
   toolbarContainer?: HTMLElement | null;
 }
 
-const SESSION_COLUMN_WIDTH = 220;
+const SESSION_COLUMN_WIDTH = 260;
 const REFEREE_COLUMN_WIDTH = 64;
-const SESSION_ROW_HEIGHT = 76;
+const SESSION_ROW_HEIGHT = 44;
+const DAY_HEADER_HEIGHT = 32;
 
 function MatrixStatusLegend({
   className,
@@ -217,15 +218,64 @@ const formatSessionLocation = (location: string) => {
   return place?.trim() || location;
 };
 
-/** Format de tijdrange van een sessie in UTC (zoals in de tabel), bv. "21u00-23u00". */
-const formatSessionTimeRange = (isoDate: string, matchCount: number): string => {
-  const start = new Date(isoDate);
-  const durationMinutes = Math.max(matchCount, 1) * 60;
-  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-  const fmt = (d: Date) =>
-    `${d.getUTCHours()}u${String(d.getUTCMinutes()).padStart(2, '0')}`;
-  return `${fmt(start)}-${fmt(end)}`;
-};
+function matchDateOnly(matchDate: string): string {
+  return matchDate.slice(0, 10);
+}
+
+function formatSessionMatchPairing(session: Session): string {
+  const match = session.matches[0];
+  if (!match) return '';
+  return `${match.home_team_name} – ${match.away_team_name}`;
+}
+
+function formatSessionCopyLine(session: Session): string {
+  const start = new Date(session.date);
+  const dateText = format(
+    new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())),
+    'EEEE d MMMM yyyy',
+    { locale: nl },
+  );
+  const pairing = formatSessionMatchPairing(session);
+  const parts = [
+    dateText,
+    formatTimeForDisplay(session.date),
+    formatSessionLocation(session.location),
+  ];
+  if (pairing) parts.push(pairing);
+  return parts.join(' – ');
+}
+
+interface SessionDayGroup {
+  dateOnly: string;
+  date: string;
+  sharedLocation: string | null;
+  sessions: Session[];
+}
+
+function groupSessionsByDay(sessions: Session[]): SessionDayGroup[] {
+  const groups: SessionDayGroup[] = [];
+  for (const session of sessions) {
+    const last = groups[groups.length - 1];
+    if (last && last.dateOnly === session.dateOnly) {
+      last.sessions.push(session);
+    } else {
+      groups.push({
+        dateOnly: session.dateOnly,
+        date: session.date,
+        sharedLocation: null,
+        sessions: [session],
+      });
+    }
+  }
+
+  return groups.map((group) => {
+    const locations = [...new Set(group.sessions.map((s) => formatSessionLocation(s.location)))];
+    return {
+      ...group,
+      sharedLocation: locations.length === 1 ? locations[0] : null,
+    };
+  });
+}
 
 /** Tailwind `lg` — voorkomt dubbele portaled dropdowns (CSS-hidden triggert nog steeds Content). */
 const LG_BREAKPOINT_PX = 1024;
@@ -312,38 +362,35 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
         assigned_at: a.assigned_at,
       }));
 
-      const sessionMap = new Map<string, Session>();
-      scheduleRows.forEach((m) => {
-        const dateOnly = m.match_date.split('T')[0];
-        const loc = m.location || 'Onbekend';
-        const key = `${dateOnly}__${loc}`;
-
-        if (!sessionMap.has(key)) {
-          sessionMap.set(key, {
-            key,
+      const sortedSessions: Session[] = scheduleRows
+        .map((m) => {
+          const loc = m.location || 'Onbekend';
+          return {
+            key: `match-${m.match_id}`,
             date: m.match_date,
-            dateOnly,
+            dateOnly: matchDateOnly(m.match_date),
             location: loc,
-            matches: [],
-          });
-        }
-        sessionMap.get(key)!.matches.push({
-          match_id: m.match_id,
-          match_date: m.match_date,
-          location: m.location,
-          home_team_id: m.home_team_id,
-          away_team_id: m.away_team_id,
-          assigned_referee_id: m.assigned_referee_id,
-          home_team_name: m.home_team_name || '?',
-          away_team_name: m.away_team_name || '?',
+            matches: [
+              {
+                match_id: m.match_id,
+                match_date: m.match_date,
+                location: m.location,
+                home_team_id: m.home_team_id,
+                away_team_id: m.away_team_id,
+                assigned_referee_id: m.assigned_referee_id,
+                home_team_name: m.home_team_name || '?',
+                away_team_name: m.away_team_name || '?',
+              },
+            ],
+          };
+        })
+        .sort((a, b) => {
+          const dc = a.date.localeCompare(b.date);
+          if (dc !== 0) return dc;
+          const loc = getLocationOrder(a.location) - getLocationOrder(b.location);
+          if (loc !== 0) return loc;
+          return a.matches[0].match_id - b.matches[0].match_id;
         });
-      });
-
-      const sortedSessions = Array.from(sessionMap.values()).sort((a, b) => {
-        const dc = a.dateOnly.localeCompare(b.dateOnly);
-        if (dc !== 0) return dc;
-        return getLocationOrder(a.location) - getLocationOrder(b.location);
-      });
 
       setReferees(refereesData);
       setSessions(sortedSessions);
@@ -504,7 +551,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
     setMenuCellKey(null);
   }, []);
 
-  // Wijs een ref toe aan alle wedstrijden in dezelfde sessie (zelfde datum + locatie).
+  // Wijs een ref toe aan deze wedstrijd.
   // Als showUndo true is, toont een 5s undo-toast.
   const assignToSessionInternal = async (
     session: Session,
@@ -512,23 +559,32 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
     refereeName: string,
     showUndo: boolean,
   ): Promise<{ assignmentId?: number; anchorMatchId?: number; ok: boolean }> => {
-    const targetMatch = session.matches.find((m) => !m.assigned_referee_id);
+    const targetMatch = session.matches.find((m) => !m.assigned_referee_id) ?? session.matches[0];
     if (!targetMatch) {
-      toast.error('Alle wedstrijden in deze sessie zijn al toegewezen');
+      toast.error('Geen wedstrijd gevonden');
       return { ok: false };
     }
-    const userId = user?.id || 0;
-    const result = await assignmentService.assignRefereeToSession(
-      targetMatch.match_id,
-      refereeId,
-      userId,
-    );
+    if (targetMatch.assigned_referee_id) {
+      toast.error('Deze wedstrijd heeft al een scheidsrechter');
+      return { ok: false };
+    }
+    const result = await assignmentService.assignReferee({
+      match_id: targetMatch.match_id,
+      referee_id: refereeId,
+    });
     if (!result.success) {
       toast.error(result.error || 'Toewijzing mislukt');
       return { ok: false };
     }
     applyLocalSessionAssignment(session, refereeId);
-    bumpWorkloadCounts(refereeId, session, session.matches.length);
+    bumpWorkloadCounts(refereeId, session, 1);
+
+    const pairing = formatSessionMatchPairing(session);
+    const toastDescription = [
+      formatDateWithDay(session.date),
+      formatTimeForDisplay(session.date),
+      pairing,
+    ].filter(Boolean).join(' · ');
 
     // Haal enkel voor undo een vers assignment op; gewone toewijzing blijft volledig lokaal.
     const fresh = showUndo
@@ -536,15 +592,15 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
       : null;
     if (fresh) {
       toast.success(`${refereeName} toegewezen`, {
-        description: formatDateWithDay(session.date) + ' · ' + session.location,
+        description: toastDescription,
         action: {
           label: 'Ongedaan maken',
           onClick: async () => {
-            const ok = await assignmentService.removeSessionAssignment(fresh.match_id, user?.id || 0);
+            const ok = await assignmentService.removeMatchAssignment(fresh.match_id, user?.id || 0);
             if (ok) {
               toast.success('Toewijzing teruggedraaid');
               clearLocalSessionAssignment(session);
-              bumpWorkloadCounts(refereeId, session, -session.matches.length);
+              bumpWorkloadCounts(refereeId, session, -1);
             } else {
               toast.error('Kon toewijzing niet ongedaan maken');
             }
@@ -558,12 +614,12 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
   const handleAssign = async (session: Session, refereeId: number) => {
     if (getSessionAssignedReferee(session) !== null) {
-      toast.error('Er is al een scheidsrechter toegewezen aan deze sessie');
+      toast.error('Er is al een scheidsrechter toegewezen aan deze wedstrijd');
       return;
     }
     const targetMatch = session.matches.find((m) => !m.assigned_referee_id);
     if (!targetMatch) {
-      toast.error('Alle wedstrijden in deze sessie zijn al toegewezen');
+      toast.error('Deze wedstrijd is al toegewezen');
       return;
     }
     const refName = referees.find((r) => r.user_id === refereeId)?.username || 'Scheidsrechter';
@@ -578,14 +634,14 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
     }
   };
 
-  /** Wijs toe; als er al iemand staat: die wordt beschikbaar, deze persoon krijgt de sessie. */
+  /** Wijs toe; als er al iemand staat: die wordt beschikbaar, deze persoon krijgt de wedstrijd. */
   const handleAssignOrReassign = async (session: Session, refereeId: number): Promise<boolean> => {
     const previousRefereeId = getSessionAssignedReferee(session);
     if (previousRefereeId === refereeId) return true;
 
     const firstMatch = session.matches[0];
     if (!firstMatch) {
-      toast.error('Geen wedstrijd gevonden voor deze sessie');
+      toast.error('Geen wedstrijd gevonden');
       return false;
     }
 
@@ -595,7 +651,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
     try {
       if (previousRefereeId != null) {
-        const removed = await assignmentService.removeSessionAssignment(
+        const removed = await assignmentService.removeMatchAssignment(
           firstMatch.match_id,
           user?.id || 0,
         );
@@ -604,7 +660,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
           return false;
         }
         clearLocalSessionAssignment(session);
-        bumpWorkloadCounts(previousRefereeId, session, -session.matches.length);
+        bumpWorkloadCounts(previousRefereeId, session, -1);
 
         // Vorige scheids: terug naar beschikbaar (niet “geen reactie”)
         await handleSetAvailabilityStatus(session, previousRefereeId, true, {
@@ -639,7 +695,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
     const manageAssigning = options?.manageAssigning !== false;
     const firstMatch = session.matches[0];
     if (!firstMatch) {
-      toast.error('Geen wedstrijd gevonden voor deze sessie');
+      toast.error('Geen wedstrijd gevonden');
       return;
     }
 
@@ -728,11 +784,11 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
     );
     setAssigning(`${assignment.match_id}-${assignment.referee_id}`);
     try {
-      const success = await assignmentService.removeSessionAssignment(assignment.match_id, user?.id || 0);
+      const success = await assignmentService.removeMatchAssignment(assignment.match_id, user?.id || 0);
       if (success) {
         if (session) {
           clearLocalSessionAssignment(session);
-          bumpWorkloadCounts(assignment.referee_id, session, -session.matches.length);
+          bumpWorkloadCounts(assignment.referee_id, session, -1);
         }
         return true;
       }
@@ -859,7 +915,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
         (s) => getSessionAssignedReferee(s) === null,
       );
       if (openSessions.length === 0) {
-        toast.info('Alle sessies zijn al toegewezen');
+        toast.info('Alle wedstrijden zijn al toegewezen');
         return;
       }
 
@@ -914,7 +970,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
       if (assigned > 0) {
         toast.success(`${assigned} toewijzing${assigned === 1 ? '' : 'en'} aangemaakt`, {
-          description: skipped > 0 ? `${skipped} sessie(s) overgeslagen — geen kandidaat` : undefined,
+          description: skipped > 0 ? `${skipped} wedstrijd(en) overgeslagen — geen kandidaat` : undefined,
           duration: 10000,
           action:
             createdSessionMatchIds.length > 0
@@ -923,7 +979,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                   onClick: async () => {
                     const results = await Promise.all(
                       createdSessionMatchIds.map((matchId) =>
-                        assignmentService.removeSessionAssignment(matchId, user?.id || 0)
+                        assignmentService.removeMatchAssignment(matchId, user?.id || 0)
                       ),
                     );
                     const undone = results.filter(Boolean).length;
@@ -938,7 +994,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
               : undefined,
         });
       } else {
-        toast.warning('Geen sessies konden automatisch toegewezen worden');
+        toast.warning('Geen wedstrijden konden automatisch toegewezen worden');
       }
     } catch (e) {
       console.error('Bulk assign error:', e);
@@ -955,22 +1011,14 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
   const totalSessions = sessions.length;
   const assignedSessions = sessions.filter(s => getSessionAssignedReferee(s) !== null).length;
+  const sessionsByDay = useMemo(() => groupSessionsByDay(sessions), [sessions]);
   const matrixMinWidth = SESSION_COLUMN_WIDTH + referees.length * REFEREE_COLUMN_WIDTH;
   const refereeCopyMessages = useMemo<RefereeCopyMessage[]>(() => {
     return referees.map((referee) => {
       const assignedSessionsForReferee = sessions.filter(
         (session) => getSessionAssignedReferee(session) === referee.user_id
       );
-      const lines = assignedSessionsForReferee.map((session) => {
-        const start = new Date(session.date);
-        const dateText = format(
-          new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())),
-          'EEEE d MMMM yyyy',
-          { locale: nl },
-        );
-        const range = formatSessionTimeRange(session.date, session.matches.length);
-        return `${dateText} – ${formatSessionLocation(session.location)} – ${range}`;
-      });
+      const lines = assignedSessionsForReferee.map((session) => formatSessionCopyLine(session));
 
       return {
         refereeId: referee.user_id,
@@ -992,16 +1040,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
       return formatSessionLocation(a.location).localeCompare(formatSessionLocation(b.location));
     });
 
-    const lines = sortedSessions.map((session) => {
-      const start = new Date(session.date);
-      const dateText = format(
-        new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())),
-        'EEEE d MMMM yyyy',
-        { locale: nl },
-      );
-      const range = formatSessionTimeRange(session.date, session.matches.length);
-      return `${dateText} – ${formatSessionLocation(session.location)} – ${range}`;
-    });
+    const lines = sortedSessions.map((session) => formatSessionCopyLine(session));
 
     const [year, monthNum] = selectedMonth.split('-').map(Number);
     const monthLabel = format(
@@ -1027,7 +1066,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
       onClick={handleBulkAutoAssign}
       disabled={bulkAssigning || openSessionsCount === 0 || referees.length === 0}
       className="btn btn--primary btn--sm min-h-[44px] h-11 w-full min-w-0 gap-1.5 !rounded-md px-3 shadow-sm sm:w-auto"
-      title={openSessionsCount === 0 ? 'Alle sessies zijn al toegewezen' : 'Wijs open sessies automatisch toe'}
+      title={openSessionsCount === 0 ? 'Alle wedstrijden zijn al toegewezen' : 'Wijs open wedstrijden automatisch toe'}
     >
       {bulkAssigning ? (
         <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -1142,7 +1181,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
         <div className="flex flex-col gap-3 lg:hidden">
           <div className="flex items-center justify-between gap-2">
             <Badge variant="outline" className="min-h-[36px] px-3 text-xs sm:text-sm">
-              {assignedSessions}/{totalSessions} sessies toegewezen
+              {assignedSessions}/{totalSessions} wedstrijden toegewezen
             </Badge>
             <Button
               type="button"
@@ -1184,7 +1223,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
             </Button>
             {!toolbarContainer && autoAssignButton}
           </div>
-          <Badge variant="outline">{assignedSessions}/{totalSessions} sessies toegewezen</Badge>
+          <Badge variant="outline">{assignedSessions}/{totalSessions} wedstrijden toegewezen</Badge>
         </div>
       )}
 
@@ -1254,38 +1293,74 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {sessions.map((session, sessionIdx) => {
+                  {sessionsByDay.map((day) => (
+                    <Fragment key={day.dateOnly}>
+                      <tr className="bg-muted">
+                        <th
+                          scope="rowgroup"
+                          className="sticky left-0 z-10 border-r border-t-2 border-[hsl(var(--color-200))] bg-muted px-2 py-1.5 text-left align-middle font-semibold"
+                          style={{
+                            width: SESSION_COLUMN_WIDTH,
+                            minWidth: SESSION_COLUMN_WIDTH,
+                            height: DAY_HEADER_HEIGHT,
+                          }}
+                        >
+                          <div className="flex min-w-0 items-baseline gap-2">
+                            <span className="shrink-0 text-xs text-foreground">
+                              {formatDateWithDay(day.date)}
+                            </span>
+                            {day.sharedLocation ? (
+                              <span className="min-w-0 truncate text-[11px] font-normal text-muted-foreground">
+                                {day.sharedLocation}
+                              </span>
+                            ) : null}
+                          </div>
+                        </th>
+                        {referees.map((ref) => (
+                          <td
+                            key={ref.user_id}
+                            aria-hidden
+                            className="border-t-2 border-r border-[hsl(var(--color-200))] bg-muted last:border-r-0"
+                            style={{
+                              width: REFEREE_COLUMN_WIDTH,
+                              minWidth: REFEREE_COLUMN_WIDTH,
+                              height: DAY_HEADER_HEIGHT,
+                            }}
+                          />
+                        ))}
+                      </tr>
+                      {day.sessions.map((session, sessionIdx) => {
                     const assignedRefId = getSessionAssignedReferee(session);
                     const rowBg = sessionIdx % 2 === 0 ? 'bg-card' : 'bg-muted/20';
                     return (
                       <tr
                         key={session.key}
-                        className={`${rowBg} hover:bg-muted transition-colors`}
+                        className={`group ${rowBg} hover:bg-muted transition-colors`}
                         style={{ height: SESSION_ROW_HEIGHT }}
                       >
                         <td
-                          className={`sticky left-0 z-10 ${rowBg} border-r border-t border-border p-0 align-middle`}
+                          className={`sticky left-0 z-10 ${rowBg} group-hover:bg-muted border-r border-t border-border p-0 align-middle`}
                           style={{
                             width: SESSION_COLUMN_WIDTH,
                             minWidth: SESSION_COLUMN_WIDTH,
                             height: SESSION_ROW_HEIGHT,
                           }}
                         >
-                          <div className="flex h-full min-w-0 flex-col items-center justify-center px-2 py-2 text-center">
-                            <div className="flex max-w-full min-w-0 items-center justify-center gap-1.5 text-xs font-semibold leading-tight text-foreground">
-                              <span className="shrink-0">{formatDateWithDay(session.date)}</span>
-                              <span className="h-1 w-1 shrink-0 rounded-full bg-primary" />
-                              <span className="truncate">{formatSessionLocation(session.location)}</span>
-                              <span className="h-1 w-1 shrink-0 rounded-full bg-primary" />
-                              <span className="shrink-0">{formatTimeForDisplay(session.date)}</span>
-                            </div>
-                            <div className="mt-1.5 flex max-h-[28px] w-full flex-col items-center gap-0.5 overflow-hidden border-t border-border/60 pt-1.5">
-                              {session.matches.map((m, i) => (
-                                <div key={i} className="max-w-full truncate text-center text-[9px] leading-tight text-muted-foreground/70">
-                                  {m.home_team_name} – {m.away_team_name}
-                                </div>
-                              ))}
-                            </div>
+                          <div className="flex h-full min-w-0 items-center gap-2 px-2 text-left">
+                            <span className="w-11 shrink-0 tabular-nums text-xs font-semibold text-foreground">
+                              {formatTimeForDisplay(session.date)}
+                            </span>
+                            {!day.sharedLocation ? (
+                              <span className="max-w-[5.5rem] shrink-0 truncate text-[10px] text-muted-foreground">
+                                {formatSessionLocation(session.location)}
+                              </span>
+                            ) : null}
+                            <span
+                              className="min-w-0 truncate text-xs font-medium text-foreground"
+                              title={formatSessionMatchPairing(session)}
+                            >
+                              {formatSessionMatchPairing(session)}
+                            </span>
                           </div>
                         </td>
                         {referees.map(ref => {
@@ -1411,13 +1486,26 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                       </tr>
                     );
                   })}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
           ) : (
-          <div className="space-y-3">
-            {sessions.map((session) => {
+          <div className="space-y-5">
+            {sessionsByDay.map((day) => (
+              <section key={day.dateOnly} className="space-y-2" aria-label={formatDateWithDay(day.date)}>
+                <h3 className="flex min-h-[32px] items-baseline gap-2 px-0.5 text-sm font-semibold">
+                  <span>{formatDateWithDay(day.date)}</span>
+                  {day.sharedLocation ? (
+                    <span className="min-w-0 truncate text-xs font-normal text-muted-foreground">
+                      {day.sharedLocation}
+                    </span>
+                  ) : null}
+                </h3>
+                <div className="space-y-2">
+            {day.sessions.map((session) => {
               const assignedRefId = getSessionAssignedReferee(session);
               const assignedRef = assignedRefId
                 ? referees.find((ref) => ref.user_id === assignedRefId)
@@ -1433,21 +1521,18 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
               return (
                 <Card key={session.key} className="border-border/80 shadow-sm">
                   <CardContent className="space-y-3 p-3 sm:p-4">
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold">{formatDateWithDay(session.date)}</div>
-                      <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-                        <span className="truncate">
-                          {session.location} · {formatTimeForDisplay(session.date)}
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <span className="shrink-0 tabular-nums text-sm font-semibold">
+                        {formatTimeForDisplay(session.date)}
+                      </span>
+                      {!day.sharedLocation ? (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatSessionLocation(session.location)}
                         </span>
-                      </div>
-                      <ul className="mt-1 space-y-0.5">
-                        {session.matches.map((m, i) => (
-                          <li key={i} className="text-[11px] leading-snug text-muted-foreground/80">
-                            {m.home_team_name} – {m.away_team_name}
-                          </li>
-                        ))}
-                      </ul>
+                      ) : null}
+                      <p className="min-w-0 truncate text-sm font-medium leading-snug">
+                        {formatSessionMatchPairing(session)}
+                      </p>
                     </div>
 
                     {assignedRef ? (
@@ -1552,6 +1637,9 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                 </Card>
               );
             })}
+                </div>
+              </section>
+            ))}
           </div>
           )}
 

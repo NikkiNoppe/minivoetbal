@@ -1,5 +1,6 @@
 import { fetchPublicMatches, fetchPublicTeams, isRegularMatch } from '@/services/public/publicScheduleFetch';
 import { DEFAULT_ORGANIZATION_ID } from '@/config/organization';
+import { divisionFromSpeeldag, divisionSortKey } from '@/lib/competitionDivision';
 
 export interface MatchRow {
   home_team_id: number | null;
@@ -8,6 +9,7 @@ export interface MatchRow {
   away_score: number | null;
   is_submitted: boolean | null;
   match_date?: string | null;
+  speeldag?: string | null;
   is_playoff?: boolean;
 }
 
@@ -42,6 +44,8 @@ export interface RegularStanding {
   goals_against: number;
   goal_diff: number;
   points: number;
+  /** Reeksnaam als de competitie meerdere klassen heeft. */
+  division: string | null;
 }
 
 const emptyStats = (): TeamStats => ({
@@ -167,6 +171,7 @@ export async function fetchRegularMatches(
       away_score: m.away_score,
       is_submitted: m.is_submitted,
       match_date: m.match_date,
+      speeldag: m.speeldag,
     }));
   return (data as MatchRow[]).map((m) => ({ ...m, is_playoff: false }));
 }
@@ -179,34 +184,16 @@ export async function fetchTeams(
   return new Map(teams.map((t) => [t.team_id, t.team_name]));
 }
 
-function hasSubmittedRegularMatches(matches: MatchRow[]): boolean {
-  return matches.some(
-    (m) =>
-      m.is_submitted &&
-      m.home_score !== null &&
-      m.away_score !== null &&
-      m.home_team_id !== null &&
-      m.away_team_id !== null,
-  );
-}
-
-/** Bereken reguliere competitiestand live uit matches (bron van waarheid). */
-export async function fetchRegularStandings(
-  organizationId: number = DEFAULT_ORGANIZATION_ID,
-): Promise<RegularStanding[]> {
-  const [regularMatches, teamMap] = await Promise.all([
-    fetchRegularMatches(organizationId),
-    fetchTeams(organizationId),
-  ]);
-
-  if (!hasSubmittedRegularMatches(regularMatches)) {
-    return [];
-  }
-
-  const allTeamIds = new Set(teamMap.keys());
-  const regularStats = computeStats(regularMatches, allTeamIds);
-  const sortable: SortableTeam[] = Array.from(allTeamIds).map((id) => {
-    const s = regularStats.get(id)!;
+function standingsForTeamIds(
+  teamIds: number[],
+  teamMap: Map<number, string>,
+  matches: MatchRow[],
+  division: string | null,
+): RegularStanding[] {
+  const idSet = new Set(teamIds);
+  const stats = computeStats(matches, idSet);
+  const sortable: SortableTeam[] = teamIds.map((id) => {
+    const s = stats.get(id)!;
     return {
       team_id: id,
       team_name: teamMap.get(id) || 'Onbekend',
@@ -217,9 +204,8 @@ export async function fetchRegularStandings(
     };
   });
 
-  const sorted = sortWithTiebreakers(sortable, regularMatches);
-  return sorted.map((t, idx) => {
-    const s = regularStats.get(t.team_id)!;
+  return sortWithTiebreakers(sortable, matches).map((t, idx) => {
+    const s = stats.get(t.team_id)!;
     return {
       team_id: t.team_id,
       team_name: t.team_name,
@@ -232,6 +218,62 @@ export async function fetchRegularStandings(
       goals_against: s.goalsAgainst,
       goal_diff: s.goalsScored - s.goalsAgainst,
       points: s.points,
+      division,
     };
   });
+}
+
+function inferTeamDivisions(matches: MatchRow[]): Map<number, string> {
+  const map = new Map<number, string>();
+  for (const match of matches) {
+    const division = divisionFromSpeeldag(match.speeldag);
+    if (!division) continue;
+    if (match.home_team_id != null) map.set(match.home_team_id, division);
+    if (match.away_team_id != null) map.set(match.away_team_id, division);
+  }
+  return map;
+}
+
+/** Stand uit ploegen + gespeelde wedstrijden. Ook 0-0 vóór de eerste match. */
+export function buildRegularStandings(
+  matches: MatchRow[],
+  teamMap: Map<number, string>,
+): RegularStanding[] {
+  const allIds = Array.from(teamMap.keys());
+  if (allIds.length === 0) return [];
+
+  const teamDivisions = inferTeamDivisions(matches);
+  const namedDivisions = [...new Set(teamDivisions.values())];
+
+  if (namedDivisions.length < 2) {
+    return standingsForTeamIds(allIds, teamMap, matches, null);
+  }
+
+  const result: RegularStanding[] = [];
+  const used = new Set<number>();
+  const ordered = namedDivisions.sort((a, b) =>
+    divisionSortKey(a).localeCompare(divisionSortKey(b), 'nl'),
+  );
+  for (const name of ordered) {
+    const ids = allIds.filter((id) => teamDivisions.get(id) === name);
+    ids.forEach((id) => used.add(id));
+    result.push(...standingsForTeamIds(ids, teamMap, matches, name));
+  }
+  const leftover = allIds.filter((id) => !used.has(id));
+  if (leftover.length > 0) {
+    result.push(...standingsForTeamIds(leftover, teamMap, matches, null));
+  }
+  return result;
+}
+
+/** Bereken reguliere competitiestand live uit matches (bron van waarheid). */
+export async function fetchRegularStandings(
+  organizationId: number = DEFAULT_ORGANIZATION_ID,
+): Promise<RegularStanding[]> {
+  const [regularMatches, teamMap] = await Promise.all([
+    fetchRegularMatches(organizationId),
+    fetchTeams(organizationId),
+  ]);
+
+  return buildRegularStandings(regularMatches, teamMap);
 }

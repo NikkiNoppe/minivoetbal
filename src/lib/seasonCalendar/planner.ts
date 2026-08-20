@@ -447,8 +447,15 @@ export function buildSeasonPlan(
   );
 
   const weekPlans: SeasonWeekPlan[] = allMondays.map((weekMonday) => {
-    // Uitzondering: vakantieweek blijft speelbaar (niet als "vacation" markeren)
-    if (vacationSet.has(weekMonday) && !exceptionSet.has(weekMonday)) {
+    const g = grids.get(weekMonday);
+    const remaining = g?.configAvailableCount ?? 0;
+    // Volledige vakantieweek: maandag in vakantie én geen resterende M-momenten.
+    // Gedeeltelijke week (Ezelweekend ma, Pinksteren ma) blijft speelbaar.
+    if (
+      vacationSet.has(weekMonday) &&
+      !exceptionSet.has(weekMonday) &&
+      remaining <= 0
+    ) {
       return {
         weekMonday,
         phases: ["vacation"],
@@ -461,8 +468,6 @@ export function buildSeasonPlan(
         label: "vakantie",
       };
     }
-
-    const g = grids.get(weekMonday);
     if (!g) {
       return {
         weekMonday,

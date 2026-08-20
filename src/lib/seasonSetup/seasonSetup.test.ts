@@ -3,6 +3,8 @@ import {
   assignTeamsToDivisions,
   createDefaultSeasonSetup,
   cupBusyTeamsByMondayFromPlan,
+  cupDatesByMondayFromPlan,
+  cupUnassignedByMondayFromPlan,
   describeCompetitionMatchdayMath,
   estimateCompetitionMatches,
   estimateCompetitionMatchdays,
@@ -119,6 +121,32 @@ describe("cupBusyTeamsByMondayFromPlan", () => {
     );
     expect(busy["2026-08-17"]?.sort((a, b) => a - b)).toEqual([10, 11, 12]);
     expect(busy["2026-08-24"]?.sort((a, b) => a - b)).toEqual([13, 14]);
+  });
+});
+
+describe("cupDatesByMondayFromPlan / cupUnassignedByMondayFromPlan", () => {
+  const toMonday = (_d: string) => "2027-06-07";
+
+  it("houdt TBD-halve finales bij als bekerdag zonder ploegen", () => {
+    const plan = [
+      {
+        home_team_id: null,
+        away_team_id: null,
+        match_date: "2027-06-07",
+        match_time: "20:00",
+      },
+      {
+        home_team_id: null,
+        away_team_id: null,
+        match_date: "2027-06-07",
+        match_time: "21:00",
+      },
+    ];
+    expect(cupDatesByMondayFromPlan(plan, toMonday)["2027-06-07"]).toEqual([
+      "2027-06-07",
+    ]);
+    expect(cupUnassignedByMondayFromPlan(plan, toMonday)["2027-06-07"]).toBe(true);
+    expect(cupBusyTeamsByMondayFromPlan(plan, toMonday)["2027-06-07"]).toBeUndefined();
   });
 });
 

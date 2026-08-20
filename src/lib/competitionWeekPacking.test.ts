@@ -4,6 +4,7 @@ import {
   formatPackFailureMessage,
   hasMinimumDaySeparation,
   hasSufficientDayGapBetweenDates,
+  competitionDateAllowedWithCup,
   hasSufficientSameWeekDayGap,
   isPackNearMiss,
   MIN_DUAL_WEEK_DAY_GAP,
@@ -31,6 +32,7 @@ function buildTwoOddDivisions(): PackableMatch[] {
           away: playing[i + 1],
           matchday: md,
           matchdayKey: `${pool.key}-${md}`,
+          round: Math.ceil(md / 11),
         });
       }
     }
@@ -484,6 +486,33 @@ describe("hasMinimumDaySeparation", () => {
   });
 });
 
+describe("competitionDateAllowedWithCup", () => {
+  it("verbiedt competitie op dezelfde dag als de beker", () => {
+    expect(
+      competitionDateAllowedWithCup("2027-06-07", ["2027-06-07"]),
+    ).toBe(false);
+  });
+
+  it("laat een andere dag toe als de bekerploegen bekend zijn", () => {
+    expect(
+      competitionDateAllowedWithCup("2027-06-08", ["2027-06-07"]),
+    ).toBe(true);
+  });
+
+  it("eist ≥3 dagen alleen als requireGap aan staat", () => {
+    expect(
+      competitionDateAllowedWithCup("2027-06-08", ["2027-06-07"], {
+        requireGap: true,
+      }),
+    ).toBe(false);
+    expect(
+      competitionDateAllowedWithCup("2027-06-10", ["2027-06-07"], {
+        requireGap: true,
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("rotateMatchdaysByPool / shuffleArray / near-miss", () => {
   it("roteert speeldagnr binnen pool zonder paren te wijzigen", () => {
     const matches: PackableMatch[] = [
@@ -632,5 +661,215 @@ describe("rotateMatchdaysByPool / shuffleArray / near-miss", () => {
     expect(tips.some((t) => t.id === "fewer-rounds")).toBe(true);
     expect(tips.some((t) => t.id === "regenerate")).toBe(true);
     expect(tips[0].detail).toMatch(/Paniekzaaiers/);
+  });
+});
+
+describe("matchday overlap + chronological packing", () => {
+  it("maxMatchdayOverlap=1 laat opeenvolgende speeldagen in één week toe", () => {
+    const consecutive = packCompetitionMatchdays(
+      [
+        { home: 1, away: 2, matchday: 1, matchdayKey: "p-1" },
+        { home: 3, away: 4, matchday: 2, matchdayKey: "p-2" },
+      ],
+      1,
+      () => 2,
+      {
+        enableRepair: false,
+        maxTeamAppearancesPerWeek: 2,
+        maxMatchdayOverlap: 1,
+      },
+    );
+    expect(consecutive.ok).toBe(true);
+    if (consecutive.ok) {
+      expect(consecutive.weekToMatches.get(0)).toHaveLength(2);
+    }
+  });
+
+  it("maxMatchdayOverlap=1 weigert niet-opeenvolgende speeldagen in dezelfde week", () => {
+    const skipped = packCompetitionMatchdays(
+      [
+        { home: 1, away: 2, matchday: 1, matchdayKey: "p-1" },
+        { home: 3, away: 4, matchday: 3, matchdayKey: "p-3" },
+      ],
+      1,
+      () => 2,
+      {
+        enableRepair: false,
+        maxTeamAppearancesPerWeek: 2,
+        maxMatchdayOverlap: 1,
+        chronologicalMatchdays: true,
+      },
+    );
+    expect(skipped.ok).toBe(false);
+    expect(skipped.placedCount).toBe(1);
+  });
+
+  it("sequentialRounds start ronde 2 pas in de laatste week van ronde 1", () => {
+    const matches: PackableMatch[] = [
+      { home: 1, away: 2, matchday: 1, matchdayKey: "p-1", round: 1 },
+      { home: 3, away: 4, matchday: 2, matchdayKey: "p-2", round: 1 },
+      { home: 5, away: 6, matchday: 3, matchdayKey: "p-3", round: 2 },
+    ];
+    const result = packCompetitionMatchdays(matches, 4, () => 1, {
+      enableRepair: false,
+      sequentialRounds: true,
+      maxRoundOverlapWeeks: 1,
+      maxTeamAppearancesPerWeek: 1,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const weekOf = (md: number) => {
+        for (const [w, list] of result.weekToMatches) {
+          if (list.some((m) => m.matchday === md)) return w;
+        }
+        return -1;
+      };
+      const lastR1 = Math.max(weekOf(1), weekOf(2));
+      expect(weekOf(3)).toBeGreaterThanOrEqual(lastR1);
+    }
+  });
+
+  it("sequentialRounds vult gaten in ronde 1 vóór nieuwe weken", () => {
+    const matches: PackableMatch[] = [
+      { home: 1, away: 2, matchday: 1, matchdayKey: "p-1", round: 1 },
+      { home: 3, away: 4, matchday: 2, matchdayKey: "p-2", round: 1 },
+      { home: 5, away: 6, matchday: 3, matchdayKey: "p-3", round: 1 },
+    ];
+    const cap = (w: number) => (w === 0 ? 3 : w === 4 ? 3 : 0);
+    const result = packCompetitionMatchdays(matches, 5, cap, {
+      enableRepair: false,
+      sequentialRounds: true,
+      maxRoundOverlapWeeks: 1,
+      maxTeamAppearancesPerWeek: 1,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.weekToMatches.get(0)?.length).toBe(3);
+      expect(result.weekToMatches.get(4)?.length ?? 0).toBe(0);
+    }
+  });
+
+  it("sequentialRounds vult het vroegste gat, niet het laatste", () => {
+    const matches: PackableMatch[] = [
+      { home: 1, away: 2, matchday: 1, matchdayKey: "p-1", round: 1 },
+      { home: 1, away: 3, matchday: 2, matchdayKey: "p-2", round: 1 },
+      { home: 4, away: 5, matchday: 3, matchdayKey: "p-3", round: 1 },
+    ];
+    const result = packCompetitionMatchdays(matches, 4, () => 2, {
+      enableRepair: false,
+      sequentialRounds: true,
+      maxRoundOverlapWeeks: 1,
+      maxTeamAppearancesPerWeek: 1,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const w0 = result.weekToMatches.get(0) ?? [];
+      const w1 = result.weekToMatches.get(1) ?? [];
+      expect(w0).toHaveLength(2);
+      expect(w1).toHaveLength(1);
+      expect(w0.some((m) => m.home === 1 && m.away === 2)).toBe(true);
+      expect(w0.some((m) => m.home === 4 && m.away === 5)).toBe(true);
+      expect(w1.some((m) => m.home === 1 && m.away === 3)).toBe(true);
+    }
+  });
+
+  it("sequentialRounds + preferFreshWeeks opent een verse week i.p.v. 2×/week", () => {
+    const matches: PackableMatch[] = [
+      { home: 1, away: 2, matchday: 1, matchdayKey: "p-1", round: 1 },
+      { home: 1, away: 3, matchday: 2, matchdayKey: "p-2", round: 1 },
+    ];
+    const result = packCompetitionMatchdays(matches, 3, () => 2, {
+      enableRepair: false,
+      sequentialRounds: true,
+      preferFreshWeeks: true,
+      maxRoundOverlapWeeks: 1,
+      maxTeamAppearancesPerWeek: 2,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.weekToMatches.get(0)).toHaveLength(1);
+      expect(result.weekToMatches.get(1)).toHaveLength(1);
+    }
+  });
+
+  it("chronologicalMatchdays plaatst speeldag N niet vóór de eerste week van N-1", () => {
+    const matches: PackableMatch[] = [
+      { home: 1, away: 2, matchday: 1, matchdayKey: "p-1" },
+      { home: 3, away: 4, matchday: 2, matchdayKey: "p-2" },
+    ];
+    const busy = new Map<number, Set<number>>([[0, new Set([1, 2])]]);
+    const result = packCompetitionMatchdays(matches, 3, () => 1, {
+      enableRepair: false,
+      chronologicalMatchdays: true,
+      maxMatchdayOverlap: 1,
+      externalBusyTeamsByWeek: (w) => busy.get(w),
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const w0 = result.weekToMatches.get(0) ?? [];
+      expect(w0.some((m) => m.matchday === 2)).toBe(false);
+      expect(result.weekToMatches.get(1)?.some((m) => m.matchday === 1)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("productiepad (max 2×/week, verse weken eerst) pakt dichte 330-kalender", () => {
+    const matches = buildTwoOddDivisions();
+    const weekCount = 36;
+    const cupWeeks = new Set([2, 7, 12, 17, 22, 27]);
+    const weekCapacity = (w: number) => {
+      if (cupWeeks.has(w)) return 8;
+      if (w >= 28) return 12;
+      return 10;
+    };
+    const busyByWeek = new Map<number, Set<number>>();
+    let teamCursor = 1;
+    for (const w of cupWeeks) {
+      const busy = new Set<number>();
+      for (let i = 0; i < 11; i++) {
+        busy.add(((teamCursor + i - 1) % 22) + 1);
+      }
+      teamCursor += 7;
+      busyByWeek.set(w, busy);
+    }
+
+    const result = packCompetitionMatchdays(matches, weekCount, weekCapacity, {
+      maxTeamAppearancesPerWeek: 2,
+      preferFreshWeeks: true,
+      reverseMatchdays: false,
+      sequentialRounds: true,
+      maxRoundOverlapWeeks: 1,
+      orderByDifficulty: true,
+      enableRepair: true,
+      enableEvacuateRepair: true,
+      maxRepairAttempts: 160,
+      maxRepairDepth: 4,
+      externalBusyTeamsByWeek: (w) => busyByWeek.get(w),
+      allowCupOverlapForWeek: (w) => cupWeeks.has(w),
+      preferredWeekCapacity: (w) => (cupWeeks.has(w) ? 4 : weekCapacity(w)),
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      let used = 0;
+      for (const list of result.weekToMatches.values()) used += list.length;
+      expect(used).toBe(330);
+      const weeksOf = (round: number): number[] => {
+        const out: number[] = [];
+        for (const [w, list] of result.weekToMatches) {
+          for (const m of list) {
+            if ((m.round ?? 1) === round) out.push(w);
+          }
+        }
+        return out.sort((a, b) => a - b);
+      };
+      const median = (round: number) => {
+        const ws = weeksOf(round);
+        return ws[Math.floor(ws.length / 2)] ?? 0;
+      };
+      expect(median(1)).toBeLessThan(median(2));
+      expect(median(2)).toBeLessThan(median(3));
+    }
   });
 });

@@ -73,7 +73,7 @@ describe("analyzePreviewTeamConflicts", () => {
     expect(map.get(previewConflictCellKey(rows[0], "home", 1))?.kind).toBe("double");
   });
 
-  it("markeert shared_week bij twee competitiewedstrijden met ≥2 dagen ertussen", () => {
+  it("markeert dual_week bij twee competitiewedstrijden met ≥2 dagen ertussen", () => {
     const rows: UnifiedPreviewRow[] = [
       row({
         phase: "competition",
@@ -93,7 +93,32 @@ describe("analyzePreviewTeamConflicts", () => {
       }),
     ];
     const map = conflictLookup(analyzePreviewTeamConflicts(rows));
-    expect(map.get(previewConflictCellKey(rows[0], "home", 1))?.kind).toBe("shared_week");
+    expect(map.get(previewConflictCellKey(rows[0], "home", 1))?.kind).toBe("dual_week");
+  });
+
+  it("markeert dual_week bij twee competitiewedstrijden op donderdag en vrijdag (nood)", () => {
+    const rows: UnifiedPreviewRow[] = [
+      row({
+        phase: "competition",
+        speeldag: "Speeldag 1",
+        match_date: "2026-10-08",
+        match_time: "20:00",
+        homeTeamId: 1,
+        awayTeamId: 2,
+      }),
+      row({
+        phase: "competition",
+        speeldag: "Speeldag 2",
+        match_date: "2026-10-09",
+        match_time: "20:00",
+        homeTeamId: 1,
+        awayTeamId: 3,
+      }),
+    ];
+    const map = conflictLookup(analyzePreviewTeamConflicts(rows));
+    expect(map.get(previewConflictCellKey(rows[0], "home", 1))?.kind).toBe(
+      "dual_week",
+    );
   });
 
   it("markeert shared_week bij beker maandag en competitie woensdag (≥2d dual)", () => {

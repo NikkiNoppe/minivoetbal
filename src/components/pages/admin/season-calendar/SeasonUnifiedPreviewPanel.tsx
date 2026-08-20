@@ -17,6 +17,7 @@ import {
   type UnifiedPreviewRow,
   type UnifiedSeasonPreview,
 } from "@/lib/seasonSetup";
+import { compareUnifiedPreviewRows } from "@/lib/seasonSetup/placeCupFinalOnQuietDay";
 import { Progress } from "@/components/ui/progress";
 
 const PHASE_BADGE: Record<
@@ -66,7 +67,12 @@ const CONFLICT_STYLE: Record<
   shared_week: {
     className:
       "rounded px-1 py-0.5 bg-sky-100 text-sky-950 ring-1 ring-sky-400/60",
-    label: "2× week (andere dag)",
+    label: "Beker + competitie (andere dag)",
+  },
+  dual_week: {
+    className:
+      "rounded px-1 py-0.5 bg-sky-50 text-sky-900 ring-1 ring-sky-300/50",
+    label: "2× competitie deze week",
   },
 };
 
@@ -81,6 +87,20 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function previewRoundLabel(row: UnifiedPreviewRow): string {
+  if (row.phase === "competition" && row.round) return `Ronde ${row.round}`;
+  if (row.phase === "cup") {
+    const s = (row.speeldag || "").toLowerCase();
+    if (s.includes("voorronde")) return "Voorronde";
+    if (s.includes("1/8")) return "1/8";
+    if (s.includes("kwart")) return "Kwart";
+    if (s.includes("halve")) return "Halve";
+    if (s.includes("finale")) return "Finale";
+  }
+  if (row.phase === "playoff") return "Play-off";
+  return "—";
 }
 
 function isByePreviewRow(row: UnifiedPreviewRow): boolean {
@@ -175,12 +195,14 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
     let double = 0;
     let advance = 0;
     let shared = 0;
+    let dual = 0;
     for (const c of conflictMap.values()) {
       if (c.kind === "double") double += 1;
       else if (c.kind === "advance_risk") advance += 1;
+      else if (c.kind === "dual_week") dual += 1;
       else shared += 1;
     }
-    return { double, advance, shared };
+    return { double, advance, shared, dual };
   }, [conflictMap]);
 
   const byeCount = useMemo(() => {
@@ -190,12 +212,20 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
 
   const filteredRows = useMemo(() => {
     if (!preview) return [];
-    let rows = filter === "all" ? preview.rows : preview.rows.filter((r) => r.phase === filter);
+    const phaseFilter = filter === "vacation" ? "all" : filter;
+    let rows = preview.rows.filter((r) => r.phase !== "vacation");
+    if (phaseFilter !== "all") {
+      rows = rows.filter((r) => r.phase === phaseFilter);
+    }
     if (!showByes) {
       rows = rows.filter((r) => !isByePreviewRow(r));
     }
-    return rows;
+    return [...rows].sort(compareUnifiedPreviewRows);
   }, [preview, filter, showByes]);
+
+  useEffect(() => {
+    if (filter === "vacation") setFilter("all");
+  }, [filter]);
 
   useEffect(() => {
     if (!preview && !error) return;
@@ -501,17 +531,16 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                     ["cup", "Beker"],
                     ["playoff", "Play-off"],
                     ["free", "Vrij"],
-                    ["vacation", "Vakantie"],
                     ["blocked", "Gesloten"],
                   ] as const
                 ).map(([key, label]) => {
+                  const visible = preview.rows.filter(
+                    (r) => r.phase !== "vacation" && (showByes || !isByePreviewRow(r)),
+                  );
                   const count =
                     key === "all"
-                      ? preview.rows.filter((r) => showByes || !isByePreviewRow(r)).length
-                      : preview.rows.filter(
-                          (r) =>
-                            r.phase === key && (showByes || !isByePreviewRow(r)),
-                        ).length;
+                      ? visible.length
+                      : visible.filter((r) => r.phase === key).length;
                   if (key !== "all" && count === 0) return null;
                   return (
                     <Button
@@ -554,9 +583,6 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                         ? [
                             preview.rows.some((r) => r.phase === "free")
                               ? `${preview.rows.filter((r) => r.phase === "free").length} leeg`
-                              : null,
-                            preview.rows.some((r) => r.phase === "vacation")
-                              ? `${preview.rows.filter((r) => r.phase === "vacation").length} vakantie`
                               : null,
                             preview.rows.some((r) => r.phase === "blocked")
                               ? `${preview.rows.filter((r) => r.phase === "blocked").length} gesloten`
@@ -613,6 +639,20 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                             : ""}
                         </span>
                       </li>
+                      <li className="inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-0">
+                        <span
+                          className={CONFLICT_STYLE.dual_week.className}
+                          aria-hidden
+                        >
+                          Ploeg
+                        </span>
+                        <span>
+                          2× competitie deze week (toegestaan)
+                          {conflictCounts.dual > 0
+                            ? ` (${conflictCounts.dual})`
+                            : ""}
+                        </span>
+                      </li>
                     </ul>
                   </div>
 
@@ -657,10 +697,11 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                               <TeamCell row={row} side="away" lookup={conflictMap} />
                             </p>
                           )}
-                          <p className="text-xs text-muted-foreground">{row.speeldag}</p>
-                          {row.venue && row.venue !== "—" ? (
-                            <p className="text-xs text-muted-foreground">{row.venue}</p>
-                          ) : null}
+                          <p className="text-xs text-muted-foreground">
+                            {previewRoundLabel(row) !== "—"
+                              ? `${previewRoundLabel(row)} · ${row.speeldag}`
+                              : row.speeldag}
+                          </p>
                           {row.note && !isFree && !isMarker ? (
                             <p className="text-xs text-muted-foreground italic">{row.note}</p>
                           ) : null}
@@ -674,12 +715,12 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                       <thead className="bg-muted/40 sticky top-0">
                         <tr>
                           <th className="text-left p-2 font-medium">Fase</th>
+                          <th className="text-left p-2 font-medium">Ronde</th>
                           <th className="text-left p-2 font-medium">Speeldag</th>
                           <th className="text-left p-2 font-medium">Thuis</th>
                           <th className="text-left p-2 font-medium">Uit</th>
                           <th className="text-left p-2 font-medium">Datum</th>
                           <th className="text-left p-2 font-medium">Tijd</th>
-                          <th className="text-left p-2 font-medium">Locatie</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -704,6 +745,9 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                                   {badge.label}
                                 </Badge>
                               </td>
+                              <td className="p-2 whitespace-nowrap">
+                                {previewRoundLabel(row)}
+                              </td>
                               <td className="p-2 whitespace-nowrap">{row.speeldag}</td>
                               <td className="p-2">
                                 {isFree ? (
@@ -720,13 +764,11 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                                 ) : (
                                   <TeamCell row={row} side="away" lookup={conflictMap} />
                                 )}
-                              </td>                              <td className="p-2 tabular-nums whitespace-nowrap">
+                              </td>
+                              <td className="p-2 tabular-nums whitespace-nowrap">
                                 {formatDate(row.match_date)}
                               </td>
                               <td className="p-2 tabular-nums">{row.match_time || "—"}</td>
-                              <td className="p-2">
-                                {row.venue && row.venue !== "—" ? row.venue : "—"}
-                              </td>
                             </tr>
                           );
                         })}

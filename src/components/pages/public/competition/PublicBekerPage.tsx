@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Award, AlertCircle, Archive } from "lucide-react";
+import { Trophy, Award, AlertCircle, Archive, Check, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import MatchesCupCard from "../../admin/matches/components/MatchesCupCard";
 import { useCupData, CupMatchDisplay } from "@/hooks/useCupData";
@@ -22,76 +22,75 @@ interface ProgressIndicatorProps {
 }
 
 const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({ rounds, currentRound }) => {
-  const isMobile = useIsMobile();
-  
+  if (rounds.length === 0) return null;
+
   return (
-    <div className={cn(
-      "flex items-center justify-center gap-2 sm:gap-4 bg-muted/30 rounded-lg",
-      isMobile && "overflow-x-auto scrollbar-hide"
-    )}>
-      {rounds.map((round, index) => {
-        const isNextRound = round.key === currentRound && !round.completed;
-        
-        return (
-          <React.Fragment key={round.key}>
-            <div className={cn(
-              "flex flex-col items-center gap-1 flex-shrink-0",
-              isNextRound && "scale-110"
-            )}>
-              <div 
-                className={cn(
-                  "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all",
-                  round.completed 
-                    ? "bg-primary" 
-                    : isNextRound
-                    ? "bg-primary ring-2 ring-primary"
-                    : "bg-muted"
-                )}
-                style={{
-                  color: isNextRound ? 'var(--primary)' : 'var(--accent)'
-                }}
+    <nav aria-label="Bekerstanden per ronde">
+      <ol className="flex flex-wrap items-start justify-center gap-x-1 gap-y-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-3 sm:gap-x-2 sm:px-4 sm:py-4">
+        {rounds.map((round, index) => {
+          const isCurrent = round.key === currentRound && !round.completed;
+          const countLabel =
+            round.count <= 0
+              ? "Nog niet gepland"
+              : round.count === 1
+                ? "1 wedstrijd"
+                : `${round.count} wedstrijden`;
+
+          return (
+            <li key={round.key} className="flex items-center gap-1 sm:gap-2">
+              <div
+                className="flex min-w-[4.75rem] flex-col items-center gap-1 px-1 text-center sm:min-w-[6.5rem] sm:px-2"
+                aria-current={isCurrent ? "step" : undefined}
               >
-                {round.count}
+                <span
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold sm:h-10 sm:w-10",
+                    round.completed && "bg-primary text-primary-foreground",
+                    isCurrent &&
+                      "bg-primary text-primary-foreground ring-2 ring-primary/40 ring-offset-2 ring-offset-background",
+                    !round.completed &&
+                      !isCurrent &&
+                      "border border-border bg-card text-muted-foreground",
+                  )}
+                >
+                  {round.completed ? (
+                    <Check className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <span aria-hidden>{index + 1}</span>
+                  )}
+                  <span className="sr-only">
+                    {round.completed
+                      ? "Afgerond"
+                      : isCurrent
+                        ? "Huidige ronde"
+                        : "Nog te spelen"}
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    "text-[11px] font-medium leading-tight sm:text-xs",
+                    isCurrent ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {round.label}
+                </span>
+                <span className="text-[10px] leading-tight text-muted-foreground sm:text-[11px]">
+                  {countLabel}
+                </span>
               </div>
-              <span 
-                className={cn(
-                  "text-xs text-center whitespace-nowrap transition-colors",
-                  isNextRound ? "font-semibold" : ""
-                )}
-                style={{ 
-                  color: isNextRound ? 'var(--primary)' : 'var(--accent)' 
-                }}
-              >
-                {round.label}
-              </span>
-            </div>
-            {index < rounds.length - 1 && (
-              <ChevronRight 
-                className={cn(
-                  "h-4 w-4 flex-shrink-0",
-                  isMobile && "mx-1"
-                )}
-                style={{ color: 'var(--accent)' }}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
+              {index < rounds.length - 1 ? (
+                <ChevronRight
+                  className="mt-2 h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 };
-
-const ChevronRight = ({ className, style }: { className?: string; style?: React.CSSProperties }) => (
-  <svg 
-    className={className} 
-    style={{ color: 'var(--accent)', ...style }} 
-    fill="none" 
-    viewBox="0 0 24 24" 
-    stroke="currentColor"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-  </svg>
-);
 
 
 
@@ -379,7 +378,7 @@ const TournamentContent = memo(({
     const rounds = [
       {
         key: 'prelims',
-        label: 'VR',
+        label: 'Voorronde',
         count: bracketData.prelims.length,
         completed: bracketData.prelims.every(m => 
           m.homeScore !== null && m.awayScore !== null
@@ -387,7 +386,7 @@ const TournamentContent = memo(({
       },
       {
         key: 'eighthfinals',
-        label: '1/8',
+        label: 'Achtste finales',
         count: bracketData.eighthfinals.length,
         completed: bracketData.eighthfinals.every(m => 
           m.homeScore !== null && m.awayScore !== null
@@ -395,7 +394,7 @@ const TournamentContent = memo(({
       },
       {
         key: 'quarterfinals',
-        label: '1/4',
+        label: 'Kwartfinales',
         count: bracketData.quarterfinals.length,
         completed: bracketData.quarterfinals.every(m => 
           m.homeScore !== null && m.awayScore !== null
@@ -403,7 +402,7 @@ const TournamentContent = memo(({
       },
       {
         key: 'semifinals',
-        label: '1/2',
+        label: 'Halve finales',
         count: bracketData.semifinals.length,
         completed: bracketData.semifinals.every(m => 
           m.homeScore !== null && m.awayScore !== null
@@ -411,7 +410,7 @@ const TournamentContent = memo(({
       },
       {
         key: 'final',
-        label: 'F',
+        label: 'Finale',
         count: bracketData.final ? 1 : 0,
         completed: bracketData.final ? 
           (bracketData.final.homeScore !== null && bracketData.final.awayScore !== null) : 

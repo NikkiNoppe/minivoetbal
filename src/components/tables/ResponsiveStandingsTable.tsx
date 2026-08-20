@@ -2,6 +2,10 @@ import React from "react";
 import { ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import {
+  divisionSortKey,
+  formatDivisionDisplayName,
+} from "@/lib/competitionDivision";
 
 /** Rij in de competitiestand — herbruikbaar in hooks/pagina's */
 export interface StandingsTeamRow {
@@ -13,6 +17,7 @@ export interface StandingsTeamRow {
   lost: number;
   goalDiff: number;
   points: number;
+  division?: string | null;
 }
 
 export interface ResponsiveStandingsTableProps {
@@ -299,6 +304,73 @@ function DesktopLegend({ embeddedInCard }: { embeddedInCard?: boolean }) {
   );
 }
 
+function groupStandingsByDivision(
+  teams: StandingsTeamRow[],
+): { title: string | null; teams: StandingsTeamRow[] }[] {
+  const named = [
+    ...new Set(
+      teams
+        .map((team) => team.division)
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ];
+  if (named.length < 2) {
+    return [{ title: null, teams }];
+  }
+
+  const ordered = [...named].sort((a, b) =>
+    divisionSortKey(a).localeCompare(divisionSortKey(b), "nl"),
+  );
+  const groups = ordered.map((title) => ({
+    title,
+    teams: teams.filter((team) => team.division === title),
+  }));
+  const leftover = teams.filter((team) => !team.division);
+  if (leftover.length > 0) {
+    groups.push({ title: null, teams: leftover });
+  }
+  return groups;
+}
+
+function StandingsTableBlock({
+  teams,
+  title,
+  embeddedInCard,
+}: {
+  teams: StandingsTeamRow[];
+  title: string | null;
+  embeddedInCard?: boolean;
+}) {
+  const displayTitle = formatDivisionDisplayName(title);
+  const label = displayTitle
+    ? `Competitiestand ${displayTitle}`
+    : "Competitiestand";
+
+  return (
+    <div className="space-y-2">
+      {displayTitle ? (
+        <h3 className="text-base font-semibold text-brand-dark">
+          {displayTitle}
+        </h3>
+      ) : null}
+      <div className="standings-scroll-hint relative w-full">
+        {standingsTableShell(
+          embeddedInCard,
+          <table className={S.table}>
+            <StandingsHeader />
+            <tbody>
+              {teams.map((team, index) => (
+                <StandingsRow key={team.id} team={team} index={index} />
+              ))}
+            </tbody>
+          </table>,
+          { role: "table", "aria-label": label },
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ResponsiveStandingsTable: React.FC<ResponsiveStandingsTableProps> = ({
   teams,
   isLoading,
@@ -321,22 +393,18 @@ const ResponsiveStandingsTable: React.FC<ResponsiveStandingsTableProps> = ({
     );
   }
 
+  const groups = groupStandingsByDivision(teams);
+
   return (
-    <div className={cn(embeddedInCard && "w-full max-w-none")}>
-      <div className="standings-scroll-hint relative w-full">
-        {standingsTableShell(
-          embeddedInCard,
-          <table className={S.table}>
-            <StandingsHeader />
-            <tbody>
-              {teams.map((team, index) => (
-                <StandingsRow key={team.id} team={team} index={index} />
-              ))}
-            </tbody>
-          </table>,
-          { role: "table", "aria-label": "Competitiestand" },
-        )}
-      </div>
+    <div className={cn("space-y-4", embeddedInCard && "w-full max-w-none")}>
+      {groups.map((group) => (
+        <StandingsTableBlock
+          key={group.title ?? "all"}
+          title={group.title}
+          teams={group.teams}
+          embeddedInCard={embeddedInCard}
+        />
+      ))}
       <MobileScrollHint embeddedInCard={embeddedInCard} />
       <DesktopLegend embeddedInCard={embeddedInCard} />
     </div>

@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
+import React, { memo, useMemo, useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,6 +29,12 @@ import { useTabVisibility } from "@/context/TabVisibilityContext";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { withOrgQueryKey } from "@/lib/orgQueryKey";
 import { cn } from "@/lib/utils";
+import {
+  divisionFromSpeeldag,
+  divisionSortKey,
+  formatDivisionDisplayName,
+  speeldagNumberFromLabel,
+} from "@/lib/competitionDivision";
 
 const DataErrorState = memo(({
   message,
@@ -64,6 +70,45 @@ const ScheduleAccordionSkeleton = memo(() => (
 ));
 ScheduleAccordionSkeleton.displayName = "ScheduleAccordionSkeleton";
 
+const MONTHS_NL_SHORT = [
+  "jan", "feb", "mrt", "apr", "mei", "jun",
+  "jul", "aug", "sep", "okt", "nov", "dec",
+] as const;
+
+function parseUtcDate(dateStr: string): Date | null {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function formatDayMonth(dateStr: string): string {
+  const date = parseUtcDate(dateStr);
+  if (!date) return dateStr;
+  return `${date.getUTCDate()} ${MONTHS_NL_SHORT[date.getUTCMonth()]}`;
+}
+
+function formatMatchDateSpan(dates: string[]): string {
+  const sorted = [...new Set(dates.filter(Boolean))].sort();
+  if (sorted.length === 0) return "";
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (first === last) return formatDayMonth(first);
+  return `${formatDayMonth(first)} – ${formatDayMonth(last)}`;
+}
+
+type ScheduleMatchdayGroup = {
+  value: string;
+  title: string;
+  dateLabel: string;
+  matches: MatchData[];
+};
+
+type ScheduleReeksGroup = {
+  name: string | null;
+  displayName: string | null;
+  matchdays: ScheduleMatchdayGroup[];
+};
+
 const ScheduleEmptyState = memo(({
   hasTeamFilter,
   onResetFilter,
@@ -83,12 +128,58 @@ const ScheduleEmptyState = memo(({
         className="min-h-[44px]"
         onClick={onResetFilter}
       >
-        Toon alle teams
+        Toon alles
       </Button>
     )}
   </div>
 ));
 ScheduleEmptyState.displayName = "ScheduleEmptyState";
+
+function reeksParamFromName(name: string): string {
+  if (/eerste/i.test(name)) return "eerste";
+  if (/tweede/i.test(name)) return "tweede";
+  return name.toLowerCase().replace(/\s+/g, "-");
+}
+
+const ReeksFilter = memo(({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{ value: string; label: string }>;
+  value: string;
+  onChange: (value: string) => void;
+}) => (
+  <div
+    className="grid grid-cols-3 gap-2 mb-3"
+    role="radiogroup"
+    aria-label="Reeks"
+  >
+    {options.map((option) => {
+      const active = option.value === value;
+      return (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={active}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "min-h-[44px] px-2 sm:px-3 rounded-lg text-xs sm:text-sm font-semibold border-[1.5px] text-center leading-tight",
+            "transition-colors duration-200 motion-safe:transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            active
+              ? "bg-brand-700 text-white border-brand-700 shadow-md"
+              : "bg-card text-brand-800 border-brand-light hover:bg-primary/5",
+          )}
+        >
+          {option.label}
+        </button>
+      );
+    })}
+  </div>
+));
+ReeksFilter.displayName = "ReeksFilter";
 
 const MatchListItem = memo(({ match }: { match: MatchData }) => {
   const isCompleted =
@@ -130,18 +221,22 @@ const MatchListItem = memo(({ match }: { match: MatchData }) => {
 MatchListItem.displayName = "MatchListItem";
 
 const MatchGroup = memo(({
-  speeldag,
+  value,
+  title,
+  dateLabel,
   matches,
-}: {
-  speeldag: string;
-  matches: MatchData[];
-}) => (
-  <AccordionItem value={speeldag} className={SCHEDULE_ACCORDION_ITEM}>
+}: ScheduleMatchdayGroup) => (
+  <AccordionItem value={value} className={SCHEDULE_ACCORDION_ITEM}>
     <AccordionTrigger
       variant="plain"
       className={cn(SCHEDULE_TRIGGER, SCHEDULE_TRIGGER_ACTIVE, "px-4 gap-3")}
     >
-      <span className="text-left flex-1">{speeldag}</span>
+      <span className="text-left flex-1 min-w-0 truncate">{title}</span>
+      {dateLabel ? (
+        <span className="text-xs font-normal text-muted-foreground shrink-0 tabular-nums">
+          {dateLabel}
+        </span>
+      ) : null}
     </AccordionTrigger>
     <AccordionContent className="!p-0 border-t border-brand-light bg-card">
       {matches.map((match) => (
@@ -152,6 +247,8 @@ const MatchGroup = memo(({
 ));
 MatchGroup.displayName = "MatchGroup";
 
+const EMPTY_MATCHES: MatchData[] = [];
+
 const CompetitiePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -160,7 +257,6 @@ const CompetitiePage: React.FC = () => {
     hasStandingsData,
     hasMatchesData,
     matches,
-    teamNames,
     standingsFetching,
     standingsError,
     refetchStandings,
@@ -212,7 +308,8 @@ const CompetitiePage: React.FC = () => {
   const [selectedTeam, setSelectedTeam] = useState(
     () => searchParams.get("team") ?? "all",
   );
-  const [openSpeeldagen, setOpenSpeeldagen] = useState<string[]>([]);
+  const [selectedReeks, setSelectedReeks] = useState("all");
+  const [openSpeeldag, setOpenSpeeldag] = useState("");
 
   const handleTeamChange = useCallback(
     (value: string) => {
@@ -233,22 +330,106 @@ const CompetitiePage: React.FC = () => {
     [setSearchParams],
   );
 
+  const handleReeksChange = useCallback(
+    (value: string) => {
+      setSelectedReeks(value);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (value === "all") {
+            next.delete("reeks");
+          } else {
+            next.set("reeks", reeksParamFromName(value));
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   useEffect(() => {
     const urlTeam = searchParams.get("team") ?? "all";
     setSelectedTeam((prev) => (prev === urlTeam ? prev : urlTeam));
   }, [searchParams]);
 
+  const allMatches = matches?.all ?? EMPTY_MATCHES;
+
+  const availableReeksen = useMemo(() => {
+    const names = [
+      ...new Set(
+        allMatches
+          .map((match) => divisionFromSpeeldag(match.matchday))
+          .filter((name): name is string => Boolean(name)),
+      ),
+    ];
+    return names.sort((a, b) =>
+      divisionSortKey(a).localeCompare(divisionSortKey(b), "nl"),
+    );
+  }, [allMatches]);
+
+  const showReeksFilter = availableReeksen.length >= 2;
+
+  const reeksFilterOptions = useMemo(
+    () => [
+      { value: "all", label: "Alle reeksen" },
+      ...availableReeksen.map((name) => ({
+        value: name,
+        label: formatDivisionDisplayName(name) ?? name,
+      })),
+    ],
+    [availableReeksen],
+  );
+
+  const visibleTeamNames = useMemo(() => {
+    const source =
+      selectedReeks === "all"
+        ? allMatches
+        : allMatches.filter(
+            (match) => divisionFromSpeeldag(match.matchday) === selectedReeks,
+          );
+    return [
+      ...new Set([
+        ...source.map((match) => match.homeTeamName),
+        ...source.map((match) => match.awayTeamName),
+      ]),
+    ]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "nl"));
+  }, [allMatches, selectedReeks]);
+
+  useEffect(() => {
+    const param = searchParams.get("reeks");
+    if (!param || param === "all") {
+      setSelectedReeks((prev) => (prev === "all" ? prev : "all"));
+      return;
+    }
+    const match = availableReeksen.find(
+      (name) => reeksParamFromName(name) === param || name === param,
+    );
+    if (match) {
+      setSelectedReeks((prev) => (prev === match ? prev : match));
+    } else if (availableReeksen.length > 0) {
+      setSelectedReeks((prev) => (prev === "all" ? prev : "all"));
+    }
+  }, [searchParams, availableReeksen]);
+
   useEffect(() => {
     if (!matchesFetched) return;
     if (selectedTeam === "all") return;
-    if (teamNames.includes(selectedTeam)) return;
+    if (visibleTeamNames.includes(selectedTeam)) return;
     handleTeamChange("all");
-  }, [matchesFetched, teamNames, selectedTeam, handleTeamChange]);
-
-  const allMatches = matches?.all ?? [];
+  }, [matchesFetched, visibleTeamNames, selectedTeam, handleTeamChange]);
 
   const filteredMatches = useMemo(() => {
     const filtered = allMatches.filter((m) => {
+      if (
+        selectedReeks !== "all" &&
+        divisionFromSpeeldag(m.matchday) !== selectedReeks
+      ) {
+        return false;
+      }
       if (
         selectedTeam !== "all" &&
         m.homeTeamName !== selectedTeam &&
@@ -263,41 +444,84 @@ const CompetitiePage: React.FC = () => {
       const bKey = `${b.date}T${b.time}`;
       return aKey.localeCompare(bKey);
     });
-  }, [allMatches, selectedTeam]);
+  }, [allMatches, selectedTeam, selectedReeks]);
 
-  const groupedMatches = useMemo(() => {
-    const groups = new Map<string, MatchData[]>();
+  const groupedMatches = useMemo((): ScheduleReeksGroup[] => {
+    const byReeks = new Map<string, MatchData[]>();
     filteredMatches.forEach((match) => {
-      const speeldag = match.matchday || "Overige";
-      if (!groups.has(speeldag)) {
-        groups.set(speeldag, []);
-      }
-      groups.get(speeldag)!.push(match);
+      const name = divisionFromSpeeldag(match.matchday);
+      const reeksKey = name ?? "";
+      const list = byReeks.get(reeksKey);
+      if (list) list.push(match);
+      else byReeks.set(reeksKey, [match]);
     });
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      const numA = parseInt(a.match(/\d+/)?.[0] || "999", 10);
-      const numB = parseInt(b.match(/\d+/)?.[0] || "999", 10);
-      return numA - numB;
-    });
+
+    return Array.from(byReeks.entries())
+      .sort(([a], [b]) =>
+        divisionSortKey(a || null).localeCompare(divisionSortKey(b || null), "nl"),
+      )
+      .map(([reeksKey, reeksMatches]) => {
+        const bySpeeldag = new Map<string, MatchData[]>();
+        reeksMatches.forEach((match) => {
+          const number = speeldagNumberFromLabel(match.matchday);
+          const speeldagKey = number != null ? String(number) : (match.matchday || "Overige");
+          const list = bySpeeldag.get(speeldagKey);
+          if (list) list.push(match);
+          else bySpeeldag.set(speeldagKey, [match]);
+        });
+
+        const matchdays = Array.from(bySpeeldag.entries())
+          .sort(([a], [b]) => {
+            const na = Number(a);
+            const nb = Number(b);
+            if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+            return a.localeCompare(b, "nl");
+          })
+          .map(([speeldagKey, dayMatches]) => {
+            const number = Number(speeldagKey);
+            const title = Number.isFinite(number)
+              ? `Speeldag ${number}`
+              : speeldagKey;
+            return {
+              value: `${reeksKey || "all"}::${speeldagKey}`,
+              title,
+              dateLabel: formatMatchDateSpan(dayMatches.map((m) => m.date)),
+              matches: dayMatches,
+            };
+          });
+
+        return {
+          name: reeksKey || null,
+          displayName: formatDivisionDisplayName(reeksKey || null),
+          matchdays,
+        };
+      });
   }, [filteredMatches]);
 
+  const allMatchdayKeys = useMemo(
+    () => groupedMatches.flatMap((reeks) => reeks.matchdays.map((day) => day.value)),
+    [groupedMatches],
+  );
+
   const defaultOpenSpeeldag = useMemo(() => {
-    for (const [speeldag, dayMatches] of groupedMatches) {
-      const isCompleted = dayMatches.every(
-        (match) =>
-          match.homeScore !== undefined &&
-          match.homeScore !== null &&
-          match.awayScore !== undefined &&
-          match.awayScore !== null,
-      );
-      if (!isCompleted && dayMatches.length > 0) {
-        return speeldag;
+    for (const reeks of groupedMatches) {
+      for (const day of reeks.matchdays) {
+        const isCompleted = day.matches.every(
+          (match) =>
+            match.homeScore !== undefined &&
+            match.homeScore !== null &&
+            match.awayScore !== undefined &&
+            match.awayScore !== null,
+        );
+        if (!isCompleted && day.matches.length > 0) {
+          return day.value;
+        }
       }
     }
-    return groupedMatches.length > 0
-      ? groupedMatches[groupedMatches.length - 1][0]
+    return allMatchdayKeys.length > 0
+      ? allMatchdayKeys[allMatchdayKeys.length - 1]
       : undefined;
-  }, [groupedMatches]);
+  }, [groupedMatches, allMatchdayKeys]);
 
   const allRegularMatchesComplete = useMemo(() => {
     if (allMatches.length === 0) return false;
@@ -313,33 +537,20 @@ const CompetitiePage: React.FC = () => {
   const showPlayoffBanner =
     allRegularMatchesComplete && isTabVisible("playoff");
 
-  const isManualChangeRef = useRef(false);
-  const prevSelectedTeamRef = useRef(selectedTeam);
+  const matchdayKeysSignature = allMatchdayKeys.join("|");
 
   useEffect(() => {
-    const selectedTeamChanged = prevSelectedTeamRef.current !== selectedTeam;
+    setOpenSpeeldag(defaultOpenSpeeldag ?? "");
+  }, [selectedTeam, selectedReeks, matchdayKeysSignature, defaultOpenSpeeldag]);
 
-    if (isManualChangeRef.current && !selectedTeamChanged) {
-      isManualChangeRef.current = false;
-      return;
-    }
-
-    if (selectedTeamChanged) {
-      prevSelectedTeamRef.current = selectedTeam;
-    }
-
-    if (selectedTeam === "all") {
-      setOpenSpeeldagen(defaultOpenSpeeldag ? [defaultOpenSpeeldag] : []);
-    } else {
-      setOpenSpeeldagen(groupedMatches.map(([speeldag]) => speeldag));
-    }
-
-    isManualChangeRef.current = false;
-  }, [selectedTeam, defaultOpenSpeeldag, groupedMatches]);
-
-  const handleAccordionChange = useCallback((value: string[]) => {
-    isManualChangeRef.current = true;
-    setOpenSpeeldagen(value);
+  const handleAccordionChange = useCallback((reeksValues: string[]) => {
+    return (value: string) => {
+      if (value) {
+        setOpenSpeeldag(value);
+        return;
+      }
+      setOpenSpeeldag((prev) => (reeksValues.includes(prev) ? "" : prev));
+    };
   }, []);
 
   const formatDutchDayShort = (dateStr: string): string => {
@@ -370,7 +581,7 @@ const CompetitiePage: React.FC = () => {
   }));
 
   const teamFilterValue =
-    selectedTeam === "all" || teamNames.includes(selectedTeam)
+    selectedTeam === "all" || visibleTeamNames.includes(selectedTeam)
       ? selectedTeam
       : "all";
 
@@ -442,6 +653,14 @@ const CompetitiePage: React.FC = () => {
           Speelschema
         </PublicSectionHeading>
 
+        {showReeksFilter ? (
+          <ReeksFilter
+            options={reeksFilterOptions}
+            value={selectedReeks}
+            onChange={handleReeksChange}
+          />
+        ) : null}
+
         <FilterGroup columns={1} className="mb-4 w-full">
           <div className="flex flex-col sm:flex-row sm:items-end gap-2 w-full">
             <div className="flex-1 min-w-0 w-full">
@@ -453,7 +672,7 @@ const CompetitiePage: React.FC = () => {
                 variant="schedule"
                 options={[
                   { value: "all", label: "Alle teams" },
-                  ...teamNames.map((t) => ({ value: t, label: t })),
+                  ...visibleTeamNames.map((t) => ({ value: t, label: t })),
                 ]}
               />
             </div>
@@ -493,27 +712,47 @@ const CompetitiePage: React.FC = () => {
         ) : showMatchesSkeleton ? (
           <ScheduleAccordionSkeleton />
         ) : groupedMatches.length > 0 ? (
-          <Accordion
-            type="multiple"
-            value={openSpeeldagen}
-            onValueChange={handleAccordionChange}
-            className="space-y-3"
-          >
-            {groupedMatches.map(([speeldag, dayMatches]) => (
-              <MatchGroup
-                key={speeldag}
-                speeldag={speeldag}
-                matches={dayMatches.map((m) => ({
-                  ...m,
-                  date: formatDutchDayShort(m.date),
-                }))}
-              />
-            ))}
-          </Accordion>
+          <div className="space-y-6">
+            {groupedMatches.map((reeks) => {
+              const reeksValues = reeks.matchdays.map((day) => day.value);
+              return (
+                <div key={reeks.name ?? "all"} className="space-y-2">
+                  {reeks.displayName && selectedReeks === "all" ? (
+                    <h3 className="text-base font-semibold text-brand-dark">
+                      {reeks.displayName}
+                    </h3>
+                  ) : null}
+                  <Accordion
+                    type="single"
+                    collapsible
+                    value={reeksValues.includes(openSpeeldag) ? openSpeeldag : ""}
+                    onValueChange={handleAccordionChange(reeksValues)}
+                    className="space-y-3"
+                  >
+                    {reeks.matchdays.map((day) => (
+                      <MatchGroup
+                        key={day.value}
+                        value={day.value}
+                        title={day.title}
+                        dateLabel={day.dateLabel}
+                        matches={day.matches.map((m) => ({
+                          ...m,
+                          date: formatDutchDayShort(m.date),
+                        }))}
+                      />
+                    ))}
+                  </Accordion>
+                </div>
+              );
+            })}
+          </div>
         ) : matchesFetched ? (
           <ScheduleEmptyState
-            hasTeamFilter={selectedTeam !== "all"}
-            onResetFilter={() => handleTeamChange("all")}
+            hasTeamFilter={selectedTeam !== "all" || selectedReeks !== "all"}
+            onResetFilter={() => {
+              handleTeamChange("all");
+              if (selectedReeks !== "all") handleReeksChange("all");
+            }}
           />
         ) : null}
       </section>

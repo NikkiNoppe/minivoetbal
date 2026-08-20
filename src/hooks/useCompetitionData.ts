@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { fetchCompetitionMatches } from "@/services/match";
 import { fetchRegularStandings } from "@/services/standings/standingsService";
 import { useOrganization, useOrgQueryScope } from "@/hooks/useOrganization";
@@ -13,6 +14,7 @@ export interface Team {
   lost: number;
   goalDiff: number;
   points: number;
+  division?: string | null;
 }
 
 export interface MatchData {
@@ -53,6 +55,7 @@ const fetchCompetitionStandings = async (
     lost: s.lost,
     goalDiff: s.goal_diff,
     points: s.points,
+    division: s.division,
   }));
 };
 
@@ -85,16 +88,17 @@ export const useCompetitionData = () => {
   const hasStandingsData = standingsQuery.data !== undefined;
   const hasMatchesData = matchesQuery.data !== undefined;
 
-  const processedMatches = matchesQuery.data
-    ? {
-        upcoming: matchesQuery.data.upcoming || [],
-        past: matchesQuery.data.past || [],
-        all: [
-          ...(matchesQuery.data.upcoming || []),
-          ...(matchesQuery.data.past || []),
-        ],
-      }
-    : undefined;
+  const processedMatches = useMemo(() => {
+    if (!matchesQuery.data) return undefined;
+    return {
+      upcoming: matchesQuery.data.upcoming || [],
+      past: matchesQuery.data.past || [],
+      all: [
+        ...(matchesQuery.data.upcoming || []),
+        ...(matchesQuery.data.past || []),
+      ],
+    };
+  }, [matchesQuery.data]);
 
   const matchdays = processedMatches
     ? [...new Set(processedMatches.all.map((match) => match.matchday))]

@@ -860,6 +860,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
         slotsPerWeek={plan?.cupBracket.slotsPerWeekUsed}
         teams={teams}
         allowedSystems={allowedSystems}
+        availableMoments={
+          plan
+            ? plan.weeks.reduce((sum, week) => sum + week.configAvailableCount, 0)
+            : undefined
+        }
         onChange={handleSetupChange}
       />
 

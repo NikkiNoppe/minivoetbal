@@ -9,10 +9,7 @@ from collections import defaultdict
 from datetime import datetime, time
 from pathlib import Path
 
-EXCEL_DEFAULT = Path(
-    "/Users/nikki/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/"
-    "3040BAD8-C598-4ADE-A5D8-1EF9A6734F4E/Voorstel dagen kalender.xlsx"
-)
+EXCEL_DEFAULT = Path("/Users/nikki/Desktop/Voorstel dagen kalender.xlsx")
 
 DAY_MAP = {
     "Maandag": 1,

@@ -141,6 +141,18 @@ export const assignmentService = {
     }
   },
 
+  /** Verwijder de toewijzing van één wedstrijd (niet de hele dag+locatie-sessie). */
+  async removeMatchAssignment(matchId: number, _userId?: number): Promise<boolean> {
+    try {
+      const assignment = await this.getAssignmentForMatch(matchId);
+      if (!assignment) return false;
+      return this.removeAssignment(assignment.id, _userId);
+    } catch (error) {
+      console.error('Error in removeMatchAssignment:', error);
+      return false;
+    }
+  },
+
   async removeSessionAssignment(matchId: number, _userId?: number): Promise<boolean> {
     try {
       const sessionMatchIds = await resolveSessionMatchIds(matchId);

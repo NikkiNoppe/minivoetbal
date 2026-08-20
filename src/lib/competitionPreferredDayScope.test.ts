@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   appendPeriodBoundedSlots,
+  expandSlotsForDualWeekGap,
+  isoWeekDayDistance,
   scopeSlotsByCupDayPreference,
   scopeSlotsByPreferredDayDistance,
 } from "./competitionPreferredDayScope";
@@ -74,6 +76,50 @@ describe("appendPeriodBoundedSlots", () => {
       (idx) => idx >= 4,
     );
     expect(merged).toEqual([0, 1, 4, 5]);
+  });
+});
+
+describe("isoWeekDayDistance", () => {
+  it("telt do→vr als 1 en di→vr als 3", () => {
+    expect(isoWeekDayDistance(4, 5)).toBe(1);
+    expect(isoWeekDayDistance(2, 5)).toBe(3);
+    expect(isoWeekDayDistance(1, 5)).toBe(4);
+  });
+});
+
+describe("expandSlotsForDualWeekGap", () => {
+  it("voegt dinsdag toe als alleen vrijdag+donderdag in scope zitten", () => {
+    const dayOfWeekBySlot = new Map<number, number>([
+      [0, 5],
+      [1, 5],
+      [2, 4],
+      [3, 4],
+      [4, 2],
+      [5, 2],
+      [6, 1],
+    ]);
+    const expanded = expandSlotsForDualWeekGap(
+      [0, 1, 2, 3],
+      [0, 1, 2, 3, 4, 5, 6],
+      5,
+      2,
+      (idx) => dayOfWeekBySlot.get(idx),
+    );
+    expect(expanded).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it("laat scope ongemoeid als dinsdag al aanwezig is", () => {
+    const dayOfWeekBySlot = new Map<number, number>([
+      [0, 5],
+      [1, 4],
+      [2, 2],
+    ]);
+    const scoped = [0, 1, 2];
+    expect(
+      expandSlotsForDualWeekGap(scoped, [0, 1, 2, 3], 5, 2, (idx) =>
+        dayOfWeekBySlot.get(idx),
+      ),
+    ).toEqual(scoped);
   });
 });
 

@@ -45,6 +45,8 @@ export {
   buildUnifiedSeasonPreview,
   cupBusyTeamsByMondayFromPlan,
   cupOccupiedSlotsByMondayFromPlan,
+  cupDatesByMondayFromPlan,
+  cupUnassignedByMondayFromPlan,
   type UnifiedPreviewPhase,
   type UnifiedPreviewRow,
   type UnifiedPreviewSection,

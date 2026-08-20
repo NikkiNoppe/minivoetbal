@@ -20,10 +20,13 @@ import {
   hasSufficientSameWeekDayGap,
   hasSufficientDayGapBetweenDates,
   hasMinimumDaySeparation,
+  competitionDateAllowedWithCup,
   MIN_DUAL_WEEK_DAY_GAP,
+  MIN_EMERGENCY_DUAL_DAY_GAP,
+  MIN_SAME_WEEK_DAY_GAP,
   type PackFailureSuggestion,
 } from "@/lib/competitionWeekPacking";
-import { scopeSlotsByPreferredDayDistance, appendPeriodBoundedSlots } from "@/lib/competitionPreferredDayScope";
+import { appendPeriodBoundedSlots, expandSlotsForDualWeekGap, isoWeekDayDistance } from "@/lib/competitionPreferredDayScope";
 import { isPeriodBoundedTimeslot } from "@/lib/timeslotAvailability";
 import { matchDateFromWeekMonday } from "@/lib/cupBracketPlan";
 import type { CompetitionFormat } from "@/services/competitionDataService";
@@ -92,6 +95,10 @@ export interface CompetitionConfig {
   cupTeamDatesByMonday?: Record<string, Record<number, string[]>>;
   /** Slot-indices die de beker al claimt die week — competitie mag ze niet hergebruiken. */
   cupOccupiedSlotsByMonday?: Record<string, number[]>;
+  /** Kalenderdagen met beker (ook TBD), per ISO-maandag. */
+  cupDatesByMonday?: Record<string, string[]>;
+  /** Bekerweek waarvan de ploegen nog niet bekend zijn (HF/finale). */
+  cupUnassignedByMonday?: Record<string, boolean>;
   /**
    * Bekerweken waar competitie de resterende speelmomenten mag gebruiken.
    * Komt uit het seizoensplan zodat kalender en preview dezelfde weken delen.
@@ -113,6 +120,8 @@ export type DivisionAwareMatch = {
   away: number;
   round: number;
   matchday: number;
+  /** Speeldagnummer binnen de ronde (1..N), los van globale matchday. */
+  roundMatchday?: number;
   /** Unieke sleutel zodat reeksen elkaars speeldagen niet mengen */
   matchdayKey: string;
   divisionId: number | null;
@@ -496,8 +505,8 @@ export const competitionService = {
   },
 
   // Genereer alle wedstrijden voor reguliere competitie met round-robin algoritme
-  generateRegularSeasonMatches(teams: number[], rounds: number): Array<{ home: number; away: number; round: number; matchday?: number }> {
-    const matches: Array<{ home: number; away: number; round: number; matchday?: number }> = [];
+  generateRegularSeasonMatches(teams: number[], rounds: number): Array<{ home: number; away: number; round: number; matchday?: number; roundMatchday?: number }> {
+    const matches: Array<{ home: number; away: number; round: number; matchday?: number; roundMatchday?: number }> = [];
     const n = teams.length;
     const matchdaysPerRound = (n % 2 === 0) ? (n - 1) : n; // bij oneven teams is er per ronde n speeldagen (1 bye)
 
@@ -507,7 +516,12 @@ export const competitionService = {
       const roundMatches = this.generateRoundRobinMatches(teams);
       const base = (round - 1) * matchdaysPerRound;
       roundMatches.forEach(match => {
-        matches.push({ ...match, round, matchday: base + match.matchday });
+        matches.push({
+          ...match,
+          round,
+          matchday: base + match.matchday,
+          roundMatchday: match.matchday,
+        });
       });
     }
     
@@ -538,6 +552,7 @@ export const competitionService = {
         away: m.away,
         round: m.round,
         matchday: m.matchday ?? 1,
+        roundMatchday: m.roundMatchday ?? m.matchday ?? 1,
         matchdayKey: `all-${m.matchday ?? 1}`,
         divisionId: null,
         divisionName: null,
@@ -565,6 +580,7 @@ export const competitionService = {
           away: m.away,
           round: m.round,
           matchday,
+          roundMatchday: m.roundMatchday ?? matchday,
           matchdayKey: `${division.id}-${matchday}`,
           divisionId: division.id,
           divisionName: division.name,
@@ -575,8 +591,11 @@ export const competitionService = {
     return result;
   },
 
-  formatSpeeldagLabel(match: Pick<DivisionAwareMatch, "matchday" | "divisionName">): string {
-    const base = `Speeldag ${match.matchday}`;
+  formatSpeeldagLabel(
+    match: Pick<DivisionAwareMatch, "matchday" | "divisionName" | "round" | "roundMatchday">,
+  ): string {
+    const sd = match.roundMatchday ?? match.matchday;
+    const base = `Speeldag ${sd}`;
     return match.divisionName ? `${match.divisionName} – ${base}` : base;
   },
 
@@ -996,6 +1015,7 @@ export const competitionService = {
       match_date: string;
       match_time: string;
       venue: string;
+      round?: number;
       details: {
         homeScore: number;
         awayScore: number;
@@ -1061,17 +1081,53 @@ export const competitionService = {
 
       const slotCtx = await loadSlotPlanningContext(config.organizationId);
 
+      const dualWeek = Boolean(config.allowDualMatchWeek);
+
+      const weekCupDates = (monday: string): string[] =>
+        config.cupDatesByMonday?.[monday] ?? [];
+      const weekCupUnassigned = (monday: string): boolean =>
+        Boolean(config.cupUnassignedByMonday?.[monday]);
+
+      const lowerDivisionId = (() => {
+        const divisions = config.format.divisions ?? [];
+        if (divisions.length < 2) return null;
+        let max = divisions[0];
+        for (const d of divisions) {
+          if (d.sort_order > max.sort_order) max = d;
+        }
+        return max.id;
+      })();
+      const isLowerDivisionMatch = (mt: DivisionAwareMatch): boolean => {
+        const name = (mt.divisionName || "").toLowerCase();
+        if (/tweede|derde|2de|2e klasse|3de/.test(name)) return true;
+        if (/eerste|1ste|1e klasse/.test(name)) return false;
+        return lowerDivisionId != null && mt.divisionId === lowerDivisionId;
+      };
+
+      const slotClearsWeekCup = (mondayIso: string, slotIndex: number): boolean => {
+        const dates = weekCupDates(mondayIso);
+        if (dates.length === 0) return true;
+        const dow = slotCtx.slotDetails[slotIndex]?.timeslot?.day_of_week;
+        if (typeof dow !== "number") return false;
+        const slotDate = matchDateFromWeekMonday(mondayIso, dow);
+        return competitionDateAllowedWithCup(slotDate, dates, {
+          requireGap: false,
+        });
+      };
+
       /**
-       * Capaciteit voor competitie: alleen de speelmomenten die de beker écht claimt
-       * vallen weg. Ongebruikte momenten op de bekerdag blijven bruikbaar voor ploegen
-       * die die week geen beker spelen — de ≥3-dagen-regel wordt per wedstrijd getoetst.
+       * Capaciteit: beker-slots en dezelfde kalenderdag vallen weg.
+       * HF/finale (onbekende ploegen): andere dag mag (uitzondering, bij voorkeur 2de klasse).
        */
-      const competitionWeekCapacity = (weekMonday: string): number => {
+      const freeCompetitionSlots = (weekMonday: string): number[] => {
         const monday = toMondayIso(weekMonday);
         const cupTaken = new Set(config.cupOccupiedSlotsByMonday?.[monday] ?? []);
-        const base = slotCtx.getWeekCapacity(weekMonday);
-        return Math.max(0, base - cupTaken.size);
+        return slotCtx
+          .getAvailableSlotIndices(weekMonday)
+          .filter((idx) => !cupTaken.has(idx) && slotClearsWeekCup(monday, idx));
       };
+      const competitionWeekCapacity = (weekMonday: string): number =>
+        freeCompetitionSlots(weekMonday).length;
 
       /** Bekerdatums van deze ploegen in die week (leeg = geen beker die week). */
       const cupDatesForTeams = (mondayIso: string, teamIds: number[]): string[] => {
@@ -1083,8 +1139,6 @@ export const competitionService = {
         }
         return [...dates];
       };
-
-      const dualWeek = Boolean(config.allowDualMatchWeek);
 
       /** Slot respecteert bestaande datums van de ploeg (beker / andere wedstrijd). */
       const slotRespectsExistingDates = (
@@ -1124,15 +1178,6 @@ export const competitionService = {
           dualWeek ? "gap2" : "gap3",
         );
 
-      /** Vrije slots die de beker die week niet al claimt. */
-      const freeCompetitionSlots = (weekMonday: string): number[] => {
-        const monday = toMondayIso(weekMonday);
-        const cupTaken = new Set(config.cupOccupiedSlotsByMonday?.[monday] ?? []);
-        return slotCtx
-          .getAvailableSlotIndices(weekMonday)
-          .filter((idx) => !cupTaken.has(idx));
-      };
-
       // Meerdere starts: eerst lichte packing (snel), daarna zware repair.
       // Yield naar UI tussen pogingen zodat de pagina responsive blijft.
       const PACK_LIGHT = dualWeek ? 16 : 12;
@@ -1171,8 +1216,14 @@ export const competitionService = {
       );
 
       const packOptsBase = {
-        maxTeamAppearancesPerWeek: (dualWeek ? 2 : 1) as 1 | 2,
-        preferFreshWeeks: dualWeek,
+        // Altijd max. 2: restslots blijven anders leeg als een ploeg die week
+        // al speelde (Kuurne: ~50 vrije slots, packing vast op late speeldag).
+        // preferFreshWeeks houdt 1×/week als er nog verse weken zijn.
+        maxTeamAppearancesPerWeek: 2 as const,
+        preferFreshWeeks: true,
+        reverseMatchdays: false,
+        sequentialRounds: true,
+        maxRoundOverlapWeeks: 1,
         externalBusyTeamsByWeek: (w: number) => {
           const monday = toMondayIso(playingWeeks[w]);
           const ids = config.cupBusyTeamsByMonday?.[monday];
@@ -1192,7 +1243,7 @@ export const competitionService = {
           ? (w: number) => {
               const weekMonday = playingWeeks[w];
               const monday = toMondayIso(weekMonday);
-              if (!sharedCupMondaySet.has(monday)) {
+              if (weekCupUnassigned(monday) || !sharedCupMondaySet.has(monday)) {
                 return competitionWeekCapacity(weekMonday);
               }
               const free = freeCompetitionSlots(weekMonday);
@@ -1219,10 +1270,14 @@ export const competitionService = {
           if (!softShare && !dualWeek) return false;
           const weekMonday = playingWeeks[w];
           const monday = toMondayIso(weekMonday);
+          const unknownCup = weekCupUnassigned(monday);
           const cupBusy = config.cupBusyTeamsByMonday?.[monday];
-          if (!cupBusy?.length) return false;
+          if (!cupBusy?.length && !unknownCup) return false;
           const free = freeCompetitionSlots(weekMonday);
           if (free.length === 0) return false;
+          if (unknownCup) {
+            return free.some((idx) => slotClearsWeekCup(monday, idx));
+          }
           if (dualWeek) {
             if (cupDay == null) return true;
             return free.some((idx) => {
@@ -1319,6 +1374,7 @@ export const competitionService = {
             away: m.away,
             matchday: m.matchday,
             matchdayKey: m.matchdayKey,
+            round: m.round,
           })),
           playingWeeks.length,
           (w) => competitionWeekCapacity(playingWeeks[w]),
@@ -1336,8 +1392,6 @@ export const competitionService = {
                 ? 60
                 : 40,
             maxRepairDepth: useHeavyRepair ? 4 : 2,
-            // Dual/force: speeldag 1 eerst (geen reverse). Normaal: soms late-eerst.
-            reverseMatchdays: dualWeek ? false : attempt % 3 === 2,
             shuffleWithinMatchday: dualWeek && attempt > 0,
           },
         );
@@ -1468,7 +1522,7 @@ export const competitionService = {
       }
 
       // Optimize slot assignment per week (maximize combined)
-      const plan: Array<{ unique_number: string; speeldag: string; home_team_id: number; away_team_id: number | null; match_date: string; match_time: string; venue: string; details: { homeScore: number; awayScore: number; combined: number; maxCombined: number } } > = [];
+      const plan: Array<{ unique_number: string; speeldag: string; home_team_id: number; away_team_id: number | null; match_date: string; match_time: string; venue: string; round?: number; details: { homeScore: number; awayScore: number; combined: number; maxCombined: number } } > = [];
       let totalCombined = 0;
       const totalAvailableSlots = slotCtx.totalSlots;
       const slotDetails = slotCtx.slotDetails;
@@ -1533,28 +1587,44 @@ export const competitionService = {
         mondayIso: string,
         matchesList: DivisionAwareMatch[],
         chosen: Array<{ r: number; c: number }>,
+        minCompGap: number = MIN_EMERGENCY_DUAL_DAY_GAP,
       ): boolean => {
-        const datesByTeam = new Map<number, string[]>();
+        const cupDatesByTeam = new Map<number, string[]>();
         const byTeam = config.cupTeamDatesByMonday?.[mondayIso] ?? {};
         for (const [idStr, dates] of Object.entries(byTeam)) {
           const id = Number(idStr);
           if (!Number.isFinite(id)) continue;
-          const list = datesByTeam.get(id) ?? [];
-          for (const d of dates) list.push(String(d).slice(0, 10));
-          datesByTeam.set(id, list);
+          cupDatesByTeam.set(
+            id,
+            dates.map((d) => String(d).slice(0, 10)),
+          );
         }
+        const compDatesByTeam = new Map<number, string[]>();
+        const cupGap = dualWeek ? MIN_DUAL_WEEK_DAY_GAP : MIN_SAME_WEEK_DAY_GAP;
+        const weekDates = weekCupDates(mondayIso);
         const claim = (teamId: number, date: string): boolean => {
-          const list = datesByTeam.get(teamId) ?? [];
-          const minGap = dualWeek ? MIN_DUAL_WEEK_DAY_GAP : 1;
+          if (
+            !competitionDateAllowedWithCup(date, weekDates, {
+              requireGap: false,
+            })
+          ) {
+            return false;
+          }
+          for (const existing of cupDatesByTeam.get(teamId) ?? []) {
+            if (dualWeek) {
+              if (!hasMinimumDaySeparation(existing, date, cupGap)) return false;
+            } else if (!hasSufficientDayGapBetweenDates(existing, date, cupGap)) {
+              return false;
+            }
+          }
+          const list = compDatesByTeam.get(teamId) ?? [];
           for (const existing of list) {
-            if (minGap <= 1) {
-              if (existing === date) return false;
-            } else if (!hasMinimumDaySeparation(existing, date, minGap)) {
+            if (!hasMinimumDaySeparation(existing, date, minCompGap)) {
               return false;
             }
           }
           list.push(date);
-          datesByTeam.set(teamId, list);
+          compDatesByTeam.set(teamId, list);
           return true;
         };
         for (const ch of chosen) {
@@ -1580,31 +1650,45 @@ export const competitionService = {
         }
         const isSharedCupWeek =
           softShare && cupDay != null && sharedCupMondaySet.has(mondayIso);
-        // Alleen door de beker geclaimde momenten vallen weg; de rest van de bekerdag
-        // blijft beschikbaar voor ploegen zonder bekerwedstrijd die week.
+        // Beker-kalenderdag is taboe voor competitie; bij TBD-ploegen ook <3 dagen.
         let availableSlots = slotCtx
           .getAvailableSlotIndices(weekMonday)
-          .filter((idx) => !blocked.has(idx));
+          .filter((idx) => !blocked.has(idx) && slotClearsWeekCup(mondayIso, idx));
+        const allWeekSlots = availableSlots;
 
-        // Competitiedag eerst (bv. vrijdag); bij tekort geleidelijk dichterbij
-        // uitbreiden (donderdag vóór dinsdag) — niet meteen alle weekdagen openzetten.
-        if (compDay != null && m > 0) {
-          const unscoped = availableSlots;
-          availableSlots = scopeSlotsByPreferredDayDistance(
-            unscoped,
+        const appearanceCount = new Map<number, number>();
+        for (const mt of matchesList) {
+          appearanceCount.set(mt.home, (appearanceCount.get(mt.home) ?? 0) + 1);
+          appearanceCount.set(mt.away, (appearanceCount.get(mt.away) ?? 0) + 1);
+        }
+        const weekHasDualTeams = [...appearanceCount.values()].some((n) => n >= 2);
+        const isDualMatch = (r: number): boolean => {
+          const mt = matchesList[r];
+          return (
+            (appearanceCount.get(mt.home) ?? 0) >= 2 ||
+            (appearanceCount.get(mt.away) ?? 0) >= 2
+          );
+        };
+
+        // Alle vrije momenten van de week mogen mee (ma 18:00 niet laten liggen
+        // terwijl do 20:00 vol zit). Voorkeursdag blijft via de score-bonus.
+        if (compDay != null && m > 0 && weekHasDualTeams) {
+          availableSlots = expandSlotsForDualWeekGap(
+            allWeekSlots,
+            allWeekSlots,
             compDay,
-            m,
+            MIN_DUAL_WEEK_DAY_GAP,
             (idx) => slotCtx.slotDetails[idx]?.timeslot?.day_of_week,
           );
-          availableSlots = appendPeriodBoundedSlots(
-            availableSlots,
-            unscoped,
-            (idx) => {
-              const ts = slotCtx.slotDetails[idx]?.timeslot;
-              return ts ? isPeriodBoundedTimeslot(ts) : false;
-            },
-          );
         }
+        availableSlots = appendPeriodBoundedSlots(
+          availableSlots,
+          allWeekSlots,
+          (idx) => {
+            const ts = slotCtx.slotDetails[idx]?.timeslot;
+            return ts ? isPeriodBoundedTimeslot(ts) : false;
+          },
+        );
 
         if (m > availableSlots.length) {
           return {
@@ -1617,17 +1701,16 @@ export const competitionService = {
 
         // Build score matrix m x 7 with seasonal fairness boosts and adaptive fallback
         const { applyAdaptiveFallback } = await import("@/services/core/teamPreferencesService");
-        const {
-          pickPriorityCandidateSlots,
-          slotPriorityScoreBonus,
-        } = await import("@/lib/slotPriorityPacking");
+        const { slotPriorityScoreBonus } = await import("@/lib/slotPriorityPacking");
         const scoreMatrix: Array<Array<{ combined: number; h: number; a: number }>> = [];
         
         for (let r = 0; r < m; r++) {
           const { home, away } = matchesList[r];
           const row: Array<{ combined: number; h: number; a: number }> = [];
           // Echte bekerdatums van deze twee ploegen deze week (leeg = vrij te plannen)
-          const matchCupDates = cupDatesForTeams(mondayIso, [home, away]);
+          const matchCupDates = weekCupUnassigned(mondayIso)
+            ? []
+            : cupDatesForTeams(mondayIso, [home, away]);
           
           // Calculate base scores for all slots first
           const homeSlotScores = new Array(totalAvailableSlots).fill(0);
@@ -1651,6 +1734,18 @@ export const competitionService = {
             if (blocked.has(c)) {
               row.push({ combined: -1, h: 0, a: 0 });
               continue;
+            }
+            const slotDow = slotDetails[c]?.timeslot?.day_of_week;
+            if (typeof slotDow === "number") {
+              const slotDate = matchDateFromWeekMonday(mondayIso, slotDow);
+              if (
+                !competitionDateAllowedWithCup(slotDate, weekCupDates(mondayIso), {
+                  requireGap: false,
+                })
+              ) {
+                row.push({ combined: -1, h: 0, a: 0 });
+                continue;
+              }
             }
             // Ploeg met beker deze week: alleen slots ≥3 dagen ná die bekerwedstrijd
             if (!slotRespectsCupGap(mondayIso, c, matchCupDates)) {
@@ -1699,6 +1794,22 @@ export const competitionService = {
             // Zachte prioriteitsbonus: 20:00/19:00 voor 18:00, zonder lage slots uit te sluiten
             combined += slotPriorityScoreBonus(c, totalAvailableSlots);
 
+            // HF/finale: dag erna/ervoor mag, bij voorkeur Tweede klasse
+            if (
+              weekCupUnassigned(mondayIso) &&
+              typeof slotDow === "number"
+            ) {
+              const slotDate = matchDateFromWeekMonday(mondayIso, slotDow);
+              const adjacent = weekCupDates(mondayIso).some(
+                (cup) =>
+                  cup.slice(0, 10) !== slotDate &&
+                  !hasMinimumDaySeparation(cup, slotDate, 2),
+              );
+              if (adjacent) {
+                combined += isLowerDivisionMatch(matchesList[r]) ? 6 : -8;
+              }
+            }
+
             row.push({ 
               combined, 
               h: homeScore, 
@@ -1708,12 +1819,46 @@ export const competitionService = {
           scoreMatrix.push(row);
         }
 
-        // Ruimere kandidaten (~1.5× m): hogere prioriteit eerst, lagere uren mogen meedoen
-        const candidateSlots = pickPriorityCandidateSlots(
-          availableSlots,
-          m,
-          (c) => scoreMatrix.some((row) => (row[c]?.combined ?? -1) >= 0),
+        // Alle bruikbare momenten van de week (niet alleen top-prioriteit),
+        // zodat ma 18:00 niet leeg blijft terwijl do 20:00 vol zit.
+        const candidateSlots = availableSlots.filter((c) =>
+          scoreMatrix.some((row) => (row[c]?.combined ?? -1) >= 0),
         );
+
+        const slotFitsPartial = (
+          chosen: Array<{ r: number; c: number }>,
+          r: number,
+          c: number,
+        ): boolean =>
+          assignmentRespectsTeamDays(mondayIso, matchesList, [...chosen, { r, c }]);
+
+        /** Voorkeur: grotere spreiding (di+vr) boven nood (do+vr). */
+        const dualSpreadBonus = (
+          chosen: Array<{ r: number; c: number }>,
+          r: number,
+          c: number,
+        ): number => {
+          const dow = slotDetails[c]?.timeslot?.day_of_week;
+          if (typeof dow !== "number") return 0;
+          const mt = matchesList[r];
+          let minDist = Infinity;
+          for (const ch of chosen) {
+            const other = matchesList[ch.r];
+            if (
+              other.home !== mt.home &&
+              other.away !== mt.home &&
+              other.home !== mt.away &&
+              other.away !== mt.away
+            ) {
+              continue;
+            }
+            const odow = slotDetails[ch.c]?.timeslot?.day_of_week;
+            if (typeof odow !== "number") continue;
+            minDist = Math.min(minDist, isoWeekDayDistance(dow, odow));
+          }
+          if (!Number.isFinite(minDist)) return 0;
+          return minDist * 1.6;
+        };
 
         const allSlots = candidateSlots;
         let assignment: Array<{ r: number; c: number; h: number; a: number; combined: number }> = [];
@@ -1778,6 +1923,9 @@ export const competitionService = {
             let bestGreedyEval = -1;
           for (let attempt = 0; attempt < attempts; attempt++) {
             const order = shuffle(Array.from({ length: m }, (_, i) => i));
+            if (weekHasDualTeams) {
+              order.sort((a, b) => Number(isDualMatch(b)) - Number(isDualMatch(a)));
+            }
             const used = new Set<number>();
             const chosen: Array<{ r: number; c: number; h: number; a: number; combined: number }> = [];
             for (const r of order) {
@@ -1786,15 +1934,22 @@ export const competitionService = {
                 if (used.has(c)) continue;
                 const s = scoreMatrix[r][c];
                 if (s.combined < 0) continue;
-                // Small random jitter in tie-breaking
+                if (!slotFitsPartial(chosen, r, c)) continue;
                 const jitter = Math.random() * 0.0001;
-                if (s.combined + jitter > best) { best = s.combined + jitter; bestC = c; bh = s.h; ba = s.a; }
+                const spread = weekHasDualTeams ? dualSpreadBonus(chosen, r, c) : 0;
+                if (s.combined + spread + jitter > best) {
+                  best = s.combined + spread + jitter;
+                  bestC = c;
+                  bh = s.h;
+                  ba = s.a;
+                }
               }
               if (bestC === -1) { // fallback: eerste toegestane slot (geen cup-gap-schending)
                 for (const c of candidateSlots) {
                   if (used.has(c)) continue;
                   const s = scoreMatrix[r][c];
                   if (s.combined < 0) continue;
+                  if (!slotFitsPartial(chosen, r, c)) continue;
                   bestC = c;
                   bh = s.h;
                   ba = s.a;
@@ -1883,14 +2038,33 @@ export const competitionService = {
 
         // Nooit stilzwijgend wedstrijden laten vallen: alles of een duidelijke fout.
         if (assignment.length !== m) {
+          const dualHint = weekHasDualTeams
+            ? " Ploegen die 2× spelen moeten op een andere dag (bij voorkeur ≥2 dagen: di/ma + vr; in nood do+vr)."
+            : "";
           return {
             success: false,
             message:
               `Week van ${weekMonday}: ${m} wedstrijden konden niet allemaal een geldig ` +
-              `speelmoment krijgen (${assignment.length} geplaatst)` +
+              `speelmoment krijgen (${assignment.length} geplaatst).${dualHint}` +
               (isSharedCupWeek
-                ? ". Op bekerweken moet een ploeg met beker minstens 3 dagen later spelen."
-                : ". Controleer veldblokkades en tijdslots voor deze week."),
+                ? " Op bekerweken moet een ploeg met beker minstens 3 dagen later spelen."
+                : ""),
+            suggestions: weekHasDualTeams
+              ? [
+                  {
+                    id: "dual-spread",
+                    title: "Spreid 2×/week over twee speeldagen",
+                    detail:
+                      "Bij voorkeur dinsdag/maandag + vrijdag (≥2 dagen). In nood mag donderdag + vrijdag (andere dag). Zelfde dag blijft onmogelijk.",
+                  },
+                  {
+                    id: "fewer-in-week",
+                    title: "Verlaag de druk in deze week",
+                    detail:
+                      "Minder wedstrijden of extra momenten op een tweede speeldag maakt toewijzing haalbaar.",
+                  },
+                ]
+              : undefined,
             plan: [],
           };
         }
@@ -1913,6 +2087,7 @@ export const competitionService = {
             match_date: matchDate,
             match_time: matchTime,
             venue,
+            round: match.round,
             details: { homeScore: asn.h, awayScore: asn.a, combined: asn.combined, maxCombined: 6 }
           });
           totalCombined += asn.combined; counter++;
@@ -1961,6 +2136,7 @@ export const competitionService = {
             match_date: byeDate,
             match_time: "00:00",
             venue: "BYE",
+            round: group.sample.round,
             details: { homeScore: 0, awayScore: 0, combined: 0, maxCombined: 0 },
           });
         }
@@ -2073,7 +2249,7 @@ export const competitionService = {
         }
 
         // Score matrix per week and stochastic assignment (same rules as previewCompetition)
-        const plan: Array<{ unique_number: string; speeldag: string; home_team_id: number; away_team_id: number | null; match_date: string; match_time: string; venue: string; details: { homeScore: number; awayScore: number; combined: number; maxCombined: number } } > = [];
+        const plan: Array<{ unique_number: string; speeldag: string; home_team_id: number; away_team_id: number | null; match_date: string; match_time: string; venue: string; round?: number; details: { homeScore: number; awayScore: number; combined: number; maxCombined: number } } > = [];
         let totalCombined = 0;
 
         // Helpers
@@ -2196,6 +2372,7 @@ export const competitionService = {
               match_date: matchDate,
               match_time: matchTime,
               venue,
+              round: match.round,
               details: { homeScore: asn.h, awayScore: asn.a, combined: asn.combined, maxCombined: 6 }
             });
             totalCombined += asn.combined; counter++;
@@ -2240,6 +2417,7 @@ export const competitionService = {
               match_date: byeDate,
               match_time: "00:00",
               venue: "BYE",
+              round: group.sample.round,
               details: { homeScore: 0, awayScore: 0, combined: 0, maxCombined: 0 },
             });
           }

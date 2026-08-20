@@ -69,6 +69,8 @@ export interface SeasonSetupPanelProps {
   onChange: (next: SeasonSetup) => void;
   /** Welke systemen mogen getoond worden (visibility). */
   allowedSystems?: Partial<Record<SystemKey, boolean>>;
+  /** Beschikbare speelmomenten uit de kalender (M-slots / configAvailable). */
+  availableMoments?: number;
 }
 
 const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
@@ -79,6 +81,7 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
   disabled = false,
   onChange,
   allowedSystems,
+  availableMoments,
 }) => {
   const visibleSystems = useMemo(
     () =>
@@ -135,6 +138,17 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
     );
   };
 
+  const cupMatchCount = cupPlan
+    ? cupPlan.rounds.reduce((sum, r) => sum + r.matchCount, 0)
+    : 0;
+  const competitionMatchCount = setup.systems.competition
+    ? estimateCompetitionMatches(setup)
+    : 0;
+  const demandMatches =
+    (setup.systems.competition ? competitionMatchCount : 0) +
+    (setup.systems.cup ? cupMatchCount : 0);
+  const spareMoments =
+    availableMoments != null ? availableMoments - demandMatches : null;
   const hasDetailSections =
     setup.systems.competition || setup.systems.cup || setup.systems.playoffs;
 
@@ -154,6 +168,20 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
           <p className="text-sm text-muted-foreground">
             Kies welke onderdelen dit seizoen meedoen. Details per systeem klap je apart open.
           </p>
+          {availableMoments != null && availableMoments > 0 ? (
+            <p className="text-sm text-brand-dark">
+              {availableMoments} speelmomenten in de kalender
+              {setup.systems.competition
+                ? ` · ${competitionMatchCount} competitiewedstrijden`
+                : ""}
+              {setup.systems.cup ? ` · ${cupMatchCount} bekerwedstrijden` : ""}
+              {spareMoments != null
+                ? spareMoments >= 0
+                  ? ` · ${spareMoments} vrij`
+                  : ` · ${Math.abs(spareMoments)} tekort`
+                : ""}
+            </p>
+          ) : null}
         </div>
 
         <Card className="border-primary/20 shadow-lg">

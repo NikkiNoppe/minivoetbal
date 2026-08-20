@@ -25,6 +25,12 @@ Overzicht van actieve projectdocumentatie voor Harelbeekse Minivoetbal.
 | [HANDLEIDING_TEAMMANAGER.md](./HANDLEIDING_TEAMMANAGER.md) | Stap-voor-stap voor teamverantwoordelijken: wachtwoord, inloggen, spelers toevoegen |
 | [HANDLEIDING_TEAMMANAGER.docx](./HANDLEIDING_TEAMMANAGER.docx) | Word-versie van de teamverantwoordelijke-handleiding |
 | [HANDLEIDING_TEAMMANAGER.pdf](./HANDLEIDING_TEAMMANAGER.pdf) | PDF-versie van de teamverantwoordelijke-handleiding |
+| [HANDLEIDING_SCHEIDSRECHTER.md](./HANDLEIDING_SCHEIDSRECHTER.md) | Wedstrijdformulier voor scheidsrechters: controle spelers, score, kaarten, boetes |
+| [HANDLEIDING_SCHEIDSRECHTER.docx](./HANDLEIDING_SCHEIDSRECHTER.docx) | Word-versie scheidsrechter-handleiding |
+| [HANDLEIDING_SCHEIDSRECHTER.pdf](./HANDLEIDING_SCHEIDSRECHTER.pdf) | PDF-versie scheidsrechter-handleiding |
+| [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.md](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.md) | Wedstrijdformulier voor teamverantwoordelijken: spelers invullen vóór wedstrijd |
+| [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.docx](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.docx) | Word-versie wedstrijdformulier teamverantwoordelijke |
+| [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.pdf](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.pdf) | PDF-versie wedstrijdformulier teamverantwoordelijke |
 
 ## Onderhoud
 

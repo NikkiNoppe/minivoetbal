@@ -66,15 +66,13 @@ const AssignmentCard: React.FC<SessionAssignmentCardProps> = ({
     setAssigning(true);
     setSelectedReferee(refereeId);
     try {
-      const userId = user?.id || 0;
-      const result = await assignmentService.assignRefereeToSession(
-        firstMatch.match_id,
-        parseInt(refereeId),
-        userId
-      );
+      const result = await assignmentService.assignReferee({
+        match_id: firstMatch.match_id,
+        referee_id: parseInt(refereeId),
+      });
 
       if (result.success) {
-        toast.success(`Scheidsrechter toegewezen aan ${result.count || matches.length} wedstrijd(en)`);
+        toast.success('Scheidsrechter toegewezen');
         setSelectedReferee('');
         onAssignmentChange();
       } else {
@@ -94,9 +92,9 @@ const AssignmentCard: React.FC<SessionAssignmentCardProps> = ({
     setAssigning(true);
     try {
       const userId = user?.id || 0;
-      const success = await assignmentService.removeSessionAssignment(firstMatch.match_id, userId);
+      const success = await assignmentService.removeMatchAssignment(firstMatch.match_id, userId);
       if (success) {
-        toast.success('Toewijzingen verwijderd voor deze sessie');
+        toast.success('Toewijzing verwijderd');
         onAssignmentChange();
       } else {
         toast.error('Kon toewijzingen niet verwijderen');
@@ -144,9 +142,6 @@ const AssignmentCard: React.FC<SessionAssignmentCardProps> = ({
             <div className="flex items-center gap-2">
               <UserCheck className="h-4 w-4 text-primary" />
               <span className="font-medium">{refereeName}</span>
-              <Badge variant="outline" className="text-xs">
-                {matches.length} {matches.length === 1 ? 'wedstrijd' : 'wedstrijden'}
-              </Badge>
             </div>
             <Button
               type="button"
@@ -170,7 +165,7 @@ const AssignmentCard: React.FC<SessionAssignmentCardProps> = ({
               disabled={loading || assigning}
             >
               <SelectTrigger>
-                <SelectValue placeholder={loading ? "Laden..." : assigning ? "Toewijzen..." : `Selecteer scheidsrechter (${matches.length} wedstrijden)`} />
+                <SelectValue placeholder={loading ? "Laden..." : assigning ? "Toewijzen..." : "Selecteer scheidsrechter"} />
               </SelectTrigger>
               <SelectContent>
                 {sortedReferees.map(referee => (

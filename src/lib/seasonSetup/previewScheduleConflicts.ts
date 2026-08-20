@@ -12,7 +12,11 @@ import {
 } from "@/lib/competitionWeekPacking";
 import type { UnifiedPreviewRow } from "./buildUnifiedPreview";
 
-export type PreviewConflictKind = "double" | "advance_risk" | "shared_week";
+export type PreviewConflictKind =
+  | "double"
+  | "advance_risk"
+  | "shared_week"
+  | "dual_week";
 
 export type PreviewTeamConflict = {
   cellKey: string;
@@ -52,17 +56,19 @@ export function previewConflictCellKey(
 }
 
 /**
- * Twee wedstrijden in één week: min. 2 dagen ertussen (max. 2 / ploeg / week).
- * Zelfde dag of opeenvolgende dagen = conflict.
+ * Twee wedstrijden in één week (max. 2 / ploeg).
+ * Competitie+competitie: andere dag volstaat (nood: do+vr).
+ * Beker erbij: min. 2 dagen.
  */
 function isAllowedDualWeekGap(
   apps: Array<{ phase: string; date: string }>,
 ): boolean {
   if (apps.length !== 2) return false;
+  const bothCompetition = apps.every((a) => a.phase === "competition");
   return hasMinimumDaySeparation(
     apps[0].date,
     apps[1].date,
-    MIN_DUAL_WEEK_DAY_GAP,
+    bothCompetition ? 1 : MIN_DUAL_WEEK_DAY_GAP,
   );
 }
 
@@ -92,7 +98,8 @@ function isAllowedSharedWeekGap(
 /**
  * Analyseer preview-rijen op:
  * - double: zelfde ploeg ≥2× in dezelfde ISO-week zonder geldige dagspreiding
- * - shared_week: 2× in één week op verschillende dagen (toegestaan, max. 2)
+ * - shared_week: beker + competitie dezelfde week met geldige dagspreiding
+ * - dual_week: 2× competitie in één week op verschillende dagen (toegestaan, max. 2)
  * - advance_risk: bekerploeg kan doorstromen naar latere bekerweek waar ze al competitie hebben
  */
 export function analyzePreviewTeamConflicts(
@@ -136,25 +143,32 @@ export function analyzePreviewTeamConflicts(
   for (const [, apps] of byTeamWeek) {
     if (apps.length < 2) continue;
     const phases = [...new Set(apps.map((x) => x.phase))].join(" + ");
-    if (isAllowedSharedWeekGap(apps) || isAllowedDualWeekGap(apps)) {
+    const cupShare = isAllowedSharedWeekGap(apps);
+    const dualComp = isAllowedDualWeekGap(apps);
+    if (cupShare || dualComp) {
       const d1 = apps[0].date;
       const d2 = apps[1].date;
-      const classicGap = isAllowedSharedWeekGap(apps) &&
-        apps.some((a) => a.phase === "cup") &&
-        apps.some((a) => a.phase === "competition") &&
+      const classicGap =
+        cupShare &&
         hasSufficientDayGapBetweenDates(
           apps.find((a) => a.phase === "cup")!.date,
           apps.find((a) => a.phase === "competition")!.date,
           MIN_SAME_WEEK_DAY_GAP,
         );
+      const wideDual = hasMinimumDaySeparation(d1, d2, MIN_DUAL_WEEK_DAY_GAP);
+      const kind: PreviewConflictKind = cupShare ? "shared_week" : "dual_week";
       for (const a of apps) {
         results.push({
           cellKey: a.cellKey,
           teamId: a.teamId,
-          kind: "shared_week",
-          reason: classicGap
-            ? `Gedeelde week: beker + competitie op ${d1} / ${d2} — ≥${MIN_SAME_WEEK_DAY_GAP} dagen ertussen`
-            : `2× deze week op ${d1} / ${d2} — min. ${MIN_DUAL_WEEK_DAY_GAP} dagen ertussen (toegestaan, max. 2)`,
+          kind,
+          reason: cupShare
+            ? classicGap
+              ? `Gedeelde week: beker + competitie op ${d1} / ${d2} — ≥${MIN_SAME_WEEK_DAY_GAP} dagen ertussen`
+              : `Gedeelde week: beker + competitie op ${d1} / ${d2} — min. ${MIN_DUAL_WEEK_DAY_GAP} dagen ertussen`
+            : wideDual
+              ? `2× competitie deze week op ${d1} / ${d2} — min. ${MIN_DUAL_WEEK_DAY_GAP} dagen ertussen (toegestaan, max. 2)`
+              : `2× competitie deze week op ${d1} / ${d2} — andere dag (nood, max. 2)`,
         });
       }
       continue;
@@ -227,6 +241,7 @@ const CONFLICT_SEVERITY: Record<PreviewConflictKind, number> = {
   double: 3,
   advance_risk: 2,
   shared_week: 1,
+  dual_week: 1,
 };
 
 export function conflictLookup(

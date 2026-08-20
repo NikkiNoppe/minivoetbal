@@ -10,6 +10,8 @@ export type PackableMatch = {
   away: number;
   matchday: number;
   matchdayKey: string;
+  /** Competitieronde 1–3; nodig voor sequentialRounds. */
+  round?: number;
 };
 
 export type PackFailureReason =
@@ -104,6 +106,23 @@ export type PackCompetitionOptions = {
    * Default true als maxTeamAppearancesPerWeek === 2.
    */
   preferFreshWeeks?: boolean;
+  /**
+   * Max. afstand tussen speeldagnummers in dezelfde week (1 = N mag samen met N−1).
+   * Leeg = geen extra speeldag-constraint.
+   */
+  maxMatchdayOverlap?: number;
+  /**
+   * Speeldag N niet vóór de vroegste week van speeldag N−1 (ronde 1→2→3).
+   * Samen met maxMatchdayOverlap: vroege gaten niet vullen met late speeldagen.
+   */
+  chronologicalMatchdays?: boolean;
+  /**
+   * Ronde N+1 pas na (bijna) afgeronde ronde N.
+   * maxRoundOverlapWeeks=1: volgende ronde mag de laatste week van de vorige delen.
+   */
+  sequentialRounds?: boolean;
+  /** Aantal gedeelde weken tussen opeenvolgende rondes (default 1). */
+  maxRoundOverlapWeeks?: number;
   rng?: () => number;
 };
 
@@ -113,9 +132,15 @@ export const MIN_SAME_WEEK_DAY_GAP = 3;
 /**
  * Min. dagen tussen twee wedstrijden van dezelfde ploeg in één week
  * bij dual/force (2×/week) of relaxed beker-overlap.
- * Ma→wo = 2 (ok); ma→di = 1 (niet ok).
+ * Ma→wo = 2 (ok); ma→di = 1 (niet ok) — voorkeursspreiding.
  */
 export const MIN_DUAL_WEEK_DAY_GAP = 2;
+
+/**
+ * Nood-spreiding: twee competitiewedstrijden op een andere dag (do+vr).
+ * Zelfde dag blijft verboden.
+ */
+export const MIN_EMERGENCY_DUAL_DAY_GAP = 1;
 
 /** Positie in de ISO-week: ma=0 … zo=6 (day_of_week gebruikt zo=0). */
 function isoDayIndex(dayOfWeek: number): number {
@@ -181,6 +206,32 @@ export function hasMinimumDaySeparation(
   const b = toDayNumber(dateB);
   if (a == null || b == null) return false;
   return Math.abs(a - b) >= minGap;
+}
+
+/**
+ * Competitie t.o.v. bekerdatums in dezelfde week.
+ * Zelfde dag is altijd verboden. Bij onbekende bekerploegen (HF/finale)
+ * geldt ook min. 3 dagen ertussen — eender welke ploeg kan nog doorstromen.
+ */
+export function competitionDateAllowedWithCup(
+  competitionDate: string,
+  cupDates: string[],
+  options?: { requireGap?: boolean; minGap?: number },
+): boolean {
+  if (!competitionDate) return false;
+  if (!cupDates.length) return true;
+  const day = competitionDate.slice(0, 10);
+  const requireGap = Boolean(options?.requireGap);
+  const minGap = options?.minGap ?? MIN_SAME_WEEK_DAY_GAP;
+  for (const cup of cupDates) {
+    const cupDay = cup.slice(0, 10);
+    if (!cupDay) continue;
+    if (cupDay === day) return false;
+    if (requireGap && !hasMinimumDaySeparation(cupDay, day, minGap)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 const DEFAULT_MAX_REPAIR_ATTEMPTS = 50;
@@ -444,7 +495,108 @@ export function packCompetitionMatchdays(
   weekCapacity: (weekIndex: number) => number,
   options?: PackCompetitionOptions,
 ): PackWeekResult {
+  const maxMatchdayOverlap =
+    typeof options?.maxMatchdayOverlap === "number" &&
+    Number.isFinite(options.maxMatchdayOverlap)
+      ? Math.max(0, Math.floor(options.maxMatchdayOverlap))
+      : null;
+  const chronologicalMatchdays = Boolean(options?.chronologicalMatchdays);
+  const sequentialRounds = Boolean(options?.sequentialRounds);
+  const maxRoundOverlapWeeks = Math.max(
+    0,
+    Math.floor(options?.maxRoundOverlapWeeks ?? 1),
+  );
   const maxApp = Math.max(1, Math.min(2, options?.maxTeamAppearancesPerWeek ?? 1)) as 1 | 2;
+  /** week → `${pool}:${md}` → aantal wedstrijden (overlap per reeks) */
+  const matchdayCountByWeek: Map<number, Map<string, number>> = new Map();
+  /** `${pool}:${md}` → week → aantal */
+  const weeksByMatchday: Map<string, Map<number, number>> = new Map();
+  for (let w = 0; w < weekCount; w++) {
+    matchdayCountByWeek.set(w, new Map());
+  }
+
+  const mdTrackKey = (pool: string, md: number): string => `${pool}:${md}`;
+
+  const bumpMatchdayWeek = (m: PackableMatch, w: number, delta: number): void => {
+    const pool = parsePoolKey(m.matchdayKey);
+    const key = mdTrackKey(pool, m.matchday);
+    const byWeek = matchdayCountByWeek.get(w)!;
+    const next = (byWeek.get(key) ?? 0) + delta;
+    if (next <= 0) byWeek.delete(key);
+    else byWeek.set(key, next);
+    const byMd = weeksByMatchday.get(key) ?? new Map<number, number>();
+    const weekNext = (byMd.get(w) ?? 0) + delta;
+    if (weekNext <= 0) byMd.delete(w);
+    else byMd.set(w, weekNext);
+    if (byMd.size === 0) weeksByMatchday.delete(key);
+    else weeksByMatchday.set(key, byMd);
+  };
+
+  const lastWeekByRound = new Map<number, number>();
+  const frozenRoundFloor = new Map<number, number>();
+  const matchRound = (m: PackableMatch): number =>
+    typeof m.round === "number" && m.round > 0 ? m.round : 1;
+  const bulkLastWeekOfRound = (round: number): number => {
+    const perWeek = new Array<number>(weekCount).fill(0);
+    let total = 0;
+    for (let w = 0; w < weekCount; w++) {
+      let n = 0;
+      for (const x of weekToMatches.get(w)!) {
+        if (matchRound(x) === round) n += 1;
+      }
+      perWeek[w] = n;
+      total += n;
+    }
+    if (total <= 0) return -1;
+    const target = Math.ceil(total * 0.9);
+    let acc = 0;
+    for (let w = 0; w < weekCount; w++) {
+      acc += perWeek[w];
+      if (acc >= target) return w;
+    }
+    return weekCount - 1;
+  };
+  const minWeekForMatch = (m: PackableMatch): number => {
+    if (!sequentialRounds) return 0;
+    const round = matchRound(m);
+    if (round <= 1) return 0;
+    const cached = frozenRoundFloor.get(round);
+    if (cached != null) return cached;
+    const lastPrev = lastWeekByRound.get(round - 1);
+    if (lastPrev == null || lastPrev < 0) return 0;
+    return Math.max(0, lastPrev - Math.max(0, maxRoundOverlapWeeks - 1));
+  };
+
+  const weekAllowsMatchday = (m: PackableMatch, w: number): boolean => {
+    if (sequentialRounds && w < minWeekForMatch(m)) return false;
+    if (maxMatchdayOverlap == null && !chronologicalMatchdays) return true;
+    const pool = parsePoolKey(m.matchdayKey);
+    const md = m.matchday;
+    if (maxMatchdayOverlap != null) {
+      const onWeek = matchdayCountByWeek.get(w);
+      if (onWeek) {
+        const prefix = `${pool}:`;
+        for (const key of onWeek.keys()) {
+          if (!key.startsWith(prefix)) continue;
+          const other = Number(key.slice(prefix.length));
+          if (other !== md && Math.abs(other - md) > maxMatchdayOverlap) {
+            return false;
+          }
+        }
+      }
+    }
+    if (chronologicalMatchdays && md > 1) {
+      const prevWeeks = weeksByMatchday.get(mdTrackKey(pool, md - 1));
+      if (prevWeeks && prevWeeks.size > 0) {
+        let minPrev = Infinity;
+        for (const weekIdx of prevWeeks.keys()) {
+          if (weekIdx < minPrev) minPrev = weekIdx;
+        }
+        if (w < minPrev) return false;
+      }
+    }
+    return true;
+  };
   const teamsPerWeek: Map<number, Map<number, number>> = new Map();
   const weekToMatches: Map<number, PackableMatch[]> = new Map();
   /** Preferred-capaciteit verbruikt (alleen bij dual-cap / cup-overlap). */
@@ -465,7 +617,19 @@ export function packCompetitionMatchdays(
   }
 
   const currentWeekByPool = new Map<string, number>();
-  const sorted = Array.from(byMatchday.keys()).sort(comparePackMatchdayKeys);
+  const roundOfKey = (key: string): number => {
+    const arr = byMatchday.get(key);
+    if (!arr?.length) return 1;
+    return Math.min(...arr.map(matchRound));
+  };
+  const sorted = Array.from(byMatchday.keys()).sort((a, b) => {
+    if (sequentialRounds) {
+      const ra = roundOfKey(a);
+      const rb = roundOfKey(b);
+      if (ra !== rb) return ra - rb;
+    }
+    return comparePackMatchdayKeys(a, b);
+  });
   if (options?.reverseMatchdays) sorted.reverse();
   let placedCount = 0;
   const enableRepair = options?.enableRepair !== false;
@@ -506,6 +670,7 @@ export function packCompetitionMatchdays(
     w: number,
     allowCupOverlap = false,
   ): SitTier[] => {
+    if (!weekAllowsMatchday(m, w)) return [];
     const cap = weekCapacity(w);
     const list = weekToMatches.get(w)!;
     if (list.length >= cap) return [];
@@ -555,6 +720,11 @@ export function packCompetitionMatchdays(
     teamMap.set(m.home, (teamMap.get(m.home) ?? 0) + 1);
     teamMap.set(m.away, (teamMap.get(m.away) ?? 0) + 1);
     weekToMatches.get(w)!.push(m);
+    bumpMatchdayWeek(m, w, 1);
+    if (sequentialRounds) {
+      const round = matchRound(m);
+      lastWeekByRound.set(round, Math.max(lastWeekByRound.get(round) ?? -1, w));
+    }
     if (tier === "preferred") {
       preferredUsed.set(w, preferredUsed.get(w)! + 1);
       usedPreferred.add(m);
@@ -574,6 +744,20 @@ export function packCompetitionMatchdays(
     };
     dec(m.home);
     dec(m.away);
+    bumpMatchdayWeek(m, w, -1);
+    if (sequentialRounds) {
+      const round = matchRound(m);
+      if ((lastWeekByRound.get(round) ?? -1) === w) {
+        let max = -1;
+        for (let i = 0; i < weekCount; i++) {
+          if (weekToMatches.get(i)!.some((x) => matchRound(x) === round)) {
+            max = i;
+          }
+        }
+        if (max < 0) lastWeekByRound.delete(round);
+        else lastWeekByRound.set(round, max);
+      }
+    }
     if (usedPreferred.has(m)) {
       preferredUsed.set(w, Math.max(0, preferredUsed.get(w)! - 1));
       usedPreferred.delete(m);
@@ -600,12 +784,12 @@ export function packCompetitionMatchdays(
     preferReclaim = true,
   ): number | null => {
     // Bij dual-cap: niet-bekerparen vullen eerst reclaim-weken
+    const skipDualForFresh = preferFreshWeeks && !chronologicalMatchdays;
     if (hasDualCap && preferReclaim && !allowCupOverlap) {
       for (let w = startWeek; w < weekCount; w++) {
         const tiers = sitTier(m, w, false);
         if (tiers.includes("reclaim")) {
-          // Met preferFresh: reclaim alleen als beide ploegen nog vrij zijn
-          if (preferFreshWeeks && dualPressure(m, w) > 0) continue;
+          if (skipDualForFresh && dualPressure(m, w) > 0) continue;
           placeAt(m, w, "reclaim");
           return w;
         }
@@ -624,17 +808,21 @@ export function packCompetitionMatchdays(
       return w;
     };
 
-    // Eerst weken zonder dual-druk (beide ploegen 0×), daarna rest
-    if (preferFreshWeeks) {
+    // Verse weken eerst (ook bij sequential): 2×/week en beker-overlap
+    // alleen als er geen lege week meer is.
+    const allowWrap = !chronologicalMatchdays && !sequentialRounds;
+    if (skipDualForFresh) {
       for (let w = startWeek; w < weekCount; w++) {
         if (dualPressure(m, w) > 0) continue;
         const placed = placeInWeek(w);
         if (placed != null) return placed;
       }
-      for (let w = 0; w < startWeek; w++) {
-        if (dualPressure(m, w) > 0) continue;
-        const placed = placeInWeek(w);
-        if (placed != null) return placed;
+      if (allowWrap) {
+        for (let w = 0; w < startWeek; w++) {
+          if (dualPressure(m, w) > 0) continue;
+          const placed = placeInWeek(w);
+          if (placed != null) return placed;
+        }
       }
     }
 
@@ -642,7 +830,7 @@ export function packCompetitionMatchdays(
       const placed = placeInWeek(w);
       if (placed != null) return placed;
     }
-    if (preferFreshWeeks) {
+    if (preferFreshWeeks && allowWrap) {
       for (let w = 0; w < startWeek; w++) {
         const placed = placeInWeek(w);
         if (placed != null) return placed;
@@ -1129,40 +1317,165 @@ export function packCompetitionMatchdays(
     return list;
   };
 
+  const leftoverCapacity = (): boolean => {
+    for (let w = 0; w < weekCount; w++) {
+      if (weekToMatches.get(w)!.length < weekCapacity(w)) return true;
+    }
+    return false;
+  };
+
+  const lastWeekOfRound = (round: number): number => {
+    let last = -1;
+    for (let w = 0; w < weekCount; w++) {
+      if (weekToMatches.get(w)!.some((x) => matchRound(x) === round)) last = w;
+    }
+    return last;
+  };
+
+  const leftoverTier = (
+    m: PackableMatch,
+    w: number,
+    allowCup: boolean,
+  ): SitTier | null => {
+    const tiers = sitTier(m, w, allowCup);
+    if (tiers.length === 0) return null;
+    if (allowCup) return "preferred";
+    return tiers.includes("reclaim") ? "reclaim" : tiers[0];
+  };
+
+  /** Vul het vroegste gat in het bestaande venster van deze ronde (niet de laatste week eerst). */
+  const tryFillRoundLeftover = (
+    m: PackableMatch,
+    allowCup: boolean,
+  ): number | null => {
+    if (!sequentialRounds) return null;
+    const last = lastWeekOfRound(matchRound(m));
+    if (last < 0) return null;
+    const skipDual = preferFreshWeeks && !allowCup;
+    for (let w = 0; w <= last; w++) {
+      const list = weekToMatches.get(w)!;
+      if (list.length >= weekCapacity(w)) continue;
+      if (skipDual && dualPressure(m, w) > 0) continue;
+      const tier = leftoverTier(m, w, allowCup);
+      if (tier == null) continue;
+      placeAt(m, w, tier);
+      return w;
+    }
+    return null;
+  };
+
+  /** Trek wedstrijden van deze ronde uit latere weken terug in de vroegste verse gaten. */
+  const densifyRound = (round: number): void => {
+    let moved = true;
+    let guard = 0;
+    while (moved && guard++ < 64) {
+      moved = false;
+      const fromLatest: PackableMatch[] = [];
+      for (let w = weekCount - 1; w >= 0; w--) {
+        for (const m of weekToMatches.get(w)!) {
+          if (matchRound(m) === round) fromLatest.push(m);
+        }
+      }
+      for (const m of fromLatest) {
+        const from = findWeekOf(m);
+        if (from == null || from === 0) continue;
+        for (let w = 0; w < from; w++) {
+          const list = weekToMatches.get(w)!;
+          if (list.length >= weekCapacity(w)) continue;
+          if (preferFreshWeeks && dualPressure(m, w) > 0) continue;
+          const tier = leftoverTier(m, w, false);
+          if (tier == null) continue;
+          if (!unplaceAt(m, from)) break;
+          placeAt(m, w, tier);
+          moved = true;
+          break;
+        }
+        if (moved) break;
+      }
+    }
+  };
+
   for (const md of sorted) {
     const mdMatches = orderMatchdayMatches(byMatchday.get(md)!);
     const poolKey = parsePoolKey(md);
     let poolWeek = currentWeekByPool.get(poolKey) ?? 0;
+    let minWeekUsed = weekCount;
     let maxWeekUsed = poolWeek;
+    if (sequentialRounds && mdMatches[0]) {
+      const round = matchRound(mdMatches[0]);
+      if (round > 1 && !frozenRoundFloor.has(round)) {
+        densifyRound(round - 1);
+        const bulk = bulkLastWeekOfRound(round - 1);
+        const live = minWeekForMatch(mdMatches[0]);
+        frozenRoundFloor.set(
+          round,
+          bulk >= 0 ? Math.min(live, Math.max(0, bulk - Math.max(0, maxRoundOverlapWeeks - 1))) : live,
+        );
+      }
+    }
 
     for (const m of mdMatches) {
       // Eerdere near-miss-backtrack kan deze wedstrijd al geplaatst hebben
       const already = findWeekOf(m);
       if (already != null) {
         placedCount += 1;
+        minWeekUsed = Math.min(minWeekUsed, already);
         maxWeekUsed = Math.max(maxWeekUsed, already);
         continue;
       }
 
-      // Eerst weken zonder beker; uitzonderlijkzelfde week pas als dat faalt
-      let week =
-        tryPlace(m, poolWeek, false) ?? tryPlace(m, 0, false);
-      if (week == null && cupOverlapPossible) {
-        week = tryPlace(m, poolWeek, true, false) ?? tryPlace(m, 0, true, false);
+      // Sequential rounds: eerst gaten in het toegestane venster vullen
+      // (anders blijft ronde 1 hol en start ronde 2 te laat).
+      const floor = minWeekForMatch(m);
+      let week: number | null = null;
+      if (sequentialRounds) {
+        week = tryFillRoundLeftover(m, false);
+        if (week == null) {
+          week = tryPlace(m, floor, false);
+        }
+        if (week == null && cupOverlapPossible) {
+          week =
+            tryFillRoundLeftover(m, true) ?? tryPlace(m, floor, true, false);
+        }
+      } else {
+        week = tryPlace(m, Math.max(poolWeek, floor), false);
+        if (week == null && !chronologicalMatchdays) {
+          week = tryPlace(m, floor, false);
+        }
+        if (week == null && cupOverlapPossible) {
+          week = tryPlace(m, Math.max(poolWeek, floor), true, false);
+          if (week == null && !chronologicalMatchdays) {
+            week = tryPlace(m, floor, true, false);
+          }
+        }
+      }
+      if (week == null && sequentialRounds) {
+        const round = matchRound(m);
+        for (let step = 0; step < 8 && week == null; step++) {
+          const cur = frozenRoundFloor.get(round) ?? minWeekForMatch(m);
+          if (cur <= 0) break;
+          const relaxTo = Math.max(0, cur - 4);
+          if (relaxTo >= cur) break;
+          frozenRoundFloor.set(round, relaxTo);
+          week = tryPlace(m, relaxTo, false);
+          if (week == null && cupOverlapPossible) {
+            week = tryPlace(m, relaxTo, true, false);
+          }
+        }
       }
       if (week == null) {
         week = tryRepairPlace(m);
       }
+      if (week == null && leftoverCapacity()) {
+        // Restslots over: herschik alleen het vastgelopen paar, niet latere speeldagen.
+        repairBudget = Math.max(repairBudget, maxRepairAttempts);
+        week = tryEvacuateRepair(m);
+      }
       if (week == null && isPackNearMiss(placedCount, matches.length)) {
-        // Extra budget voor near-miss evacuate / backtrack
         repairBudget = Math.max(repairBudget, maxRepairAttempts * 2);
         week = tryEvacuateRepair(m);
       }
-      if (
-        week == null &&
-        enableBacktrack &&
-        isPackNearMiss(placedCount, matches.length)
-      ) {
+      if (week == null && enableBacktrack && isPackNearMiss(placedCount, matches.length)) {
         // Verzamel nog niet geplaatste wedstrijden (huidige + rest speeldagen)
         const remaining: PackableMatch[] = [];
         const seen = new Set<string>();
@@ -1207,14 +1520,28 @@ export function packCompetitionMatchdays(
         };
       }
       placedCount += 1;
+      minWeekUsed = Math.min(minWeekUsed, week);
       maxWeekUsed = Math.max(maxWeekUsed, week);
     }
 
-    poolWeek = maxWeekUsed;
+    // Volgende speeldag: overlap-weken van deze speeldag niet overslaan
+    if (maxMatchdayOverlap != null || chronologicalMatchdays) {
+      poolWeek = minWeekUsed === weekCount ? poolWeek : minWeekUsed;
+    } else {
+      poolWeek = maxWeekUsed;
+    }
     while (poolWeek < weekCount && weekToMatches.get(poolWeek)!.length >= weekCapacity(poolWeek)) {
       poolWeek += 1;
     }
     currentWeekByPool.set(poolKey, poolWeek);
+  }
+
+  if (sequentialRounds) {
+    let maxRound = 1;
+    for (const m of matches) {
+      maxRound = Math.max(maxRound, matchRound(m));
+    }
+    for (let r = 1; r <= maxRound; r++) densifyRound(r);
   }
 
   return { ok: true, weekToMatches };
@@ -1317,7 +1644,7 @@ export function buildPackFailureSuggestions(input: {
         : "Verminder volle weken (meer slots of langere kalender)",
       detail:
         softShare
-          ? `${diagnosis.weeksFull} week(en) zitten vol. Op bekerweken blijven ongebruikte momenten beschikbaar, maar een ploeg mag max. 1× per week. Minder bekerweken of een langere periode helpt.`
+          ? `${diagnosis.weeksFull} week(en) zitten vol. Op bekerweken blijven ongebruikte momenten beschikbaar. Restslots mogen 2×/week (≥2 dagen); beker + competitie ≥3 dagen. Minder bekerweken of een langere periode helpt.`
           : `${diagnosis.weeksFull} week(en) zitten vol. Langere seizoensperiode of minder parallelle systemen maakt slots vrij.`,
     });
   }
@@ -1463,8 +1790,8 @@ export function formatPackFailureMessage(input: {
   if (softShare) {
     parts.push(
       allowSameWeekCupOverlap
-        ? "Op bekerweken blijven de momenten die de beker niet gebruikt beschikbaar. Standaard speelt een ploeg max. 1× per week; uitzonderlijk mag beker + competitie als er ≥3 dagen tussen zitten (bv. ma beker → do/vr competitie)."
-        : "Op bekerweken blijven de momenten die de beker niet gebruikt beschikbaar, maar een ploeg mag max. 1× per week spelen.",
+        ? "Op bekerweken blijven de momenten die de beker niet gebruikt beschikbaar. Ploegen spelen bij voorkeur 1× per week; restslots mogen 2×/week met ≥2 dagen ertussen. Beker + competitie dezelfde week: ≥3 dagen (bv. ma beker → do/vr competitie)."
+        : "Op bekerweken blijven de momenten die de beker niet gebruikt beschikbaar. Ploegen spelen bij voorkeur 1× per week; restslots mogen 2×/week met ≥2 dagen ertussen.",
     );
   }
 

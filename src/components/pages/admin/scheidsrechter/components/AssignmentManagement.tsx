@@ -149,7 +149,7 @@ const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
 
     filteredMatches.forEach(match => {
       // Extract date (YYYY-MM-DD) from ISO string
-      const dateOnly = match.match_date.split('T')[0];
+      const dateOnly = match.match_date.slice(0, 10);
       const location = match.location || 'Onbekende locatie';
       const groupKey = `${dateOnly}__${location}`;
 
@@ -354,12 +354,17 @@ const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
                 </Badge>
               </div>
 
-              {/* One assignment card per session group */}
-              <AssignmentCard
-                key={`${group.dateKey}__${group.location}`}
-                matches={group.matches}
-                onAssignmentChange={fetchData}
-              />
+              {/* One assignment card per match */}
+              {group.matches
+                .slice()
+                .sort((a, b) => a.match_date.localeCompare(b.match_date) || a.match_id - b.match_id)
+                .map((match) => (
+                  <AssignmentCard
+                    key={match.match_id}
+                    matches={[match]}
+                    onAssignmentChange={fetchData}
+                  />
+                ))}
             </div>
           ))}
         </div>

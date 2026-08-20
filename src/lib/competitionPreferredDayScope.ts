@@ -27,6 +27,44 @@ export function scopeSlotsByPreferredDayDistance(
   return dayScoped;
 }
 
+function isoDayIndex(dayOfWeek: number): number {
+  return dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+}
+
+/** Absoluut aantal dagen tussen twee weekdagen in dezelfde ISO-week (ma–zo). */
+export function isoWeekDayDistance(dayA: number, dayB: number): number {
+  return Math.abs(isoDayIndex(dayA) - isoDayIndex(dayB));
+}
+
+/**
+ * 2×/week: do+vr (1 dag) is te krap. Voeg dagen toe met ≥ minGap t.o.v. de
+ * voorkeursdag (typisch di/ma) zodat dual-ploegen kunnen spreiden.
+ */
+export function expandSlotsForDualWeekGap(
+  scopedSlots: number[],
+  allAvailable: number[],
+  preferredDay: number,
+  minGap: number,
+  dayOfWeekForSlot: (slotIndex: number) => number | null | undefined,
+): number[] {
+  const hasFarDay = scopedSlots.some((idx) => {
+    const dow = dayOfWeekForSlot(idx);
+    return typeof dow === "number" && isoWeekDayDistance(dow, preferredDay) >= minGap;
+  });
+  if (hasFarDay) return scopedSlots;
+  const seen = new Set(scopedSlots);
+  const merged = [...scopedSlots];
+  for (const idx of allAvailable) {
+    if (seen.has(idx)) continue;
+    const dow = dayOfWeekForSlot(idx);
+    if (typeof dow !== "number") continue;
+    if (isoWeekDayDistance(dow, preferredDay) < minGap) continue;
+    merged.push(idx);
+    seen.add(idx);
+  }
+  return merged;
+}
+
 /**
  * Voeg periode-slots (bv. extra dinsdagen) toe aan de competitie-scope, ook als
  * ma/do/vr al voldoende capaciteit hebben — anders blijven ze ongebruikt in de preview.

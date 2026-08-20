@@ -355,7 +355,18 @@ export function earlyWeekSlotBonus(
   return Math.max(0, 3 - dist) * 0.4;
 }
 
-function isVacationMonday(
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Week is pas volledig vakantie als ma–zo allemaal in een vakantieperiode vallen.
+ * Excel markeert G/X per dag: Ezelweekend (ma) mag donderdag open laten,
+ * Pinksteren (ma) mag di/do/vr open laten.
+ */
+function isWeekFullyInVacation(
   monday: string,
   vacations: VacationLike[],
   playableVacationWeeks: ReadonlySet<string> | string[] = [],
@@ -364,7 +375,10 @@ function isVacationMonday(
     ? new Set(playableVacationWeeks.map((d) => d.slice(0, 10)))
     : playableVacationWeeks;
   if (exceptions.has(monday.slice(0, 10))) return false;
-  return isDateInVacationPeriod(monday, vacations);
+  for (let i = 0; i < 7; i++) {
+    if (!isDateInVacationPeriod(addDaysIso(monday, i), vacations)) return false;
+  }
+  return true;
 }
 
 /** Alle ISO-maandagen in het seizoen (inclusief vakantieweken). */
@@ -394,7 +408,7 @@ export function listPlayableMondays(
 ): string[] {
   const exceptions = new Set(playableVacationWeeks.map((d) => d.slice(0, 10)));
   return listAllSeasonMondays(seasonStart, seasonEnd).filter(
-    (iso) => !isVacationMonday(iso, vacations, exceptions),
+    (iso) => !isWeekFullyInVacation(iso, vacations, exceptions),
   );
 }
 
