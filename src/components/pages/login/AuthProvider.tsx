@@ -309,15 +309,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (error) {
         console.error('Login RPC error:', error);
+        const rpcMessage = (error.message || '').trim();
+        if (/te veel inlogpogingen/i.test(rpcMessage)) {
+          throw new LoginError(rpcMessage, 'rate_limited');
+        }
         throw new LoginError(
-          `Gebruikersnaam/e-mail of wachtwoord is onjuist voor ${hostOrg.name}. Controleer of je op de juiste competitie zit.`,
+          'Gebruikersnaam/e-mail of wachtwoord is onjuist.',
           'invalid_credentials',
         );
       }
 
       if (!data?.[0]) {
         throw new LoginError(
-          `Gebruikersnaam/e-mail of wachtwoord is onjuist voor ${hostOrg.name}. Controleer of je op de juiste competitie zit.`,
+          'Gebruikersnaam/e-mail of wachtwoord is onjuist.',
           'invalid_credentials',
         );
       }

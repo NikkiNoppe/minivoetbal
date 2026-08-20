@@ -1,6 +1,7 @@
 export type LoginErrorCode =
   | 'invalid_credentials'
   | 'wrong_organization'
+  | 'rate_limited'
   | 'superadmin_setup_failed';
 
 export class LoginError extends Error {
