@@ -29,6 +29,7 @@ import { usePlayersQuery, useInvalidatePlayers } from "@/hooks/usePlayersQuery";
 import { useTeamPlayerStats } from "@/hooks/useTeamPlayerStats";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMinLoadingGate } from "@/hooks/useMinLoadingGate";
+import { useOrganizationContent } from "@/hooks/useOrganizationContent";
 import { cn } from "@/lib/utils";
 
 export interface TeamManagerSpelersPanelProps {
@@ -64,6 +65,7 @@ function ProfileSectionHeader({
 
 function PlayerRegulationsCollapsible() {
   const [open, setOpen] = useState(false);
+  const { playerHighlights } = useOrganizationContent().reglement;
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="px-4 py-3 sm:px-5">
@@ -82,16 +84,16 @@ function PlayerRegulationsCollapsible() {
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-2 text-xs text-muted-foreground space-y-2 leading-relaxed">
         <p>
-          <strong className="text-foreground">Maximum spelers:</strong> elk team
-          mag maximaal 20 spelers hebben per seizoen.
+          <strong className="text-foreground">Maximum spelers:</strong>{" "}
+          {playerHighlights.maxPlayers}
         </p>
         <p>
-          <strong className="text-foreground">Teamwijzigingen:</strong> spelers
-          kunnen niet van team wisselen tijdens het lopende seizoen.
+          <strong className="text-foreground">Teamwijzigingen:</strong>{" "}
+          {playerHighlights.transfers}
         </p>
         <p>
-          <strong className="text-foreground">Inschrijving:</strong> spelers
-          inschrijven kan tot en met 31 augustus.
+          <strong className="text-foreground">Inschrijving:</strong>{" "}
+          {playerHighlights.inscription}
         </p>
       </CollapsibleContent>
     </Collapsible>

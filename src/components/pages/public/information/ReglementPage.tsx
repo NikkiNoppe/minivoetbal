@@ -11,19 +11,25 @@ import { useOrganizationContent } from "@/hooks/useOrganizationContent";
 import { useOrganization } from "@/hooks/useOrganization";
 import type { ReglementBlock } from "@/config/reglement";
 
+const NUMBER_CLASS = "min-w-[2.75rem] font-bold flex-shrink-0 tabular-nums";
+
 function ReglementBlockView({ block }: { block: ReglementBlock }) {
   if (block.type === "heading") {
     return (
-      <h3 className="pl-[14px] flex items-start font-semibold text-foreground mt-2">
-        <span className="min-w-[2.5rem] font-bold flex-shrink-0">{block.number}</span>
+      <h3 className="pl-[14px] flex items-start font-semibold text-foreground mt-3 first:mt-0">
+        {block.number ? <span className={NUMBER_CLASS}>{block.number}</span> : null}
         <span className="block flex-1">{block.text}</span>
       </h3>
     );
   }
 
+  if (block.type === "paragraph") {
+    return <p className="pl-[14px] text-justify whitespace-pre-line">{block.text}</p>;
+  }
+
   return (
     <p className="pl-[14px] flex items-start">
-      <span className="min-w-[2.5rem] font-bold flex-shrink-0">{block.number}</span>
+      <span className={NUMBER_CLASS}>{block.number}</span>
       <span className="block flex-1 text-justify whitespace-pre-line">{block.text}</span>
     </p>
   );
@@ -35,7 +41,11 @@ const ReglementPage: React.FC = () => {
 
   return (
     <PublicPage>
-      <PageHeader title={reglement.pageTitle} icon={BookOpen} />
+      <PageHeader
+        title={reglement.pageTitle}
+        subtitle={reglement.versionLabel}
+        icon={BookOpen}
+      />
 
       <section aria-label="Competitiereglement" className="max-w-3xl mx-auto w-full">
         <Accordion
@@ -48,7 +58,7 @@ const ReglementPage: React.FC = () => {
           {reglement.sections.map((section) => (
             <AccordionItem
               key={section.id}
-              value={section.title}
+              value={section.id}
               className={SECTION_COLLAPSIBLE_SURFACE}
             >
               <AccordionTrigger className={SECTION_COLLAPSIBLE_TRIGGER}>
@@ -56,8 +66,11 @@ const ReglementPage: React.FC = () => {
               </AccordionTrigger>
               <AccordionContent className={SECTION_COLLAPSIBLE_CONTENT}>
                 <div className="space-y-3">
-                  {section.blocks.map((block) => (
-                    <ReglementBlockView key={block.number} block={block} />
+                  {section.blocks.map((block, index) => (
+                    <ReglementBlockView
+                      key={`${block.type}-${"number" in block ? block.number : index}-${index}`}
+                      block={block}
+                    />
                   ))}
                 </div>
               </AccordionContent>

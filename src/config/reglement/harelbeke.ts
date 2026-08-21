@@ -4,6 +4,11 @@ export const HARELBEKE_REGLEMENT: ReglementCopy = {
   pageTitle: "Reglement",
   metaDescription:
     "Volledig reglement en spelregels van de Harelbeekse Minivoetbal Competitie: inschrijving, wedstrijdregels, schorsingen en financiële bepalingen.",
+  playerHighlights: {
+    maxPlayers: "Elk team mag maximaal 20 spelers hebben per seizoen.",
+    transfers: "Spelers kunnen niet van team wisselen tijdens het lopende seizoen.",
+    inscription: "Spelers inschrijven kan tot en met 31 augustus.",
+  },
   sections: [
     {
       id: "1",

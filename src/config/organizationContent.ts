@@ -73,11 +73,11 @@ export const ORGANIZATION_PUBLIC_CONTENT: Record<string, OrganizationPublicConte
   kuurne: {
     algemeen: {
       title: 'Minivoetbal Vereniging Kuurne',
-      subtitle: 'Standen, speelschema en uitslagen in Kuurne',
+      subtitle: 'Standen, speelschema en uitslagen in Kuurne sinds 1981',
       aboutParagraph:
-        'Welkom bij de minivoetbalcompetitie van Kuurne. Op deze site vind je het actuele speelschema, klassementen, uitslagen en alle praktische info over het lopende seizoen.',
+        'Opgericht in 1981 bevordert Minivoetbal Vereniging Kuurne minivoetbal in een sportieve competitie, met fairplay voorop. Op deze site vind je het actuele speelschema, klassementen, uitslagen en het algemeen reglement.',
     },
-    footerTagline: 'Minivoetbalcompetitie in Kuurne.',
+    footerTagline: 'Minivoetbalcompetitie sinds 1981.',
     footerContacts: [],
     profileFinancial: {
       seasonDepositTarget: 600,
