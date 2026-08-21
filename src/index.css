@@ -24,6 +24,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tenant-thema vóór JS (index.html boot-script zet data-org). Sync met KUURNE_THEME. */
+html[data-org="kuurne"] {
+  --color-primary-base: #1A1A1A;
+  --color-primary-light: #FFC107;
+  --color-50: #fafafa;
+  --color-100: #f5f5f5;
+  --color-200: #FFF8E1;
+  --color-300: #FFE082;
+  --color-400: #FFD54F;
+  --color-500: #FFC107;
+  --color-600: #1A1A1A;
+  --color-700: #141414;
+  --color-800: #0f0f0f;
+  --color-900: #0a0a0a;
+  --color-shadow-primary-04: rgba(26, 26, 26, 0.04);
+  --color-shadow-primary-07: rgba(26, 26, 26, 0.07);
+  --color-shadow-primary-09: rgba(26, 26, 26, 0.09);
+  --color-shadow-primary-10: rgba(26, 26, 26, 0.10);
+  --color-shadow-primary-12: rgba(26, 26, 26, 0.12);
+  --color-shadow-primary-15: rgba(26, 26, 26, 0.15);
+  --color-shadow-primary-18: rgba(26, 26, 26, 0.18);
+  --color-shadow-primary-25: rgba(26, 26, 26, 0.25);
+  --color-warning: #FFC107;
+  --color-warning-dark: #FFC107;
+  --color-warning-bg: #FFF8E1;
+  --color-info: #5A8F99;
+  --color-info-dark: #5A8F99;
+  --color-info-bg: #E0EFF2;
+  --brand-dark: #1A1A1A;
+  --brand-light: #FFC107;
+  --tw-foreground: 26 26 26;
+  --tw-primary: 26 26 26;
+  --tw-ring: 26 26 26;
+  --tw-secondary: 250 250 250;
+  --tw-secondary-foreground: 26 26 26;
+  --tw-muted: 250 250 250;
+  --tw-muted-foreground: 20 20 20;
+  --tw-accent: 250 250 250;
+  --tw-accent-foreground: 20 20 20;
+  --tw-card-foreground: 26 26 26;
+  --tw-popover-foreground: 26 26 26;
+  --tw-input: 255 248 225;
+}
+
 /* Page transitions - respect prefers-reduced-motion */
 @keyframes fadeIn {
   from {
@@ -86,6 +130,11 @@
     --color-400: #4dbbff;
     --color-600: #005285;
     --border: 1px solid var(--color-400);
+  }
+
+  html[data-org="kuurne"] {
+    --color-400: #FFD54F;
+    --color-600: #0a0a0a;
   }
   
   .btn,

@@ -1,3 +1,10 @@
+import {
+  applyReglementOverrides,
+  resolveReglementCopy,
+  type ReglementCopy,
+  type ReglementOverrides,
+} from '@/config/reglement';
+
 /** Publieke paginateksten per organisatie (override via organizations.branding_settings.content). */
 
 export interface FooterContactPerson {
@@ -25,6 +32,7 @@ export interface OrganizationPublicContent {
   footerTagline: string;
   footerContacts: FooterContactPerson[];
   profileFinancial: ProfileFinancialCopy;
+  reglement: ReglementCopy;
 }
 
 const HARELBEKE_FOOTER_CONTACTS: FooterContactPerson[] = [
@@ -60,6 +68,7 @@ export const ORGANIZATION_PUBLIC_CONTENT: Record<string, OrganizationPublicConte
       iban: 'BE48 6504 6890 7727',
       seasonDepositNotice: '',
     },
+    reglement: resolveReglementCopy('harelbeke'),
   },
   kuurne: {
     algemeen: {
@@ -78,6 +87,7 @@ export const ORGANIZATION_PUBLIC_CONTENT: Record<string, OrganizationPublicConte
       seasonDepositNotice:
         'Neem contact op met de organisatie voor stortingsgegevens.',
     },
+    reglement: resolveReglementCopy('kuurne'),
   },
 };
 
@@ -143,6 +153,7 @@ export function resolveOrganizationPublicContent(
         footerTagline?: string;
         footerContacts?: FooterContactPerson[];
         profileFinancial?: Partial<ProfileFinancialCopy>;
+        reglement?: ReglementOverrides;
       }
     | undefined;
 
@@ -158,5 +169,6 @@ export function resolveOrganizationPublicContent(
       base.profileFinancial,
       raw.profileFinancial,
     ),
+    reglement: applyReglementOverrides(base.reglement, raw.reglement),
   };
 }

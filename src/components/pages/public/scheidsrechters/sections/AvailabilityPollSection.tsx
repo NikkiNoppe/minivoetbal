@@ -1,23 +1,56 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CalendarDays, Clock } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { CalendarDays, Check, ChevronDown, Clock, Loader2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { SectionIcon } from '@/components/layout';
 import { AvailabilityPollCard } from '../components/AvailabilityPollCard';
 import type { ScheduleCluster } from '@/services/scheidsrechter/monthScheduleService';
 import type { AvailabilityInput } from '@/services/scheidsrechter/types';
+import { cn } from '@/lib/utils';
 
 interface AvailabilityPollSectionProps {
   clusters: ScheduleCluster[];
   myAvailability: Map<string, boolean>;
   onSubmitAvailability: (clusterKey: string, pollMonth: string, isAvailable: boolean) => Promise<void>;
   onBulkSubmitAvailability?: (pollMonth: string, availabilities: AvailabilityInput[]) => Promise<boolean>;
+  onBulkSubmitByMonth?: (byMonth: Record<string, AvailabilityInput[]>) => Promise<boolean>;
   isLoading: boolean;
+  isSubmitting?: boolean;
   /** Verberg sectiekop — bv. in profiel-accordion */
   embedded?: boolean;
   layout?: 'checkbox' | 'quick';
+}
+
+function groupByMonth(clusters: ScheduleCluster[]) {
+  const byMonth = new Map<string, ScheduleCluster[]>();
+  clusters.forEach((c) => {
+    const arr = byMonth.get(c.poll_month) || [];
+    arr.push(c);
+    byMonth.set(c.poll_month, arr);
+  });
+  return byMonth;
+}
+
+function unansweredByMonth(
+  clusters: ScheduleCluster[],
+  availability: Map<string, boolean>,
+  isAvailable: boolean,
+): Record<string, AvailabilityInput[]> {
+  const byMonth: Record<string, AvailabilityInput[]> = {};
+  for (const cluster of clusters) {
+    if (availability.has(cluster.cluster_key)) continue;
+    const month = cluster.poll_month;
+    if (!byMonth[month]) byMonth[month] = [];
+    byMonth[month].push({
+      poll_group_id: cluster.cluster_key,
+      is_available: isAvailable,
+    });
+  }
+  return byMonth;
 }
 
 /**
@@ -30,10 +63,31 @@ export function AvailabilityPollSection({
   myAvailability,
   onSubmitAvailability,
   onBulkSubmitAvailability,
+  onBulkSubmitByMonth,
   isLoading,
+  isSubmitting = false,
   embedded = false,
   layout = 'quick',
 }: AvailabilityPollSectionProps) {
+  const [bulkPending, setBulkPending] = useState(false);
+
+  const byMonth = useMemo(() => groupByMonth(clusters), [clusters]);
+  const totalClusters = clusters.length;
+  const respondedCount = clusters.filter((c) => myAvailability.has(c.cluster_key)).length;
+  const openCount = totalClusters - respondedCount;
+  const canBulkRest = Boolean(onBulkSubmitByMonth) && openCount > 0;
+  const busy = bulkPending || isSubmitting;
+
+  const handleFillRemaining = async (isAvailable: boolean) => {
+    if (!onBulkSubmitByMonth || openCount === 0) return;
+    setBulkPending(true);
+    try {
+      await onBulkSubmitByMonth(unansweredByMonth(clusters, myAvailability, isAvailable));
+    } finally {
+      setBulkPending(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <section className="space-y-4" aria-busy="true">
@@ -41,7 +95,7 @@ export function AvailabilityPollSection({
         <Skeleton className="h-20 w-full rounded-xl" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-xl" />
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
         <span className="sr-only">Beschikbaarheid laden…</span>
@@ -76,19 +130,9 @@ export function AvailabilityPollSection({
     );
   }
 
-  const byMonth = new Map<string, ScheduleCluster[]>();
-  clusters.forEach((c) => {
-    const arr = byMonth.get(c.poll_month) || [];
-    arr.push(c);
-    byMonth.set(c.poll_month, arr);
-  });
-
-  const totalClusters = clusters.length;
-  const respondedCount = clusters.filter((c) => myAvailability.has(c.cluster_key)).length;
-
   return (
     <section className="space-y-4">
-      <div className="space-y-1">
+      <div className="space-y-3">
         {!embedded ? (
           <h2 className="text-lg font-semibold flex items-center gap-2 text-[var(--color-700)]">
             <SectionIcon icon={CalendarDays} />
@@ -98,37 +142,98 @@ export function AvailabilityPollSection({
           <h3 className="text-sm font-semibold text-foreground">Beschikbaarheid doorgeven</h3>
         )}
         <p className="text-sm text-muted-foreground">
-          Tik per speeldag <strong className="font-medium text-foreground">Beschikbaar</strong> of{' '}
-          <strong className="font-medium text-foreground">Niet</strong> — je keuze wordt meteen
-          opgeslagen.
-          {respondedCount < totalClusters && (
-            <span className="mt-1 block text-xs">
-              Nog {totalClusters - respondedCount} speeldag
-              {totalClusters - respondedCount === 1 ? '' : 'en'} zonder antwoord.
-            </span>
-          )}
+          Tik <strong className="font-medium text-foreground">Ja</strong> of{' '}
+          <strong className="font-medium text-foreground">Nee</strong> per speeldag, of vul de
+          rest in één keer in. Keuzes worden meteen opgeslagen.
         </p>
+
+        {canBulkRest && (
+          <div
+            className="rounded-xl border border-primary/20 bg-primary/5 p-3 sm:p-4 space-y-3"
+            role="group"
+            aria-label="Openstaande speeldagen invullen"
+          >
+            <p className="text-sm font-medium text-foreground">
+              Nog {openCount} speeldag{openCount === 1 ? '' : 'en'} zonder antwoord
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                className="min-h-[44px] w-full"
+                disabled={busy}
+                onClick={() => void handleFillRemaining(true)}
+              >
+                {busy ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" aria-hidden />
+                )}
+                Rest beschikbaar
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-[44px] w-full"
+                disabled={busy}
+                onClick={() => void handleFillRemaining(false)}
+              >
+                {busy ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <X className="mr-2 h-4 w-4" aria-hidden />
+                )}
+                Rest niet
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {Array.from(byMonth.entries()).map(([month, monthClusters]) => {
         const monthLabel = format(new Date(`${month}-01T00:00:00Z`), 'MMMM yyyy', { locale: nl });
+        const monthOpen = monthClusters.filter((c) => !myAvailability.has(c.cluster_key)).length;
+        const monthFilled = monthClusters.length - monthOpen;
+        const monthComplete = monthOpen === 0;
+
         return (
-          <div key={month} className="space-y-3">
-            <h4 className="text-sm font-semibold capitalize text-foreground">{monthLabel}</h4>
-            <AvailabilityPollCard
-              layout={layout}
-              clusters={monthClusters}
-              myAvailability={myAvailability}
-              onSubmit={(clusterKey, isAvailable) =>
-                onSubmitAvailability(clusterKey, month, isAvailable)
-              }
-              onBulkSubmit={
-                onBulkSubmitAvailability
-                  ? (availabilities) => onBulkSubmitAvailability(month, availabilities)
-                  : undefined
-              }
-            />
-          </div>
+          <Collapsible key={month} defaultOpen={!monthComplete} className="space-y-2">
+            <CollapsibleTrigger
+              className={cn(
+                'group flex w-full items-center justify-between gap-2 rounded-lg px-1 py-2 min-h-[44px]',
+                'text-sm font-semibold capitalize text-foreground',
+                'hover:bg-muted/50 transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <ChevronDown
+                  className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
+                  aria-hidden
+                />
+                {monthLabel}
+              </span>
+              <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                {monthComplete
+                  ? `${monthFilled}/${monthClusters.length} ingevuld`
+                  : `${monthOpen} open`}
+              </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <AvailabilityPollCard
+                layout={layout}
+                clusters={monthClusters}
+                myAvailability={myAvailability}
+                onSubmit={(clusterKey, isAvailable) =>
+                  onSubmitAvailability(clusterKey, month, isAvailable)
+                }
+                onBulkSubmit={
+                  onBulkSubmitAvailability
+                    ? (availabilities) => onBulkSubmitAvailability(month, availabilities)
+                    : undefined
+                }
+              />
+            </CollapsibleContent>
+          </Collapsible>
         );
       })}
     </section>

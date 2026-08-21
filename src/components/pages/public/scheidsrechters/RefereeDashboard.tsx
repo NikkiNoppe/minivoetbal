@@ -17,6 +17,8 @@ export function RefereeDashboard() {
     username,
     submitAvailability,
     submitBulkAvailability,
+    submitBulkAvailabilityByMonth,
+    isSubmitting,
     refreshData,
   } = useRefereeDashboard();
 
@@ -65,7 +67,9 @@ export function RefereeDashboard() {
           myAvailability={myAvailability}
           onSubmitAvailability={submitAvailability}
           onBulkSubmitAvailability={submitBulkAvailability}
+          onBulkSubmitByMonth={submitBulkAvailabilityByMonth}
           isLoading={isLoadingSchedule}
+          isSubmitting={isSubmitting}
         />
 
         <AssignedMatchesSection

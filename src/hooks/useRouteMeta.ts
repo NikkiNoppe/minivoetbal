@@ -5,6 +5,7 @@ import { NOINDEX_PATHS } from "@/config/site";
 import { useBranding } from "@/hooks/useBranding";
 import { resolveOrganizationPublicContent } from "@/config/organizationContent";
 import { useOrganization } from "@/hooks/useOrganization";
+import { applyTenantPwaHead } from "@/lib/pwaHead";
 
 const DEFAULT_ROBOTS = "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
 const NOINDEX_ROBOTS = "noindex, nofollow";
@@ -112,6 +113,7 @@ export const useRouteMeta = () => {
   const canonicalUrl = `${siteBaseUrl}${location.pathname}`;
 
   useEffect(() => {
+    applyTenantPwaHead(organizationSlug);
     upsertFavicon(branding.faviconPath);
 
     if (isNoIndex) {
@@ -130,7 +132,9 @@ export const useRouteMeta = () => {
       const routeDescription =
         location.pathname === PUBLIC_ROUTES.algemeen
           ? branding.meta?.defaultDescription ?? publicContent.algemeen.subtitle
-          : meta.description;
+          : location.pathname === PUBLIC_ROUTES.reglement
+            ? publicContent.reglement.metaDescription
+            : meta.description;
       const routeTitle =
         location.pathname === PUBLIC_ROUTES.algemeen
           ? publicContent.algemeen.title
@@ -171,5 +175,6 @@ export const useRouteMeta = () => {
     organization?.brandingSettings,
     publicContent.algemeen.subtitle,
     publicContent.algemeen.title,
+    publicContent.reglement.metaDescription,
   ]);
 };

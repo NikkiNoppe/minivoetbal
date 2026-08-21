@@ -4,7 +4,8 @@ import {
   ORGANIZATION_URL_PARAM,
 } from '@/config/organization';
 
-/** Hostname → organization slug (één centrale mapping). */
+/** Hostname → organization slug (één centrale mapping).
+ *  Eerste paint: zelfde hosts ook in index.html boot-script (data-org). */
 export const HOSTNAME_TO_SLUG: Record<string, string> = {
   'harelbekeminivoetbal.nikkinoppe.be': 'harelbeke',
   'kuurneminivoetbal.nikkinoppe.be': 'kuurne',

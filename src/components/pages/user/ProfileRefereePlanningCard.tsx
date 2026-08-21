@@ -26,6 +26,8 @@ function ProfileRefereePlanningContent() {
     isLoadingAssignments,
     submitAvailability,
     submitBulkAvailability,
+    submitBulkAvailabilityByMonth,
+    isSubmitting,
     refreshData,
   } = useRefereeDashboard();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -111,7 +113,9 @@ function ProfileRefereePlanningContent() {
         myAvailability={myAvailability}
         onSubmitAvailability={submitAvailability}
         onBulkSubmitAvailability={submitBulkAvailability}
+        onBulkSubmitByMonth={submitBulkAvailabilityByMonth}
         isLoading={isLoadingSchedule}
+        isSubmitting={isSubmitting}
       />
 
       {!isLoadingAssignments && (

@@ -3,24 +3,24 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   CalendarDays,
-  MapPin,
-  Clock,
-  Users,
   AlertCircle,
   Check,
   X,
-  Minus,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { SECTION_COLLAPSIBLE_NESTED_TRIGGER } from '@/components/layout';
 import type { ScheduleCluster } from '@/services/scheidsrechter/monthScheduleService';
 import type { AvailabilityInput } from '@/services/scheidsrechter/types';
 
 type AvailChoice = 'unset' | 'yes' | 'no';
+type BulkMode = 'all-yes' | 'all-no' | 'rest-yes' | 'rest-no';
 
 interface AvailabilityPollCardProps {
   clusters: ScheduleCluster[];
@@ -55,7 +55,18 @@ export function AvailabilityPollCard({
   const stats = useMemo(() => {
     const responded = clusters.filter((c) => localAvailability.has(c.cluster_key)).length;
     const available = clusters.filter((c) => localAvailability.get(c.cluster_key) === true).length;
-    return { responded, available, total: clusters.length };
+    const unset = clusters.length - responded;
+    return { responded, available, unset, total: clusters.length };
+  }, [clusters, localAvailability]);
+
+  const { unanswered, answered } = useMemo(() => {
+    const open: ScheduleCluster[] = [];
+    const done: ScheduleCluster[] = [];
+    for (const cluster of clusters) {
+      if (localAvailability.has(cluster.cluster_key)) done.push(cluster);
+      else open.push(cluster);
+    }
+    return { unanswered: open, answered: done };
   }, [clusters, localAvailability]);
 
   const handleChoice = useCallback(
@@ -86,20 +97,27 @@ export function AvailabilityPollCard({
     [onSubmit],
   );
 
-  const handleMarkAllAvailable = async () => {
+  const handleBulk = async (mode: BulkMode) => {
     if (!onBulkSubmit || clusters.length === 0) return;
+    const isAvailable = mode.endsWith('yes');
+    const onlyRest = mode.startsWith('rest');
+    const targets = onlyRest
+      ? clusters.filter((c) => !localAvailability.has(c.cluster_key))
+      : clusters;
+    if (targets.length === 0) return;
+
     setError(null);
     setBulkPending(true);
 
     const optimistic = new Map(localAvailability);
-    clusters.forEach((c) => optimistic.set(c.cluster_key, true));
+    targets.forEach((c) => optimistic.set(c.cluster_key, isAvailable));
     setLocalAvailability(optimistic);
 
     try {
       const ok = await onBulkSubmit(
-        clusters.map((c) => ({
+        targets.map((c) => ({
           poll_group_id: c.cluster_key,
-          is_available: true,
+          is_available: isAvailable,
         })),
       );
       if (!ok) {
@@ -127,64 +145,82 @@ export function AvailabilityPollCard({
 
   const progressPct = stats.total > 0 ? Math.round((stats.responded / stats.total) * 100) : 0;
 
+  const renderCluster = (cluster: ScheduleCluster) => {
+    const choice = getChoice(cluster.cluster_key, localAvailability);
+    const isPending = pendingUpdates.has(cluster.cluster_key);
+    const dayDate = new Date(`${cluster.match_date}T00:00:00Z`);
+
+    if (layout === 'checkbox') {
+      return (
+        <CheckboxClusterRow
+          key={cluster.cluster_key}
+          cluster={cluster}
+          dayDate={dayDate}
+          isAvailable={choice === 'yes'}
+          isPending={isPending}
+          onToggle={(checked) => void handleChoice(cluster.cluster_key, checked ? 'yes' : 'no')}
+        />
+      );
+    }
+
+    return (
+      <QuickClusterRow
+        key={cluster.cluster_key}
+        cluster={cluster}
+        dayDate={dayDate}
+        choice={choice}
+        isPending={isPending}
+        onChoice={(next) => void handleChoice(cluster.cluster_key, next)}
+      />
+    );
+  };
+
   return (
     <div className="space-y-3">
       {layout === 'quick' && (
-        <>
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 sm:p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span className="font-medium text-foreground">
-                {stats.responded}/{stats.total} speeldagen ingevuld
-              </span>
-              <span className="text-muted-foreground">
-                {stats.available} beschikbaar
-              </span>
-            </div>
-            <Progress value={progressPct} className="h-2" aria-label={`Voortgang ${progressPct}%`} />
-            {onBulkSubmit && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="font-medium text-foreground">
+              {stats.responded}/{stats.total} ingevuld
+            </span>
+            <span className="text-muted-foreground">{stats.available} beschikbaar</span>
+          </div>
+          <Progress value={progressPct} className="h-2" aria-label={`Voortgang ${progressPct}%`} />
+          {onBulkSubmit && stats.unset > 0 && (
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="min-h-[44px] w-full sm:w-auto"
-                disabled={bulkPending || stats.available === stats.total}
-                onClick={() => void handleMarkAllAvailable()}
+                className="min-h-[44px] w-full"
+                disabled={bulkPending}
+                onClick={() => void handleBulk('rest-yes')}
               >
                 {bulkPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
                 ) : (
-                  <Check className="mr-2 h-4 w-4 text-success" aria-hidden />
+                  <Check className="mr-1.5 h-4 w-4 text-success" aria-hidden />
                 )}
-                Alles beschikbaar
+                Rest ja
               </Button>
-            )}
-          </div>
-
-          <div
-            className="grid grid-cols-3 gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-[11px]"
-            role="note"
-            aria-label="Legenda beschikbaarheid"
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-dashed border-border bg-card">
-                <Minus className="h-2.5 w-2.5 text-muted-foreground/60" aria-hidden />
-              </span>
-              <span>Nog niet</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-[44px] w-full"
+                disabled={bulkPending}
+                onClick={() => void handleBulk('rest-no')}
+              >
+                {bulkPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <X className="mr-1.5 h-4 w-4 text-destructive" aria-hidden />
+                )}
+                Rest nee
+              </Button>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-success/40 bg-success/15">
-                <Check className="h-2.5 w-2.5 text-success" aria-hidden />
-              </span>
-              <span>Beschikbaar</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-destructive/30 bg-destructive/5">
-                <X className="h-2.5 w-2.5 text-destructive/80" aria-hidden />
-              </span>
-              <span>Niet</span>
-            </div>
-          </div>
-        </>
+          )}
+        </div>
       )}
 
       {error && (
@@ -194,136 +230,110 @@ export function AvailabilityPollCard({
         </Alert>
       )}
 
-      <div className="space-y-3">
-        {clusters.map((cluster) => {
-          const choice = getChoice(cluster.cluster_key, localAvailability);
-          const isPending = pendingUpdates.has(cluster.cluster_key);
-          const dayDate = new Date(`${cluster.match_date}T00:00:00Z`);
-
-          if (layout === 'checkbox') {
-            return (
-              <CheckboxClusterRow
-                key={cluster.cluster_key}
-                cluster={cluster}
-                dayDate={dayDate}
-                isAvailable={choice === 'yes'}
-                isPending={isPending}
-                onToggle={(checked) => void handleChoice(cluster.cluster_key, checked ? 'yes' : 'no')}
-              />
-            );
-          }
-
-          return (
-            <article
-              key={cluster.cluster_key}
-              className={cn(
-                'rounded-xl border p-3 sm:p-4 transition-colors',
-                choice === 'yes' && 'border-success/40 bg-success/5',
-                choice === 'no' && 'border-destructive/30 bg-destructive/5',
-                choice === 'unset' && 'border-border/80 bg-card',
-                isPending && 'opacity-70',
-              )}
-            >
-              <div className="space-y-2">
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-sm font-semibold capitalize text-foreground">
-                      {format(dayDate, 'EEEE d MMMM', { locale: nl })}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        {cluster.time_slot}
-                      </span>
-                      <span className="inline-flex min-w-0 items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        <span className="truncate">{cluster.location}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        {cluster.matches.length} wedstrijd{cluster.matches.length === 1 ? '' : 'en'}
-                      </span>
-                    </div>
-                  </div>
-                  {choice === 'unset' && (
-                    <span className="shrink-0 rounded-full border border-dashed border-border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Kies
-                    </span>
-                  )}
-                </div>
-
-                <ul className="space-y-0.5 border-l-2 border-primary/15 pl-2">
-                  {cluster.matches.map((m) => {
-                    const t = new Date(m.match_date);
-                    const time = `${String(t.getUTCHours()).padStart(2, '0')}:${String(
-                      t.getUTCMinutes(),
-                    ).padStart(2, '0')}`;
-                    return (
-                      <li
-                        key={m.match_id}
-                        className="flex items-center gap-2 text-xs text-muted-foreground"
-                      >
-                        <span className="font-mono text-foreground/80">{time}</span>
-                        <span className="min-w-0 truncate">
-                          {m.home_team_name} – {m.away_team_name}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={isPending}
-                  aria-pressed={choice === 'yes'}
-                  aria-label={`Beschikbaar op ${format(dayDate, 'd MMMM', { locale: nl })}`}
-                  onClick={() => void handleChoice(cluster.cluster_key, 'yes')}
-                  className={cn(
-                    'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                    choice === 'yes'
-                      ? 'border-success bg-success text-white shadow-sm'
-                      : 'border-success/40 bg-success/10 text-foreground hover:bg-success/20',
-                    isPending && 'cursor-wait',
-                  )}
-                >
-                  {isPending && choice === 'yes' ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Check className="h-4 w-4 shrink-0" aria-hidden />
-                  )}
-                  Beschikbaar
-                </button>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  aria-pressed={choice === 'no'}
-                  aria-label={`Niet beschikbaar op ${format(dayDate, 'd MMMM', { locale: nl })}`}
-                  onClick={() => void handleChoice(cluster.cluster_key, 'no')}
-                  className={cn(
-                    'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                    choice === 'no'
-                      ? 'border-destructive/80 bg-destructive text-white shadow-sm'
-                      : 'border-destructive/30 bg-destructive/5 text-foreground hover:bg-destructive/10',
-                    isPending && 'cursor-wait',
-                  )}
-                >
-                  {isPending && choice === 'no' ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <X className="h-4 w-4 shrink-0" aria-hidden />
-                  )}
-                  Niet
-                </button>
-              </div>
-            </article>
-          );
-        })}
+      <div className="space-y-2">
+        {unanswered.length > 0 && unanswered.map(renderCluster)}
+        {answered.length > 0 && unanswered.length > 0 ? (
+          <Collapsible>
+            <CollapsibleTrigger className={cn(SECTION_COLLAPSIBLE_NESTED_TRIGGER, 'group')}>
+              <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" aria-hidden />
+              Al ingevuld ({answered.length})
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-2 pt-1">{answered.map(renderCluster)}</div>
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
+          answered.map(renderCluster)
+        )}
       </div>
     </div>
+  );
+}
+
+function QuickClusterRow({
+  cluster,
+  dayDate,
+  choice,
+  isPending,
+  onChoice,
+}: {
+  cluster: ScheduleCluster;
+  dayDate: Date;
+  choice: AvailChoice;
+  isPending: boolean;
+  onChoice: (choice: 'yes' | 'no') => void;
+}) {
+  const dateLabel = format(dayDate, 'EEE d MMM', { locale: nl });
+  const fullDateLabel = format(dayDate, 'EEEE d MMMM', { locale: nl });
+
+  return (
+    <article
+      className={cn(
+        'rounded-lg border px-3 py-2 transition-colors',
+        choice === 'yes' && 'border-success/40 bg-success/5',
+        choice === 'no' && 'border-destructive/30 bg-destructive/5',
+        choice === 'unset' && 'border-border/80 bg-card',
+        isPending && 'opacity-70',
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold capitalize text-foreground leading-tight">
+            {dateLabel}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {cluster.time_slot} · {cluster.location} · {cluster.matches.length} wedstrijd
+            {cluster.matches.length === 1 ? '' : 'en'}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1.5" role="group" aria-label={`Beschikbaarheid ${fullDateLabel}`}>
+          <button
+            type="button"
+            disabled={isPending}
+            aria-pressed={choice === 'yes'}
+            aria-label={`Beschikbaar op ${format(dayDate, 'd MMMM', { locale: nl })}`}
+            onClick={() => onChoice('yes')}
+            className={cn(
+              'inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+              choice === 'yes'
+                ? 'border-success bg-success text-white shadow-sm'
+                : 'border-success/40 bg-success/10 text-foreground hover:bg-success/20',
+              isPending && 'cursor-wait',
+            )}
+          >
+            {isPending && choice === 'yes' ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Check className="h-4 w-4 shrink-0" aria-hidden />
+            )}
+            <span>Ja</span>
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            aria-pressed={choice === 'no'}
+            aria-label={`Niet beschikbaar op ${format(dayDate, 'd MMMM', { locale: nl })}`}
+            onClick={() => onChoice('no')}
+            className={cn(
+              'inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+              choice === 'no'
+                ? 'border-destructive/80 bg-destructive text-white shadow-sm'
+                : 'border-destructive/30 bg-destructive/5 text-foreground hover:bg-destructive/10',
+              isPending && 'cursor-wait',
+            )}
+          >
+            {isPending && choice === 'no' ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <X className="h-4 w-4 shrink-0" aria-hidden />
+            )}
+            <span>Nee</span>
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
 

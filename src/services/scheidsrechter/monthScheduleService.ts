@@ -6,6 +6,7 @@ export interface ScheduleMatch {
   location: string | null;
   home_team_name: string;
   away_team_name: string;
+  assigned_referee_id: number | null;
 }
 
 export interface ScheduleCluster {
@@ -40,6 +41,73 @@ export const buildClusterKey = (matchDateIso: string, location: string | null): 
   return `${date}__${loc}`;
 };
 
+export interface AvailabilityLookupRow {
+  user_id: number;
+  match_id: number | null;
+  poll_group_id: string | null;
+  is_available: boolean;
+}
+
+export function isClusterFullyAssigned(cluster: ScheduleCluster): boolean {
+  return (
+    cluster.matches.length > 0 &&
+    cluster.matches.every((match) => match.assigned_referee_id != null)
+  );
+}
+
+/**
+ * Koppelt poll-antwoorden aan speeldagen. De scheidsrechterspagina slaat
+ * beschikbaarheid op per match (`2026-10_2312`) of zonder poll_group_id;
+ * het profiel gebruikt `datum__locatie`. Toewijzingen tellen als bevestigd.
+ */
+export function buildMyAvailabilityMap(
+  clusters: ScheduleCluster[],
+  rows: AvailabilityLookupRow[],
+  userId: number,
+): Map<string, boolean> {
+  const map = new Map<string, boolean>();
+
+  for (const row of rows) {
+    if (row.user_id !== userId) continue;
+    if (row.poll_group_id) map.set(row.poll_group_id, row.is_available);
+    if (row.match_id != null) map.set(`match:${row.match_id}`, row.is_available);
+  }
+
+  for (const cluster of clusters) {
+    if (map.has(cluster.cluster_key)) continue;
+
+    let fromMatch: boolean | undefined;
+    for (const match of cluster.matches) {
+      const monthKey = `${cluster.poll_month}_${match.match_id}`;
+      if (map.has(monthKey)) {
+        fromMatch = map.get(monthKey);
+        if (fromMatch) break;
+      }
+      const matchKey = `match:${match.match_id}`;
+      if (map.has(matchKey)) {
+        fromMatch = map.get(matchKey);
+        if (fromMatch) break;
+      }
+    }
+    if (fromMatch !== undefined) {
+      map.set(cluster.cluster_key, fromMatch);
+      continue;
+    }
+
+    const assignedToMe = cluster.matches.some((match) => match.assigned_referee_id === userId);
+    if (assignedToMe) {
+      map.set(cluster.cluster_key, true);
+      continue;
+    }
+
+    if (isClusterFullyAssigned(cluster)) {
+      map.set(cluster.cluster_key, false);
+    }
+  }
+
+  return map;
+}
+
 function clusterMatchesForMonth(month: string, rows: Awaited<ReturnType<typeof fetchScheidsScheduleForMonth>>): ScheduleCluster[] {
   const grouped = new Map<string, ScheduleCluster>();
 
@@ -51,6 +119,7 @@ function clusterMatchesForMonth(month: string, rows: Awaited<ReturnType<typeof f
       location: m.location,
       home_team_name: m.home_team_name || '?',
       away_team_name: m.away_team_name || '?',
+      assigned_referee_id: m.assigned_referee_id ?? null,
     };
 
     if (!grouped.has(key)) {

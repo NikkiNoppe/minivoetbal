@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useOrganization } from '@/hooks/useOrganization';
+import {
+  getOrgSlugQueryParam,
+  resolveHostnameToSlug,
+} from '@/config/organizationHosts';
+import { isKnownOrganizationSlug } from '@/config/organization';
 
 const MAX_ORG_LOAD_MS = 5000;
 
@@ -36,7 +41,12 @@ export const OrganizationGate: React.FC<{ children: React.ReactNode }> = ({
     return () => window.clearTimeout(timer);
   }, [isOrganizationLoading, location.pathname, location.search, organizationSlug]);
 
-  if (isOrganizationLoading) {
+  const hostnameMapped =
+    resolveHostnameToSlug(hostname) != null ||
+    isKnownOrganizationSlug(getOrgSlugQueryParam());
+
+  // Bekende tenant: toon de app met boot-branding i.p.v. Harelbeke-wachtspinner.
+  if (isOrganizationLoading && !hostnameMapped) {
     return (
       <div
         className="flex min-h-screen flex-col items-center justify-center gap-3 bg-brand-100 p-6 text-center"

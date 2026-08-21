@@ -4,7 +4,9 @@ import {
   assignmentService,
   refereeAvailabilityService,
   monthScheduleService,
+  buildMyAvailabilityMap,
 } from '@/services/scheidsrechter';
+import { fetchRefereeAvailabilityForSession } from '@/services/scheidsrechter/scheidsSessionFetch';
 import type {
   RefereeAssignment,
   AvailabilityInput,
@@ -23,6 +25,9 @@ export interface RefereeDashboardData {
   username: string;
   submitAvailability: (clusterKey: string, pollMonth: string, isAvailable: boolean) => Promise<void>;
   submitBulkAvailability: (pollMonth: string, availabilities: AvailabilityInput[]) => Promise<boolean>;
+  submitBulkAvailabilityByMonth: (
+    byMonth: Record<string, AvailabilityInput[]>,
+  ) => Promise<boolean>;
   refreshData: () => Promise<void>;
 }
 
@@ -40,21 +45,22 @@ export function useRefereeDashboard(): RefereeDashboardData {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchScheduleData = useCallback(async () => {
+  const fetchScheduleData = useCallback(async (opts?: { showLoading?: boolean }) => {
     if (!userId) return;
-    setIsLoadingSchedule(true);
+    const showLoading = opts?.showLoading !== false;
+    if (showLoading) setIsLoadingSchedule(true);
     try {
       const upcoming = await monthScheduleService.getUpcomingClusters(4);
-      setClusters(upcoming);
-
       const months = Array.from(new Set(upcoming.map((c) => c.poll_month)));
       const availabilityResults = await Promise.all(
-        months.map((m) => refereeAvailabilityService.getRefereeAvailability(userId, m)),
+        months.map((m) => fetchRefereeAvailabilityForSession(m)),
       );
-      const availMap = new Map<string, boolean>();
-      availabilityResults.flat().forEach((a) => {
-        if (a.poll_group_id) availMap.set(a.poll_group_id, a.is_available);
-      });
+      const availMap = buildMyAvailabilityMap(
+        upcoming,
+        availabilityResults.flat(),
+        userId,
+      );
+      setClusters(upcoming);
       setMyAvailability(availMap);
     } catch (error) {
       console.error('Error fetching schedule:', error);
@@ -137,7 +143,7 @@ export function useRefereeDashboard(): RefereeDashboardData {
         );
         if (result.success) {
           toast.success('Beschikbaarheid opgeslagen!');
-          await fetchScheduleData();
+          await fetchScheduleData({ showLoading: false });
           return true;
         }
         toast.error(result.error || 'Kon beschikbaarheid niet opslaan');
@@ -153,8 +159,56 @@ export function useRefereeDashboard(): RefereeDashboardData {
     [userId, fetchScheduleData],
   );
 
+  const submitBulkAvailabilityByMonth = useCallback(
+    async (byMonth: Record<string, AvailabilityInput[]>): Promise<boolean> => {
+      if (!userId) return false;
+      const entries = Object.entries(byMonth).filter(([, items]) => items.length > 0);
+      if (entries.length === 0) return true;
+
+      setMyAvailability((prev) => {
+        const next = new Map(prev);
+        for (const [, items] of entries) {
+          for (const item of items) {
+            if (item.poll_group_id) next.set(item.poll_group_id, item.is_available);
+          }
+        }
+        return next;
+      });
+
+      setIsSubmitting(true);
+      try {
+        for (const [pollMonth, availabilities] of entries) {
+          const result = await refereeAvailabilityService.submitAvailability(
+            userId,
+            pollMonth,
+            availabilities,
+          );
+          if (!result.success) {
+            toast.error(result.error || 'Kon beschikbaarheid niet opslaan');
+            await fetchScheduleData({ showLoading: false });
+            return false;
+          }
+        }
+        toast.success('Beschikbaarheid opgeslagen!');
+        await fetchScheduleData({ showLoading: false });
+        return true;
+      } catch (error) {
+        console.error('Error submitting availability:', error);
+        toast.error('Kon beschikbaarheid niet opslaan');
+        await fetchScheduleData({ showLoading: false });
+        return false;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [userId, fetchScheduleData],
+  );
+
   const refreshData = useCallback(async () => {
-    await Promise.all([fetchScheduleData(), fetchAssignments()]);
+    await Promise.all([
+      fetchScheduleData({ showLoading: false }),
+      fetchAssignments(),
+    ]);
   }, [fetchScheduleData, fetchAssignments]);
 
   return {
@@ -168,6 +222,7 @@ export function useRefereeDashboard(): RefereeDashboardData {
     username,
     submitAvailability,
     submitBulkAvailability,
+    submitBulkAvailabilityByMonth,
     refreshData,
   };
 }

@@ -33,6 +33,46 @@
     <link rel="apple-touch-icon" href="/images/icons/apple-touch-icon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/images/icons/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
+    <script>
+      /* Sync met HOSTNAME_TO_SLUG — tenant PWA/favicon vóór CSS-paint. */
+      (function () {
+        var host = (location.hostname || "").replace(/^www\./, "").toLowerCase();
+        var kuurneHosts = {
+          "mvvkuurne.be": 1,
+          "mvvkuurne.nikkinoppe.be": 1,
+          "kuurneminivoetbal.nikkinoppe.be": 1
+        };
+        var isKuurne =
+          !!kuurneHosts[host] || /(?:^|[?&])org=kuurne(?:&|$)/.test(location.search || "");
+        if (!isKuurne) return;
+        document.documentElement.setAttribute("data-org", "kuurne");
+        function setMeta(name, content) {
+          var el = document.querySelector('meta[name="' + name + '"]');
+          if (el) el.setAttribute("content", content);
+        }
+        function setHref(selector, href) {
+          document.querySelectorAll(selector).forEach(function (el) {
+            el.setAttribute("href", href);
+          });
+        }
+        setMeta("theme-color", "#1A1A1A");
+        setMeta("msapplication-TileColor", "#1A1A1A");
+        setMeta("apple-mobile-web-app-title", "MVV Kuurne");
+        setMeta("apple-mobile-web-app-status-bar-style", "black");
+        document.title = "Minivoetbal Vereniging Kuurne";
+        setHref('link[rel="manifest"]', "/kuurne.webmanifest");
+        setHref('link[rel="apple-touch-icon"]', "/images/icons/kuurne/apple-touch-icon.png");
+        setHref('link[rel="icon"][sizes="48x48"]', "/images/icons/kuurne/favicon.ico");
+        setHref('link[rel="icon"][sizes="32x32"]', "/images/icons/kuurne/favicon-32x32.png");
+        setHref('link[rel="icon"][sizes="16x16"]', "/images/icons/kuurne/favicon-16x16.png");
+        setHref('link[rel="icon"][sizes="192x192"]', "/images/icons/kuurne/android-chrome-192x192.png");
+        var preload = document.createElement("link");
+        preload.rel = "preload";
+        preload.as = "image";
+        preload.href = "/images/logos/kuurne-logo-horizontal-white.png";
+        document.head.appendChild(preload);
+      })();
+    </script>
     
     
     <meta property="og:type" content="website" />

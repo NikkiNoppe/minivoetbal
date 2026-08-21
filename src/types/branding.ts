@@ -131,11 +131,37 @@ export const DEFAULT_BRANDING: OrganizationBranding = {
   },
 };
 
+/** Sync fallback vóór de org-fetch — zelfde paden als Kuurne-branding in de DB. */
+export const KUURNE_BOOT_BRANDING: OrganizationBranding = {
+  displayName: 'Minivoetbal Vereniging Kuurne',
+  shortName: 'Minivoetbal',
+  siteUrl: 'https://mvvkuurne.be',
+  logoPath: '/images/logos/kuurne-logo-stacked.png',
+  logoHorizontalPath: '/images/logos/kuurne-logo-horizontal.png',
+  logoWhitePath: '/images/logos/kuurne-logo-stacked-white.png',
+  logoHorizontalWhitePath: '/images/logos/kuurne-logo-horizontal-white.png',
+  logoLayout: 'horizontal',
+  logoIconPath: '/images/logos/kuurne-logo-mark.png',
+  logoIconWhitePath: '/images/logos/kuurne-logo-mark-white.png',
+  faviconPath: '/images/icons/kuurne/favicon.ico',
+  meta: {
+    defaultTitle: 'Minivoetbal Vereniging Kuurne | Competitie, standen & uitslagen',
+    defaultDescription:
+      'Minivoetbalcompetitie Kuurne — standen, speelschema en uitslagen.',
+  },
+};
+
+export function getBootBranding(slug: string): OrganizationBranding {
+  return slug === 'kuurne' ? KUURNE_BOOT_BRANDING : DEFAULT_BRANDING;
+}
+
 export function parseBrandingSettings(
   raw: Record<string, unknown> | undefined,
+  slug?: string,
 ): OrganizationBranding {
+  const fallback = slug ? getBootBranding(slug) : DEFAULT_BRANDING;
   if (!raw || Object.keys(raw).length === 0) {
-    return DEFAULT_BRANDING;
+    return fallback;
   }
 
   const meta = raw.meta as OrganizationBrandingMeta | undefined;
@@ -162,49 +188,57 @@ export function parseBrandingSettings(
     displayName:
       typeof raw.displayName === 'string'
         ? raw.displayName
-        : DEFAULT_BRANDING.displayName,
+        : fallback.displayName,
     shortName:
       typeof raw.shortName === 'string'
         ? raw.shortName
-        : DEFAULT_BRANDING.shortName,
+        : fallback.shortName,
     siteUrl:
-      typeof raw.siteUrl === 'string' ? raw.siteUrl : DEFAULT_BRANDING.siteUrl,
+      typeof raw.siteUrl === 'string' ? raw.siteUrl : fallback.siteUrl,
     hostnames: Array.isArray(raw.hostnames)
       ? (raw.hostnames as string[])
-      : DEFAULT_BRANDING.hostnames,
+      : fallback.hostnames,
     logoPath:
       typeof raw.logoPath === 'string'
         ? raw.logoPath
-        : DEFAULT_BRANDING.logoPath,
+        : fallback.logoPath,
     logoHorizontalPath:
-      typeof raw.logoHorizontalPath === 'string' ? raw.logoHorizontalPath : undefined,
+      typeof raw.logoHorizontalPath === 'string'
+        ? raw.logoHorizontalPath
+        : fallback.logoHorizontalPath,
     logoWhitePath:
-      typeof raw.logoWhitePath === 'string' ? raw.logoWhitePath : undefined,
+      typeof raw.logoWhitePath === 'string' ? raw.logoWhitePath : fallback.logoWhitePath,
     logoHorizontalWhitePath:
       typeof raw.logoHorizontalWhitePath === 'string'
         ? raw.logoHorizontalWhitePath
-        : undefined,
+        : fallback.logoHorizontalWhitePath,
     logoIconWhitePath:
-      typeof raw.logoIconWhitePath === 'string' ? raw.logoIconWhitePath : undefined,
-    logoLayout: raw.logoLayout === 'horizontal' ? 'horizontal' : 'stacked',
+      typeof raw.logoIconWhitePath === 'string'
+        ? raw.logoIconWhitePath
+        : fallback.logoIconWhitePath,
+    logoLayout:
+      raw.logoLayout === 'horizontal' || raw.logoLayout === 'stacked'
+        ? raw.logoLayout
+        : (fallback.logoLayout ?? 'stacked'),
     logoIconPath:
       typeof raw.logoIconPath === 'string'
         ? raw.logoIconPath
-        : DEFAULT_BRANDING.logoIconPath,
+        : fallback.logoIconPath,
     faviconPath:
       typeof raw.faviconPath === 'string'
         ? raw.faviconPath
-        : DEFAULT_BRANDING.faviconPath,
+        : fallback.faviconPath,
     themeColors: raw.themeColors as ThemeColors | undefined,
     meta: {
-      defaultTitle: meta?.defaultTitle ?? DEFAULT_BRANDING.meta?.defaultTitle,
+      defaultTitle: meta?.defaultTitle ?? fallback.meta?.defaultTitle,
       defaultDescription:
-        meta?.defaultDescription ?? DEFAULT_BRANDING.meta?.defaultDescription,
+        meta?.defaultDescription ?? fallback.meta?.defaultDescription,
     },
     links,
     email: parseOrganizationEmailSettings(raw, {
       siteUrl:
-        typeof raw.siteUrl === 'string' ? raw.siteUrl : DEFAULT_BRANDING.siteUrl,
+        typeof raw.siteUrl === 'string' ? raw.siteUrl : fallback.siteUrl,
+      organizationSlug: slug,
     }),
   };
 }

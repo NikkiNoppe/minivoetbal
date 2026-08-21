@@ -1144,6 +1144,55 @@ const AdminMessageCardContent: React.FC = memo(() => {
 AdminMessageCardContent.displayName = 'AdminMessageCardContent';
 
 // Referee Upcoming Matches Component
+const DUTCH_MONTH_NAMES = [
+  "Januari",
+  "Februari",
+  "Maart",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Augustus",
+  "September",
+  "Oktober",
+  "November",
+  "December",
+] as const;
+
+/** Seizoen sep–jun. Vanaf augustus: nieuw seizoen (sep dit jaar → jun volgend jaar). */
+function getRefereeFormSeason(now: Date) {
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const seasonStartYear = currentMonth >= 8 ? currentYear : currentYear - 1;
+
+  const months: { month: number; year: number; label: string }[] = [];
+  for (let month = 9; month <= 12; month += 1) {
+    months.push({
+      month,
+      year: seasonStartYear,
+      label: `${DUTCH_MONTH_NAMES[month - 1]} ${seasonStartYear}`,
+    });
+  }
+  for (let month = 1; month <= 6; month += 1) {
+    months.push({
+      month,
+      year: seasonStartYear + 1,
+      label: `${DUTCH_MONTH_NAMES[month - 1]} ${seasonStartYear + 1}`,
+    });
+  }
+
+  const inSeason = months.some(
+    (item) => item.month === currentMonth && item.year === currentYear,
+  );
+
+  return {
+    months,
+    selected: inSeason
+      ? { month: currentMonth, year: currentYear }
+      : { month: 9, year: seasonStartYear },
+  };
+}
+
 const RefereeUpcomingMatches: React.FC<{
   refereeUsername: string;
   onSelectMatch: (match: MatchFormData) => void;
@@ -1151,56 +1200,19 @@ const RefereeUpcomingMatches: React.FC<{
   accordionValue?: string;
   onRequestOpen?: () => void;
 }> = memo(({ refereeUsername, onSelectMatch, embedded = false, accordionValue, onRequestOpen }) => {
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1; // 1-12
-  const currentYear = now.getFullYear();
-  
-  // Calculate next month and year
-  const nextMonthDate = new Date(currentYear, currentMonth, 1); // Next month
-  const nextMonth = nextMonthDate.getMonth() + 1;
-  const nextMonthYear = nextMonthDate.getFullYear();
-  
-  // State for selected month (default to current month)
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  
-  // Update selected month/year when current month changes (e.g., when month rolls over)
-  // This ensures that when we move to a new month, the available options update automatically
-  // Remove auto-switch to current month - allow viewing past months
-  
+  const { months: availableMonths, selected: defaultSeasonMonth } = useMemo(
+    () => getRefereeFormSeason(new Date()),
+    [],
+  );
+
+  const [selectedMonth, setSelectedMonth] = useState<number>(defaultSeasonMonth.month);
+  const [selectedYear, setSelectedYear] = useState<number>(defaultSeasonMonth.year);
+
   const { data: refereeMatches, isLoading: matchesLoading } = useRefereeMatches(
     refereeUsername,
     selectedMonth,
     selectedYear
   );
-
-  // Get month names in Dutch
-  const monthNames = [
-    'Januari', 'Februari', 'Maart', 'April', 'Mei', 'Juni',
-    'Juli', 'Augustus', 'September', 'Oktober', 'November', 'December'
-  ];
-
-  // Season runs Sep-Jun: generate months from Sep of season start to next month
-  const availableMonths = useMemo(() => {
-    const seasonStartYear = currentMonth >= 9 ? currentYear : currentYear - 1;
-    const months: { month: number; year: number; label: string }[] = [];
-    
-    // Start from September of the season
-    let m = 9;
-    let y = seasonStartYear;
-    
-    // End at next month from now
-    const endMonth = nextMonth;
-    const endYear = nextMonthYear;
-    
-    while (y < endYear || (y === endYear && m <= endMonth)) {
-      months.push({ month: m, year: y, label: `${monthNames[m - 1]} ${y}` });
-      m++;
-      if (m > 12) { m = 1; y++; }
-    }
-    
-    return months;
-  }, [currentMonth, currentYear, nextMonth, nextMonthYear]);
 
   // Convert referee match to MatchFormData
   const convertToMatchFormData = useCallback((match: any): MatchFormData => {
@@ -1239,6 +1251,10 @@ const RefereeUpcomingMatches: React.FC<{
     }
     return { label: "Open", color: "bg-muted", icon: Clock };
   }, []);
+
+  const selectedMonthLabel =
+    availableMonths.find((item) => item.month === selectedMonth && item.year === selectedYear)
+      ?.label ?? `${DUTCH_MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
 
   const monthFilterOptions = useMemo(
     () =>
@@ -1333,7 +1349,7 @@ const RefereeUpcomingMatches: React.FC<{
                 <Card className={PUBLIC_CARD_CLASS}>
                   <CardContent className="py-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                      Geen openstaande wedstrijden voor {availableMonths.find(m => m.month === selectedMonth && m.year === selectedYear)?.label || `${monthNames[selectedMonth - 1]} ${selectedYear}`}
+                      Geen openstaande wedstrijden voor {selectedMonthLabel}
                     </p>
                   </CardContent>
                 </Card>
@@ -1392,7 +1408,7 @@ const RefereeUpcomingMatches: React.FC<{
           <CardContent className="py-6 text-center">
             <Calendar className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
                 <p className="text-sm text-muted-foreground">
-                  Geen wedstrijden voor {availableMonths.find(m => m.month === selectedMonth && m.year === selectedYear)?.label || `${monthNames[selectedMonth - 1]} ${selectedYear}`}
+                  Geen wedstrijden voor {selectedMonthLabel}
                 </p>
           </CardContent>
         </Card>
@@ -1546,7 +1562,7 @@ const UserProfilePage: React.FC = () => {
       <PageHeader title="Mijn Profiel"
         icon={User} />
 
-      {/* Profiel accordion (teamverantwoordelijke): komende wedstrijd → spelers → schorsingen → financieel → berichten */}
+      {/* Profiel accordion: acties eerst; scheids-planning onderaan (bevestigd op scheidsrechterspagina) */}
       <div className="space-y-4 sm:space-y-6">
         <MemoizedUserTeamInfoCard 
           user={user} 
@@ -1614,14 +1630,11 @@ const UserProfilePage: React.FC = () => {
           )}
 
           {isReferee && authUser?.username && (
-            <>
-              <ProfileRefereePlanningCard onRequestOpen={() => openProfileSection('referee-planning')} />
-              <ProfileRefereeMatchFormsCard
-                refereeUsername={authUser.username}
-                onSelectMatch={handleSelectMatch}
-                onRequestOpen={() => openProfileSection('referee-match-forms')}
-              />
-            </>
+            <ProfileRefereeMatchFormsCard
+              refereeUsername={authUser.username}
+              onSelectMatch={handleSelectMatch}
+              onRequestOpen={() => openProfileSection('referee-match-forms')}
+            />
           )}
 
           <SectionCollapsibleCard
@@ -1637,6 +1650,10 @@ const UserProfilePage: React.FC = () => {
           {isAdmin && <RefereeNotesCard accordionValue="referee-notes" />}
 
           {isAdmin && <ProfilePollAdminCollapsible accordionValue="admin-polls" />}
+
+          {isReferee && (
+            <ProfileRefereePlanningCard onRequestOpen={() => openProfileSection('referee-planning')} />
+          )}
         </ProfileSectionsAccordion>
 
         {!isAdmin && managerTeams.length > 1 && (

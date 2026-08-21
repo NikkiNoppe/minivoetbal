@@ -118,7 +118,7 @@ export function useThemeColorsInit() {
   const brandingTheme = useMemo(
     () =>
       organization
-        ? parseBrandingSettings(organization.brandingSettings).themeColors
+        ? parseBrandingSettings(organization.brandingSettings, organization.slug).themeColors
         : undefined,
     [organization],
   );
@@ -196,7 +196,7 @@ export function useThemeColorsAdmin() {
     ) {
       return undefined;
     }
-    return parseBrandingSettings(organization.brandingSettings).themeColors;
+    return parseBrandingSettings(organization.brandingSettings, organization.slug).themeColors;
   }, [organization, isSuperAdmin, actingOrg]);
 
   const adminQueryEnabled = orgQueryEnabled && scopeOrgId != null;
