@@ -660,8 +660,6 @@ const PlayOffPage: React.FC = () => {
             <div className="w-full sm:w-1/4 sm:shrink-0">
               <DownloadScheduleButton
                 matches={scheduleMatchesForExport}
-                requiresTeamSelection
-                hasTeamSelected={selectedTeam !== "all"}
                 selectedTeamLabel={
                   selectedTeam !== "all" ? selectedTeam : undefined
                 }

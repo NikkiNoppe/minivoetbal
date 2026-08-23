@@ -1,7 +1,8 @@
 # Handleiding teamverantwoordelijke — wedstrijdformulier
 
-Korte gids voor teamverantwoordelijken: wedstrijdformulier openen en je spelers invullen vóór de wedstrijd.
+Korte gids voor teamverantwoordelijken van **Minivoetbal Vereniging Kuurne**: wedstrijdformulier openen en je spelers invullen vóór de wedstrijd.
 
+**Site:** [www.mvvkuurne.be](https://www.mvvkuurne.be)  
 **Word:** [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.docx](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.docx) · **PDF:** [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.pdf](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.pdf)
 
 > Eerste keer inloggen of spelers toevoegen aan je team? Zie [HANDLEIDING_TEAMMANAGER.md](./HANDLEIDING_TEAMMANAGER.md).
@@ -10,7 +11,7 @@ Korte gids voor teamverantwoordelijken: wedstrijdformulier openen en je spelers 
 
 ## 1. Inloggen
 
-Ga naar de website van je competitie. Open het **hamburgermenu** (☰) rechtsboven en kies **Inloggen**. Vul je gebruikersnaam/e-mail en wachtwoord in.
+Ga naar [www.mvvkuurne.be](https://www.mvvkuurne.be). Open het **hamburgermenu** (☰) rechtsboven en kies **Inloggen**. Vul je gebruikersnaam/e-mail en wachtwoord in.
 
 ---
 
@@ -24,19 +25,17 @@ Je hebt **twee manieren** om het formulier te openen:
 2. Klap de sectie **Komende wedstrijd** open.
 3. Klik op je wedstrijd in de lijst.
 
-![Komende wedstrijd op profiel](./assets/handleiding-teammanager-wedstrijd/01-komende-wedstrijd.png)
-
 > Staat er *Geen komende wedstrijden gepland*? Gebruik optie B of neem contact op met het bestuur.
 
 ### Optie B — via Wedstrijdformulieren
 
 1. Open het **hamburgermenu** (☰).
 2. Klap **Wedstrijdformulieren** open.
-3. Kies **Competitie**, **Beker** of **Play-off** (afhankelijk van het type wedstrijd).
+3. Kies **Competitie** of **Beker** (afhankelijk van het type wedstrijd).
 
 ![Menu Wedstrijdformulieren](./assets/handleiding-teammanager-wedstrijd/02-menu-wedstrijdformulieren.png)
 
-4. Zoek je **speeldag** en klik op de wedstrijd van jouw team.
+4. Zoek je **speeldag** en klik op **Open** bij de wedstrijd van jouw team.
 
 ![Competitieformulieren](./assets/handleiding-teammanager-wedstrijd/03-competitieformulieren.png)
 
@@ -46,7 +45,7 @@ Het **Wedstrijdformulier** opent als venster op je scherm.
 
 ## 3. Spelers invullen (vóór de wedstrijd)
 
-Vul je spelers in **vóór** de aftrap — minstens **5 minuten** voor aanvang (zie reglement).
+Bied het wedstrijdblad **minstens 10 minuten** voor aanvang aan (algemeen reglement MVV Kuurne, art. 32).
 
 1. Open tab **Spelers** (standaard actief bij openen).
 2. Klap **jouw team** open — dat is de ploeg waarvoor jij verantwoordelijk bent (Thuis of Uit). De tegenstander kan je wel bekijken, maar **niet** aanpassen.
@@ -59,7 +58,7 @@ Vul je spelers in **vóór** de aftrap — minstens **5 minuten** voor aanvang (
 
 **Handig:**
 
-- Speler staat niet in de lijst? Voeg hem eerst toe via **Mijn profiel → Spelers** (zie [handleiding spelers](./HANDLEIDING_TEAMMANAGER.md#6-speler-toevoegen)).
+- Speler staat niet in de lijst, of je ziet *Geen spelers gevonden*? Voeg hem eerst toe via **Mijn profiel → Spelers** (zie [handleiding spelers](./HANDLEIDING_TEAMMANAGER.md#6-speler-toevoegen)).
 - Geschorste spelers worden in het formulier gemarkeerd — neem ze niet op in je opstelling.
 
 ---
@@ -80,7 +79,7 @@ Op tab **Score** kun je **Wedstrijdinfo** openklappen voor datum, tijd, locatie 
 
 Klik onderaan op **Opslaan**. Je spelerslijst wordt opgeslagen en is zichtbaar voor de scheidsrechter.
 
-> Vul je **te laat** in (na de deadline)? Er kan automatisch een boete worden aangerekend — je ziet dan een waarschuwing bovenaan het formulier.
+> Vul je **te laat** in (na de deadline)? Er kan automatisch een boete worden aangerekend volgens de boetelijst — je ziet dan een waarschuwing bovenaan het formulier.
 
 ---
 

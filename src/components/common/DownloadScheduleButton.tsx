@@ -197,7 +197,7 @@ const DownloadScheduleButton = memo(({
           <span className="flex min-w-0 flex-col items-start gap-0.5">
             <span>Excel (.csv)</span>
             <span className={SCHEDULE_DOWNLOAD_MENU_HINT}>
-              Spreadsheet met teamwedstrijden
+              Spreadsheet met wedstrijden
             </span>
           </span>
         </DropdownMenuItem>
