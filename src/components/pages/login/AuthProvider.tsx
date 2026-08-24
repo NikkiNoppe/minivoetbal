@@ -208,7 +208,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.error('SuperAdmin login RPC error:', error.message);
           }
           throw new LoginError(
-            'SuperAdmin-wachtwoord is incorrect. Gebruik admin1987 (kleine letters).',
+            'Ongeldige gebruikersnaam of wachtwoord.',
             'invalid_credentials',
           );
         }
