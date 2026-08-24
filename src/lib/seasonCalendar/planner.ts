@@ -455,10 +455,17 @@ export function buildSeasonPlan(
   // Nooit méér competitieweken markeren dan er speeldagen nodig zijn: de vroegste
   // weken eerst (chronologisch), de rest blijft "vrij" als buffer.
   const competitionAssigned = (() => {
-    if (weeksNeededComp <= 0) return [];
-    if (strategy === "competition-first") return [...competitionFirstWeeks].sort();
-    const pool = [...new Set([...exclusiveComp, ...sharedCompCandidates])].sort();
-    return pool.slice(0, weeksNeededComp);
+    const manualComp = manualCompetition.filter((m) => !playoffSet.has(m));
+    if (weeksNeededComp <= 0) return manualComp;
+    if (manualComp.length >= weeksNeededComp) return [...manualComp].sort();
+    const base =
+      strategy === "competition-first"
+        ? [...competitionFirstWeeks]
+        : [...new Set([...exclusiveComp, ...sharedCompCandidates])];
+    const pool = base
+      .filter((m) => !manualComp.includes(m) && !manualCup.includes(m))
+      .sort();
+    return [...manualComp, ...pool.slice(0, weeksNeededComp - manualComp.length)].sort();
   })();
   const competitionSet = new Set(competitionAssigned);
 
