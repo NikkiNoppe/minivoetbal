@@ -67,7 +67,7 @@ const PHASE_STYLES: Record<
   },
   cup: {
     label: "Beker",
-    className: "bg-amber-50 text-amber-950 border-amber-300/60",
+    className: "bg-sky-50 text-sky-950 border-sky-300/60",
   },
   playoff: {
     label: "Play-off",
@@ -1071,9 +1071,9 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
             </CardHeader>
             <CardContent className="space-y-4">
               {setup.systems.cup ? (
-                <div className="space-y-3 rounded-lg border border-amber-300/50 bg-amber-50/60 p-3">
+                <div className="space-y-3 rounded-lg border border-sky-300/50 bg-sky-50/60 p-3">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <p className="text-sm font-medium text-amber-950">
+                    <p className="text-sm font-medium text-sky-950">
                       Bekerweken{" "}
                       <span className="font-normal text-muted-foreground">
                         ({preferredCupWeeks.length}
@@ -1109,12 +1109,12 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {cupWeekMode === "manual"
-                      ? "Gele rand = gekozen. Gestippelde rand = voorstel/mogelijkheid. Rood/gedimd = niet mogelijk (tik voor uitleg). Oranje tip = krap maar toegestaan."
+                      ? "Blauwe rand = gekozen. Gestippelde rand = voorstel/mogelijkheid. Rood/gedimd = niet mogelijk (tik voor uitleg). Oranje tip = krap maar toegestaan."
                       : "Gestippelde weken zijn het automatische voorstel. Tik een week om handmatig te sturen; geblokkeerde weken geven een foutmelding."}
                   </p>
                   {cupWeekAdvice ? (
                     <p
-                      className="text-sm text-amber-950"
+                      className="text-sm text-sky-950"
                       role="status"
                       aria-live="polite"
                     >
@@ -1264,7 +1264,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   ) : isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
                     <Badge
                       variant="secondary"
-                      className="w-fit text-[10px] px-1.5 py-0 bg-amber-100 text-amber-950"
+                      className="w-fit text-[10px] px-1.5 py-0 bg-sky-100 text-sky-950"
                     >
                       {isCupPreferred ? "Bekerkeuze" : "Beker"}
                     </Badge>
@@ -1293,7 +1293,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         {isShared ? (
                           <Badge
                             variant="outline"
-                            className="w-fit text-[10px] px-1.5 py-0 border-amber-400/70 bg-amber-50 text-amber-950"
+                            className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
                           >
                             Gedeeld
                           </Badge>
@@ -1321,11 +1321,23 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         aria-hidden
                       >
                         <div
-                          className="h-full bg-current opacity-70"
+                          className={cn(
+                            "h-full",
+                            week.freeCount === week.configAvailableCount && week.configAvailableCount > 0
+                              ? "bg-emerald-500"
+                              : "bg-current opacity-70",
+                          )}
                           style={{ width: `${capacityPct}%` }}
                         />
                       </div>
-                      <span className="text-[10px] tabular-nums opacity-80">
+                      <span
+                        className={cn(
+                          "text-[10px] tabular-nums",
+                          week.freeCount === week.configAvailableCount && week.configAvailableCount > 0
+                            ? "font-semibold text-emerald-600"
+                            : "opacity-80",
+                        )}
+                      >
                         {week.freeCount}/{week.configAvailableCount} vrij
                       </span>
                     </>
@@ -1369,7 +1381,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                             : isCupPreferred && selectability === "tight"
                               ? "ring-2 ring-orange-500 border-orange-500"
                               : isSelectedVisual
-                                ? "ring-2 ring-amber-500 border-amber-500"
+                                ? "ring-2 ring-primary border-primary"
                                 : selectability === "suggested"
                                   ? "border-2 border-dashed border-primary/50"
                                   : selectability === "tight"
@@ -1538,7 +1550,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
         </div>
 
         {competitionCapacityWarning ? (
-          <Alert className="border-amber-400/50 bg-amber-50 text-amber-950">
+          <Alert className="border-orange-400/50 bg-orange-50 text-orange-950">
             <AlertCircle className="h-4 w-4" aria-hidden />
             <AlertTitle>Capaciteit competitie</AlertTitle>
             <AlertDescription className="text-sm space-y-1">
