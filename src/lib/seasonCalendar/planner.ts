@@ -431,12 +431,16 @@ export function buildSeasonPlan(
           capacityForWeek(grids, m) > (cupSlotsPerCupWeek.get(m) ?? 0),
       )
     : [];
-  // Alle bruikbare weken blijven beschikbaar voor competitie (niet alleen de
-  // eerste N) — anders blijven late weken (mei/juni) ten onrechte “vrij” terwijl
-  // packing ze wél nodig heeft bij bekerconflicten eerder in het seizoen.
-  const competitionAssigned =
-    weeksNeededComp <= 0 ? [] : [...exclusiveComp, ...sharedCompCandidates];
+  // Nooit méér competitieweken markeren dan er speeldagen nodig zijn: de vroegste
+  // weken eerst (chronologisch), de rest blijft "vrij" als buffer.
+  const competitionAssigned = (() => {
+    if (weeksNeededComp <= 0) return [];
+    if (strategy === "competition-first") return [...competitionFirstWeeks].sort();
+    const pool = [...new Set([...exclusiveComp, ...sharedCompCandidates])].sort();
+    return pool.slice(0, weeksNeededComp);
+  })();
   const competitionSet = new Set(competitionAssigned);
+
 
   const sharedCupMondays = cup.dates.filter((d) => competitionSet.has(d));
   const daySeparation = cup.daySeparation;
