@@ -1350,6 +1350,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     );
                   }
 
+                  const isPlayoffWeek = week.phases.includes("playoff");
                   const isSelectedVisual =
                     Boolean(manualPhase) ||
                     isCupPreferred ||
@@ -1359,17 +1360,22 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     ? "opacity-80 hover:opacity-100 border-dashed"
                     : isVacationException
                       ? "ring-2 ring-sky-500 border-sky-500"
-                      : selectability === "blocked"
-                        ? "opacity-55"
-                        : isCupPreferred && selectability === "tight"
-                          ? "ring-2 ring-orange-500 border-orange-500"
-                          : isSelectedVisual
-                            ? "ring-2 ring-amber-500 border-amber-500"
-                            : selectability === "suggested"
-                              ? "border-2 border-dashed border-primary/50"
-                              : selectability === "tight"
-                                ? "ring-1 ring-orange-300/80 border-orange-300/60"
-                                : null;
+                      : isPlayoffWeek
+                        ? "ring-2 ring-emerald-500 border-emerald-500"
+                        : selectability === "blocked" && !isBlocked
+                          ? null
+                          : selectability === "blocked"
+                            ? "opacity-55"
+                            : isCupPreferred && selectability === "tight"
+                              ? "ring-2 ring-orange-500 border-orange-500"
+                              : isSelectedVisual
+                                ? "ring-2 ring-amber-500 border-amber-500"
+                                : selectability === "suggested"
+                                  ? "border-2 border-dashed border-primary/50"
+                                  : selectability === "tight"
+                                    ? "ring-1 ring-orange-300/80 border-orange-300/60"
+                                    : null;
+
 
                   return (
                     <li key={monday} className="h-full flex flex-col gap-1">
