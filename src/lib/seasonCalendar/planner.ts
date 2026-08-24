@@ -211,18 +211,16 @@ export function reserveCupWeeks(input: {
         `Bekerweken handmatig gestuurd: ${preferredUsable.length} gekozen, ${required} gebruikt (gespreid).`,
       );
     } else {
-      dates = [...preferredUsable];
-      const used = new Set(dates);
-      for (const m of sortByScore(usable)) {
-        if (dates.length >= required) break;
-        if (!used.has(m)) dates.push(m);
-      }
-      dates = dates.sort().slice(0, required);
+      // Handmatige modus = volledige controle: NIET automatisch aanvullen.
+      dates = [...preferredUsable].sort();
       notes.push(
-        `Handmatig ${preferredUsable.length}/${required} bekerweken gekozen — rest automatisch aangevuld.`,
+        `Handmatig ${preferredUsable.length}/${required} bekerweken gekozen — kies de resterende week(en) zelf.`,
       );
-      rationale.push("Geselecteerde bekerweken eerst; ontbrekende weken via capaciteit.");
+      rationale.push(
+        "Handmatige bekerweken worden exact gevolgd; er wordt niets automatisch bijgeplaatst.",
+      );
     }
+
   } else {
     // Efficiency first: kies weken met genoeg capaciteit voor 1/8-dichtheid
     const firstRoundNeed = Math.max(1, bracket.firstRoundWeeks);
