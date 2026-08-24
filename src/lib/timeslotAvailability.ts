@@ -89,6 +89,34 @@ export function isPeriodBoundedTimeslot(timeslot: TimeslotDateRange): boolean {
   return Boolean(from && until);
 }
 
+export type StandbyTimeslotRef = {
+  timeslot_id?: number;
+  available_when_blocked_timeslot_id?: number;
+};
+
+/**
+ * Reserve-slots (available_when_blocked_timeslot_id) zijn geblokkeerd tot het
+ * gekoppelde slot die week zelf geblokkeerd is.
+ */
+export function applyStandbySlotBlocks(
+  slotDetails: Array<{ timeslot: StandbyTimeslotRef | null }>,
+  blocked: Set<number>,
+): Set<number> {
+  const blockedTimeslotIds = new Set<number>();
+  for (const index of blocked) {
+    const id = slotDetails[index]?.timeslot?.timeslot_id;
+    if (typeof id === "number") blockedTimeslotIds.add(id);
+  }
+
+  const next = new Set(blocked);
+  slotDetails.forEach((row, index) => {
+    const dependsOn = row.timeslot?.available_when_blocked_timeslot_id;
+    if (typeof dependsOn !== "number") return;
+    if (!blockedTimeslotIds.has(dependsOn)) next.add(index);
+  });
+  return next;
+}
+
 export function normalizeVenueTimeslotForSave(
   slot: {
     timeslot_id: number;
@@ -100,6 +128,7 @@ export function normalizeVenueTimeslotForSave(
     venue_name?: string;
     valid_from?: string;
     valid_until?: string;
+    available_when_blocked_timeslot_id?: number;
   },
   venueName: string,
 ) {
@@ -111,6 +140,12 @@ export function normalizeVenueTimeslotForSave(
     typeof slot.priority === "number" && Number.isFinite(slot.priority)
       ? slot.priority
       : undefined;
+  const standbyId = slot.available_when_blocked_timeslot_id;
+  const hasStandby =
+    typeof standbyId === "number" &&
+    Number.isFinite(standbyId) &&
+    standbyId > 0 &&
+    standbyId !== Number(slot.timeslot_id);
 
   return {
     timeslot_id: Number(slot.timeslot_id),
@@ -121,5 +156,6 @@ export function normalizeVenueTimeslotForSave(
     end_time: normalizeTimeField(slot.end_time),
     ...(priority != null ? { priority } : {}),
     ...dateRange,
+    ...(hasStandby ? { available_when_blocked_timeslot_id: standbyId } : {}),
   };
 }

@@ -1,6 +1,9 @@
 /** Effectieve slot-grid per speelweek (config-blokkades + occupancy). */
 
-import { isTimeslotValidOnDate } from "@/lib/timeslotAvailability";
+import {
+  applyStandbySlotBlocks,
+  isTimeslotValidOnDate,
+} from "@/lib/timeslotAvailability";
 import { matchDateFromWeekMonday } from "@/lib/cupBracketPlan";
 import {
   isDateInVacationPeriod,
@@ -65,10 +68,12 @@ export function buildConfigWeekGrid(
     playableVacationWeeks.map((d) => toMondayIso(d)),
   );
   const ignoreVacation = vacationExceptions.has(monday);
-  const slots: EffectiveSlot[] = slotDetails.map((row, index) => {
+  const initiallyBlocked = new Set<number>();
+  slotDetails.forEach((row, index) => {
     const ts = row.timeslot;
     if (!ts) {
-      return { index, status: "blocked_config" as const };
+      initiallyBlocked.add(index);
+      return;
     }
     const matchDate = matchDateFromWeekMonday(monday, ts.day_of_week);
     const venueId = typeof ts.venue_id === "number" ? ts.venue_id : -1;
@@ -82,10 +87,21 @@ export function buildConfigWeekGrid(
       (venueId >= 0 &&
         timeslotId >= 0 &&
         isUnavailabilityActive(blocks, matchDate, venueId, timeslotId));
+    if (blocked) initiallyBlocked.add(index);
+  });
+  const blockedIndices = applyStandbySlotBlocks(slotDetails, initiallyBlocked);
 
+  const slots: EffectiveSlot[] = slotDetails.map((row, index) => {
+    const ts = row.timeslot;
+    if (!ts) {
+      return { index, status: "blocked_config" as const };
+    }
+    const matchDate = matchDateFromWeekMonday(monday, ts.day_of_week);
     return {
       index,
-      status: blocked ? ("blocked_config" as const) : ("available" as const),
+      status: blockedIndices.has(index)
+        ? ("blocked_config" as const)
+        : ("available" as const),
       venue: row.venue,
       dayOfWeek: ts.day_of_week,
       startTime: ts.start_time ?? null,

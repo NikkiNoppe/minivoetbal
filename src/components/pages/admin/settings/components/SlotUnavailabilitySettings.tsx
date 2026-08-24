@@ -25,6 +25,7 @@ import { PUBLIC_CARD_CLASS } from '@/components/layout';
 import { cn } from '@/lib/utils';
 import { SectionIcon } from "@/components/layout";
 import { emitSeasonDataChanged } from '@/lib/seasonDataEvents';
+import { DEFAULT_ORGANIZATION_ID } from '@/config/organization';
 
 const DAY_NAMES: Record<number, string> = {
   0: 'Zondag',
@@ -233,6 +234,9 @@ const SlotUnavailabilitySettings: React.FC = () => {
             <p className="text-sm text-muted-foreground max-w-xl">
               Gebruik dit voor onderhoud, events of andere blokkades op één veld. Voor hele weken
               zonder voetbal: gebruik vakantieperiodes.
+              {organizationId === DEFAULT_ORGANIZATION_ID
+                ? " Voor Zweetvoetmannen: blokkeer Dageraad maandag 21:00–22:00; Vlasschaard 18:00–19:00 wordt dan automatisch het reserveveld."
+                : ""}
             </p>
             <Button
               type="button"

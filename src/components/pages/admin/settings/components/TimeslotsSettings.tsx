@@ -12,6 +12,7 @@ import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { useSeasonDataScope } from "@/hooks/useSeasonDataScope";
 import { competitionDataService, type VenueTimeslot } from "@/services/competitionDataService";
 import { SectionIcon } from "@/components/layout";
+import { DEFAULT_ORGANIZATION_ID } from "@/config/organization";
 import {
   formatTimeslotPeriod,
   normalizeOptionalDateField,
@@ -247,6 +248,17 @@ const TimeslotsSettings: React.FC = () => {
     return venue?.name || 'Onbekend';
   };
 
+  const getTimeslotOptionLabel = (slot: VenueTimeslot) =>
+    `${getVenueName(slot.venue_id)} · ${dayNames[slot.day_of_week] ?? `Dag ${slot.day_of_week}`} ${slot.start_time}–${slot.end_time}`;
+
+  const getStandbyLabel = (slot: VenueTimeslot) => {
+    const primaryId = slot.available_when_blocked_timeslot_id;
+    if (primaryId == null) return null;
+    const primary = timeslots.find((t) => t.timeslot_id === primaryId);
+    if (!primary) return "Reserve tot gekoppeld slot geblokkeerd is";
+    return `Reserve tot ${getVenueName(primary.venue_id)} ${primary.start_time} geblokkeerd is`;
+  };
+
   const timeslotsSorted = useMemo(
     () => sortTimeslotsForDisplay(timeslots),
     [timeslots],
@@ -269,7 +281,15 @@ const TimeslotsSettings: React.FC = () => {
               aan als de speeltijden wijzigen.
               Laat de periode leeg voor slots die het hele seizoen gelden, of stel een
               start- en einddatum in voor extra speelmomenten in bepaalde periodes.
+              Een reserve-slot telt alleen als het gekoppelde veld die week geblokkeerd is.
             </p>
+            {organizationId === DEFAULT_ORGANIZATION_ID ? (
+              <p className="text-sm text-muted-foreground">
+                Dageraad maandag 21:00–22:00 is extra speelbaar zolang de Zweetvoetmannen
+                niet spelen. Markeer hun avonden als veldblokkade op dat slot; dan schuift
+                de wedstrijd naar Vlasschaard 18:00–19:00.
+              </p>
+            ) : null}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-semibold">Tijdslots</h3>
@@ -296,7 +316,9 @@ const TimeslotsSettings: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {timeslotsSorted.map((timeslot) => (
+                {timeslotsSorted.map((timeslot) => {
+                  const standbyLabel = getStandbyLabel(timeslot);
+                  return (
                   <TableRow key={timeslot.timeslot_id}>
                     <TableCell className="hidden sm:table-cell font-medium">
                       {getVenueName(timeslot.venue_id)}
@@ -319,6 +341,11 @@ const TimeslotsSettings: React.FC = () => {
                       <span className="line-clamp-2 sm:line-clamp-none">
                         {formatTimeslotPeriod(timeslot)}
                       </span>
+                      {standbyLabel ? (
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                          {standbyLabel}
+                        </span>
+                      ) : null}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {timeslot.priority || "N/A"}
@@ -344,7 +371,8 @@ const TimeslotsSettings: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -477,6 +505,41 @@ const TimeslotsSettings: React.FC = () => {
                 );
               }}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="standbyFor">Reserve voor geblokkeerd slot</Label>
+            <Select
+              value={
+                editingItem?.available_when_blocked_timeslot_id != null
+                  ? String(editingItem.available_when_blocked_timeslot_id)
+                  : "none"
+              }
+              onValueChange={(value) =>
+                updateEditingItem(
+                  "available_when_blocked_timeslot_id",
+                  value === "none" ? undefined : parseInt(value, 10),
+                )
+              }
+            >
+              <SelectTrigger id="standbyFor" className="min-h-[44px]">
+                <SelectValue placeholder="Altijd beschikbaar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Altijd beschikbaar</SelectItem>
+                {timeslots
+                  .filter((slot) => slot.timeslot_id !== editingItem?.timeslot_id)
+                  .map((slot) => (
+                    <SelectItem key={slot.timeslot_id} value={String(slot.timeslot_id)}>
+                      {getTimeslotOptionLabel(slot)}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Alleen gebruiken als vervanging, bv. Vlasschaard 18:00–19:00 wanneer
+              Dageraad 21:00–22:00 niet speelbaar is.
+            </p>
           </div>
         </div>
       </AppModal>

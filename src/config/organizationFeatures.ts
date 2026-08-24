@@ -2,15 +2,18 @@
 
 export interface OrganizationFeatures {
   playoffs: boolean;
+  /** Speelmoment-voorkeuren in team-modal (dagen, slots, locaties). */
+  teamSlotPreferences: boolean;
 }
 
 const DEFAULT_FEATURES: OrganizationFeatures = {
   playoffs: true,
+  teamSlotPreferences: false,
 };
 
 const ORGANIZATION_FEATURES: Record<string, Partial<OrganizationFeatures>> = {
-  harelbeke: { playoffs: true },
-  kuurne: { playoffs: false },
+  harelbeke: { playoffs: true, teamSlotPreferences: true },
+  kuurne: { playoffs: false, teamSlotPreferences: false },
 };
 
 export function getOrganizationFeatures(

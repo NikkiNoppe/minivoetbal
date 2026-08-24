@@ -123,6 +123,46 @@ describe("buildConfigWeekGrid", () => {
     expect(grid.freeCount).toBe(7);
   });
 
+  it("opent Vlasschaard 18u alleen als Dageraad 21u geblokkeerd is", () => {
+    const slots: SlotDetailLike[] = [
+      {
+        venue: "Dageraad",
+        timeslot: {
+          timeslot_id: 8,
+          venue_id: 1,
+          day_of_week: 1,
+          start_time: "21:00",
+        },
+      },
+      {
+        venue: "Vlasschaard",
+        timeslot: {
+          timeslot_id: 9,
+          venue_id: 2,
+          day_of_week: 1,
+          start_time: "18:00",
+          available_when_blocked_timeslot_id: 8,
+        },
+      },
+    ];
+    const open = buildConfigWeekGrid("2026-09-07", slots, []);
+    expect(open.slots[0].status).toBe("available");
+    expect(open.slots[1].status).toBe("blocked_config");
+
+    const blocked = buildConfigWeekGrid("2026-09-07", slots, [
+      {
+        id: 1,
+        name: "Zweetvoetmannen",
+        date: "2026-09-07",
+        venue_id: 1,
+        timeslot_id: 8,
+        is_active: true,
+      },
+    ]);
+    expect(blocked.slots[0].status).toBe("blocked_config");
+    expect(blocked.slots[1].status).toBe("available");
+  });
+
   it("blokkeert di–zo als kerstvakantie op di begint (ma blijft vrij)", () => {
     // Week ma 21/12/2026: 4 maandagslots + dinsdagslots; vakantie vanaf 22/12
     const slots: SlotDetailLike[] = [

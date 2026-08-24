@@ -98,7 +98,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
   const navigate = useOrgAwareNavigate();
   const queryClient = useQueryClient();
   const { organizationId, orgQueryEnabled } = useOrgQueryScope();
-  const { isTabVisible } = useTabVisibility();
+  const { isTabVisible, loading: visibilityLoading } = useTabVisibility();
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -137,8 +137,12 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
+  const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
   const setupHydratedRef = useRef(false);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savePromiseRef = useRef<Promise<void> | null>(null);
+  const setupRef = useRef(setup);
+  setupRef.current = setup;
 
   const allowedSystems = useMemo(
     () => ({
@@ -212,14 +216,8 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
       );
 
       let next = normalizeSeasonSetup(seasonData.season_setup, n);
-      // Respect visibility: zet niet-zichtbare systemen uit
       next = {
         ...next,
-        systems: {
-          competition: next.systems.competition && isTabVisible("format-competition"),
-          cup: next.systems.cup && isTabVisible("format-cup"),
-          playoffs: next.systems.playoffs && isTabVisible("format-playoffs"),
-        },
         cup: {
           ...next.cup,
           teamCount: next.cup.useAllTeams ? n : next.cup.teamCount,
@@ -230,25 +228,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
         },
       };
       next = ensureAtLeastOneSystem(next);
-      // Als visibility alles uitzet: zet eerste zichtbare systeem aan
-      if (
-        !next.systems.competition &&
-        !next.systems.cup &&
-        !next.systems.playoffs
-      ) {
-        next = {
-          ...next,
-          systems: {
-            competition: isTabVisible("format-competition"),
-            cup: isTabVisible("format-cup") && !isTabVisible("format-competition"),
-            playoffs:
-              isTabVisible("format-playoffs") &&
-              !isTabVisible("format-competition") &&
-              !isTabVisible("format-cup"),
-          },
-        };
-        next = ensureAtLeastOneSystem(next);
-      }
       setSetup(next);
       // Laat eerste paint klaar zijn vóór auto-save aan gaat
       queueMicrotask(() => {
@@ -298,11 +277,12 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [orgQueryEnabled, organizationId, toast, isTabVisible]);
+  }, [orgQueryEnabled, organizationId, toast]);
 
   useEffect(() => {
+    if (visibilityLoading) return;
     void loadDefaults();
-  }, [loadDefaults]);
+  }, [loadDefaults, visibilityLoading]);
 
   /** Herbouw kalender uit verse Instellingen (vakanties, veldblokkades, seizoensdata). */
   const refreshPlanFromSettings = useCallback(
@@ -408,60 +388,93 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
   }, [refreshPlanFromSettings]);
 
   const handleSave = useCallback(async (opts?: { silent?: boolean; nextSetup?: SeasonSetup }) => {
-    if (!orgQueryEnabled || organizationId == null) return;
-    const source = opts?.nextSetup ?? setup;
-    try {
-      if (opts?.silent) setAutoSaveStatus("saving");
-      else setSaving(true);
-      const toSave = ensureAtLeastOneSystem({
-        ...source,
-        updatedAt: new Date().toISOString(),
-      });
-      const seasonData = await seasonService.getSeasonData(organizationId);
-      const formats = mergeSeasonSetupIntoFormats(
-        seasonData.competition_formats || [],
-        toSave,
-      );
-      const result = await seasonService.saveSeasonData(
-        {
-          ...seasonData,
-          season_setup: toSave,
-          competition_formats: formats,
-        },
-        organizationId,
-      );
-      if (!result.success) {
-        throw new Error(result.message);
-      }
-      setSetup(toSave);
-      if (opts?.silent) {
-        setAutoSaveStatus("saved");
-      } else {
-        toast({
-          title: "Opzet opgeslagen",
-          description:
-            "Speelsystemen en parameters zijn bewaard. Fase-tabbladen gebruiken deze opzet.",
-        });
-        const nextPlan = await buildPlanFromSetup(toSave, liveTeamCount);
-        if (nextPlan) setPlan(nextPlan);
-      }
-    } catch (e) {
+    if (!orgQueryEnabled || organizationId == null) {
+      const message = "Organisatie-context ontbreekt nog. Probeer opnieuw.";
       if (opts?.silent) {
         setAutoSaveStatus("error");
+        setAutoSaveError(message);
       } else {
-        toast({
-          title: "Opslaan mislukt",
-          description: e instanceof Error ? e.message : "Onbekende fout",
-          variant: "destructive",
-        });
+        toast({ title: "Opslaan mislukt", description: message, variant: "destructive" });
       }
+      return;
+    }
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    if (savePromiseRef.current) {
+      if (opts?.silent) return;
+      setSaving(true);
+      await savePromiseRef.current;
+    }
+    const source = opts?.nextSetup ?? setupRef.current;
+    const job = (async () => {
+      try {
+        if (opts?.silent) {
+          setAutoSaveStatus("saving");
+          setAutoSaveError(null);
+        } else {
+          setSaving(true);
+          setAutoSaveError(null);
+        }
+        const toSave = ensureAtLeastOneSystem({
+          ...source,
+          updatedAt: new Date().toISOString(),
+        });
+        const seasonData = await seasonService.getSeasonData(organizationId);
+        const formats = mergeSeasonSetupIntoFormats(
+          seasonData.competition_formats || [],
+          toSave,
+        );
+        const result = await seasonService.saveSeasonData(
+          {
+            ...seasonData,
+            season_setup: toSave,
+            competition_formats: formats,
+          },
+          organizationId,
+        );
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+        setSetup(toSave);
+        if (opts?.silent) {
+          setAutoSaveStatus("saved");
+        } else {
+          setSaving(false);
+          toast({
+            title: "Opzet opgeslagen",
+            description:
+              "Speelsystemen en parameters zijn bewaard. Fase-tabbladen gebruiken deze opzet.",
+          });
+          const nextPlan = await buildPlanFromSetup(toSave, liveTeamCount);
+          if (nextPlan) setPlan(nextPlan);
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Onbekende fout";
+        if (opts?.silent) {
+          setAutoSaveStatus("error");
+          setAutoSaveError(message);
+        } else {
+          toast({
+            title: "Opslaan mislukt",
+            description: message,
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!opts?.silent) setSaving(false);
+      }
+    })();
+    savePromiseRef.current = job;
+    try {
+      await job;
     } finally {
-      if (!opts?.silent) setSaving(false);
+      if (savePromiseRef.current === job) savePromiseRef.current = null;
     }
   }, [
     orgQueryEnabled,
     organizationId,
-    setup,
     liveTeamCount,
     buildPlanFromSetup,
     toast,
@@ -818,7 +831,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     }
   }, [unifiedPreview, organizationId, toast, queryClient]);
 
-  if (!orgQueryEnabled || organizationId == null || loading) {
+  if (!orgQueryEnabled || organizationId == null || loading || visibilityLoading) {
     return (
       <div className="flex justify-center items-center py-8" aria-busy="true">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -874,26 +887,24 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
           className="min-h-[44px]"
           onClick={() => void handleSave()}
           disabled={saving}
+          loading={saving}
         >
-          {saving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-              Opslaan…
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" aria-hidden />
-              Opzet opslaan
-            </>
-          )}
+          <Save className="mr-2 h-4 w-4" aria-hidden />
+          Opzet opslaan
         </Button>
-        <p className="text-xs text-muted-foreground min-h-[20px]" aria-live="polite">
+        <p
+          className={cn(
+            "text-xs min-h-[20px]",
+            autoSaveStatus === "error" ? "text-destructive" : "text-muted-foreground",
+          )}
+          aria-live="polite"
+        >
           {autoSaveStatus === "saving"
             ? "Automatisch opslaan…"
             : autoSaveStatus === "saved"
               ? "Automatisch bewaard"
               : autoSaveStatus === "error"
-                ? "Auto-opslaan mislukt — gebruik de knop"
+                ? `Auto-opslaan mislukt${autoSaveError ? ` — ${autoSaveError}` : ""} · gebruik de knop`
                 : "Wijzigingen (incl. reeksen) worden automatisch bewaard"}
         </p>
       </div>

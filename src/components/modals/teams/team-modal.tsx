@@ -9,6 +9,8 @@ import { seasonService } from "@/services";
 import { cn } from "@/lib/utils";
 import { joinContactEmails, parseContactEmails } from "@/lib/contactEmails";
 import { Button } from "@/components/ui/button";
+import { useOrganization } from "@/hooks/useOrganization";
+import { getOrganizationFeatures } from "@/config/organizationFeatures";
 
 interface TeamModalProps {
   open: boolean;
@@ -32,6 +34,7 @@ interface TeamModalProps {
   formData: any;
   loading: boolean;
   hideTeamName?: boolean;
+  /** Explicit override. Default: aan voor Harelbeke, uit voor Kuurne. */
   hidePreferences?: boolean;
 }
 
@@ -51,15 +54,17 @@ export const TeamModal: React.FC<TeamModalProps> = ({
   onSave,
   loading,
   hideTeamName = false,
-  /** Tijdelijk verborgen — speelmoment-voorkeuren in team-modal. */
-  hidePreferences = true,
+  hidePreferences,
 }) => {
+  const { organizationId, organizationSlug } = useOrganization();
+  const features = getOrganizationFeatures(organizationSlug);
+  const hidePrefs = hidePreferences ?? !features.teamSlotPreferences;
+
   // State management
   const [availableDays, setAvailableDays] = useState<string[]>([]);
   const [availableTimeslots, setAvailableTimeslots] = useState<Array<{id: string; label: string}>>([]);
   const [availableVenues, setAvailableVenues] = useState<Array<{venue_id: number; name: string; address: string}>>([]);
   const [isLoading, setIsLoading] = useState(loading);
-  const [seasonDataLoaded, setSeasonDataLoaded] = useState(false);
   const [localPreferences, setLocalPreferences] = useState<LocalPreferences>({
     days: [],
     timeslots: [],
@@ -156,17 +161,20 @@ export const TeamModal: React.FC<TeamModalProps> = ({
     setIsLoading(loading);
   }, [loading]);
 
-  // Load season data once when modal opens (alleen voor speelmoment-voorkeuren)
+  // Load season data when modal opens (alleen voor speelmoment-voorkeuren)
   useEffect(() => {
+    if (!open || hidePrefs || organizationId == null) {
+      return;
+    }
+    let cancelled = false;
     const loadSeasonData = async () => {
-      if (hidePreferences || seasonDataLoaded || !open) return;
-      
       try {
         const [days, timeslots, venues] = await Promise.all([
-          seasonService.getAvailableDays(),
-          seasonService.getAvailableTimeslots(),
-          seasonService.getAvailableVenues()
+          seasonService.getAvailableDays(organizationId),
+          seasonService.getAvailableTimeslots(organizationId),
+          seasonService.getAvailableVenues(organizationId)
         ]);
+        if (cancelled) return;
         
         setAvailableDays(Array.isArray(days) ? days : []);
         // Deduplicate timeslots by label and sort ascending by start time
@@ -200,22 +208,24 @@ export const TeamModal: React.FC<TeamModalProps> = ({
           setAvailableTimeslots([]);
         }
         setAvailableVenues(Array.isArray(venues) ? venues : []);
-        setSeasonDataLoaded(true);
       } catch (error) {
+        if (cancelled) return;
         console.error('Error loading season data:', error);
         setAvailableDays([]);
         setAvailableTimeslots([]);
         setAvailableVenues([]);
-        setSeasonDataLoaded(true);
       }
     };
 
-    loadSeasonData();
-  }, [open, seasonDataLoaded, hidePreferences]);
+    void loadSeasonData();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, hidePrefs, organizationId]);
 
   // Initialize preferences when editing team (alleen zichtbaar als sectie actief is)
   useEffect(() => {
-    if (!open || hidePreferences) return;
+    if (!open || hidePrefs) return;
 
     if (editingTeam) {
       const preferences = editingTeam.preferred_play_moments || {};
@@ -233,7 +243,7 @@ export const TeamModal: React.FC<TeamModalProps> = ({
         notes: ""
       });
     }
-  }, [editingTeam, open, hidePreferences]);
+  }, [editingTeam, open, hidePrefs]);
 
   // Sync formData with editingTeam when modal opens to ensure all data is displayed
   useEffect(() => {
@@ -299,13 +309,6 @@ export const TeamModal: React.FC<TeamModalProps> = ({
     setColorHex1(parsed.hexColors[0] || '#000000');
     setColorHex2(parsed.hexColors[1] || null);
   }, [open, formData?.club_colors, editingTeam?.club_colors, editingTeam?.team_id, parseClubColors]);
-
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!open) {
-      setSeasonDataLoaded(false);
-    }
-  }, [open]);
 
   // Optimized preference selection check
   const isPreferenceSelected = useCallback((type: 'days' | 'timeslots' | 'venues', value: string | number): boolean => {
@@ -380,7 +383,7 @@ export const TeamModal: React.FC<TeamModalProps> = ({
     
     // Sync all data immediately before saving
     // Sync preferred_play_moments
-    if (!hidePreferences) {
+    if (!hidePrefs) {
       onFormChange('preferred_play_moments', localPreferences);
     }
     
@@ -400,7 +403,7 @@ export const TeamModal: React.FC<TeamModalProps> = ({
         onSave();
       }, 10);
     }, 10);
-  }, [localPreferences, colorName, colorHex1, colorHex2, hidePreferences, onFormChange, onSave]);
+  }, [localPreferences, colorName, colorHex1, colorHex2, hidePrefs, onFormChange, onSave]);
 
   // Optimized close handler
   const handleClose = useCallback(() => {
@@ -930,11 +933,11 @@ export const TeamModal: React.FC<TeamModalProps> = ({
       onOpenChange={onOpenChange}
       title={modalTitle}
       subtitle={
-        hideTeamName && hidePreferences
+        hideTeamName && hidePrefs
           ? "Bewerk de contactgegevens en clubkleuren van je team."
-          : hidePreferences
+          : hidePrefs
             ? "Vul de teamgegevens in: naam, contact en clubkleuren."
-            : "Vul de details van het team in. Alle velden zijn verplicht."
+            : "Vul de teamgegevens in. Speelmoment-voorkeuren zijn optioneel."
       }
       size="lg"
       primaryAction={{
@@ -955,7 +958,7 @@ export const TeamModal: React.FC<TeamModalProps> = ({
         {!hideTeamName && teamNameSection}
         {contactSection}
         {clubColorsSection}
-        {!hidePreferences && preferencesSection}
+        {!hidePrefs && preferencesSection}
       </form>
     </AppModal>
   );

@@ -73,6 +73,11 @@ export interface VenueTimeslot {
   valid_from?: string;
   /** Optioneel: laatste kalenderdag waarop dit slot telt (YYYY-MM-DD). */
   valid_until?: string;
+  /**
+   * Reserve-slot: telt alleen als dit andere timeslot_id die week geblokkeerd is
+   * (bv. Vlasschaard 18:00 als Dageraad 21:00 door Zweetvoetmannen bezet is).
+   */
+  available_when_blocked_timeslot_id?: number;
 }
 
 export interface VacationPeriod {

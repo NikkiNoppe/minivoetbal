@@ -58,6 +58,7 @@ export type SlotDetailLike = {
     timeslot_id?: number;
     valid_from?: string | null;
     valid_until?: string | null;
+    available_when_blocked_timeslot_id?: number;
   } | null;
 };
 

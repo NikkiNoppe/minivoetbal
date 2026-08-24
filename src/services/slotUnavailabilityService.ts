@@ -1,4 +1,7 @@
-import { isTimeslotValidOnDate } from '@/lib/timeslotAvailability';
+import {
+  applyStandbySlotBlocks,
+  isTimeslotValidOnDate,
+} from '@/lib/timeslotAvailability';
 import { matchDateFromWeekMonday } from '@/lib/cupBracketPlan';
 import {
   isDateInVacationPeriod,
@@ -64,7 +67,7 @@ export function getBlockedSlotIndicesForWeek(
       blocked.add(index);
     }
   });
-  return blocked;
+  return applyStandbySlotBlocks(slotDetails, blocked);
 }
 
 export function getAvailableSlotIndicesForWeek(

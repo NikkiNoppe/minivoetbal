@@ -22,6 +22,7 @@ export interface VenueTimeslotWithPriority {
   priority: number;
   valid_from?: string;
   valid_until?: string;
+  available_when_blocked_timeslot_id?: number;
 }
 
 // Fallback priority order if database is not available
@@ -74,6 +75,20 @@ const FALLBACK_PRIORITY_ORDER: PriorityOrderItem[] = [
     day_of_week: 2,
     start_time: "18:30",
     description: "Vlasschaard Dinsdag 18:30"
+  },
+  {
+    priority: 8,
+    venue_id: 1,
+    day_of_week: 1,
+    start_time: "21:00",
+    description: "Dageraad Maandag 21:00"
+  },
+  {
+    priority: 9,
+    venue_id: 2,
+    day_of_week: 1,
+    start_time: "18:00",
+    description: "Vlasschaard Maandag 18:00 (reserve 21:00)"
   }
 ];
 
@@ -141,6 +156,25 @@ const FALLBACK_TIMESLOTS: VenueTimeslotWithPriority[] = [
     start_time: "18:30",
     end_time: "19:30",
     priority: 7
+  },
+  {
+    timeslot_id: 8,
+    venue_id: 1,
+    venue_name: "Harelbeke - Dageraad",
+    day_of_week: 1,
+    start_time: "21:00",
+    end_time: "22:00",
+    priority: 8
+  },
+  {
+    timeslot_id: 9,
+    venue_id: 2,
+    venue_name: "Bavikhove - Vlasschaard",
+    day_of_week: 1,
+    start_time: "18:00",
+    end_time: "19:00",
+    priority: 9,
+    available_when_blocked_timeslot_id: 8
   }
 ];
 

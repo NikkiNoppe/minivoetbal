@@ -1,5 +1,6 @@
 import {
   insertApplicationSettingForSession,
+  listApplicationSettingsForSession,
   updateApplicationSettingForSession,
 } from '@/services/core/applicationSettingsSessionFetch';
 import {
@@ -151,23 +152,30 @@ export const seasonService = {
         day_names: data.day_names ?? existing.day_names ?? createDefaultSeasonData().day_names,
       };
 
-      localStorage.setItem(seasonDataStorageKey(orgId), JSON.stringify(merged));
+      const payload = JSON.parse(JSON.stringify(merged)) as SeasonData;
+      localStorage.setItem(seasonDataStorageKey(orgId), JSON.stringify(payload));
 
-      const existingRow = findPublicSetting(
-        await fetchPublicApplicationSettings(['season_data'], orgId),
-        'season_data',
-        'main_config',
-      );
+      let existingRowId: number | undefined;
+      try {
+        const sessionRows = await listApplicationSettingsForSession('season_data');
+        existingRowId = sessionRows.find((row) => row.setting_name === 'main_config')?.id;
+      } catch {
+        existingRowId = findPublicSetting(
+          await fetchPublicApplicationSettings(['season_data'], orgId),
+          'season_data',
+          'main_config',
+        )?.id;
+      }
 
-      if (existingRow?.id) {
-        await updateApplicationSettingForSession(existingRow.id, {
-          setting_value: merged,
+      if (existingRowId) {
+        await updateApplicationSettingForSession(existingRowId, {
+          setting_value: payload,
         });
       } else {
         await insertApplicationSettingForSession({
           setting_category: 'season_data',
           setting_name: 'main_config',
-          setting_value: merged,
+          setting_value: payload,
         });
       }
 
