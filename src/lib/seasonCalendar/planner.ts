@@ -397,20 +397,11 @@ export function buildSeasonPlan(
   // na de beker nog speelmomenten vrij blijven. Zelfde beleid als de generator:
   // ploegen zonder beker die week mogen die resterende momenten gebruiken.
   const competitionCandidates = usable.filter((m) => !playoffSet.has(m));
-  // Weken = max(capaciteit, speeldagen): een ploeg speelt ≤1×/week, dus speeldagen
-  // domineren bij oneven reeksen (anders blijven late weken ten onrechte “vrij”).
-  const weeksNeededComp = (() => {
-    const matchdays = Math.max(0, Math.floor(input.competitionMatchdays ?? 0));
-    const matches = Math.max(0, Math.floor(input.competitionMatches));
-    if (matches <= 0 && matchdays <= 0) return 0;
-    if (effectiveSlots <= 0) return matchdays;
-    const byCapacity = matches > 0 ? Math.ceil(matches / effectiveSlots) : 0;
-    return Math.max(byCapacity, matchdays);
-  })();
 
   const exclusiveComp = competitionCandidates.filter((m) => !cupSet.has(m));
   const hasWeekShortage = exclusiveComp.length < weeksNeededComp;
   const canShareByDay = cup.daySeparation.separated;
+
 
   // Hoeveel momenten de beker per bekerweek nodig heeft — zelfde verdeling als
   // de bekergenerator (ronde na ronde, per week tot de slotcapaciteit vol is).
