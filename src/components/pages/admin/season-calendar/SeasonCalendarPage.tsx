@@ -3,6 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/layout";
 import { AlertCircle, CalendarRange, Info, Loader2, Save, Sparkles, Wand2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +34,7 @@ import {
   createDefaultSeasonSetup,
   ensureAtLeastOneSystem,
   estimateCompetitionMatchdays,
+  estimatePlayoffMatchdays,
   getSeasonPreviewSession,
   mergeSeasonSetupIntoFormats,
   normalizeSeasonSetup,
@@ -34,6 +43,7 @@ import {
   subscribeSeasonPreviewSession,
   type SeasonPreviewProgress,
   type SeasonSetup,
+  type SeasonSetupWeekPhase,
   type UnifiedSeasonPreview,
 } from "@/lib/seasonSetup";
 import { getSuperAdminTenantById } from "@/config/superAdminTenants";
@@ -75,6 +85,13 @@ const PHASE_STYLES: Record<
     label: "Vrij",
     className: "bg-card text-muted-foreground border-primary/15",
   },
+};
+
+const WEEK_PHASE_LABELS: Record<SeasonSetupWeekPhase, string> = {
+  competition: "Competitie",
+  cup: "Beker",
+  playoff: "Play-off",
+  free: "Vrijhouden",
 };
 
 /** @deprecated Alleen voor type-compatibiliteit; hub heeft geen subtabs meer. */
@@ -565,61 +582,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     [seasonBounds, buildPlanFromSetup, liveTeamCount, scheduleAutoSave],
   );
 
-  const toggleCupWeek = useCallback(
-    (weekMonday: string) => {
-      if (!setup.systems.cup) return;
-      const advice = cupWeekAdvice?.byWeek.get(weekMonday.slice(0, 10));
-      const current = setup.cup.preferredWeeks ?? [];
-      const exists = current.includes(weekMonday);
-
-      if (!exists && advice?.blockReason) {
-        toast({
-          title: "Week niet mogelijk voor beker",
-          description: advice.blockReason,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!exists && advice?.warningOnSelect) {
-        toast({
-          title: "Let op bij deze bekerweek",
-          description: advice.warningOnSelect,
-        });
-      }
-
-      if (
-        !exists &&
-        cupRequiredWeeks > 0 &&
-        current.length >= cupRequiredWeeks
-      ) {
-        toast({
-          title: "Extra bekerweek",
-          description: `Je hebt al ${current.length}/${cupRequiredWeeks} weken. Extra keuzes mag — de planner spreidt ${cupRequiredWeeks} weken uit je selectie.`,
-        });
-      }
-
-      const preferredWeeks = exists
-        ? current.filter((d) => d !== weekMonday)
-        : [...current, weekMonday].sort();
-      void applySetupAndRefreshPlan({
-        ...setup,
-        cup: {
-          ...setup.cup,
-          weekMode: "manual",
-          preferredWeeks,
-        },
-      });
-    },
-    [
-      setup,
-      applySetupAndRefreshPlan,
-      cupWeekAdvice,
-      cupRequiredWeeks,
-      toast,
-    ],
-  );
-
   const togglePlayableVacationWeek = useCallback(
     (weekMonday: string) => {
       const monday = weekMonday.slice(0, 10);
@@ -694,6 +656,105 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
       },
     });
   }, [setup, applySetupAndRefreshPlan]);
+
+  const effectiveAssignments = useMemo(() => {
+    const base: Record<string, SeasonSetupWeekPhase> = {};
+    if (cupWeekMode === "manual") {
+      for (const d of preferredCupWeeks) base[d.slice(0, 10)] = "cup";
+    }
+    return { ...base, ...(setup.weekAssignments ?? {}) };
+  }, [cupWeekMode, preferredCupWeeks, setup.weekAssignments]);
+
+  const phaseNeeds = useMemo(
+    () => ({
+      competition: setup.systems.competition ? estimateCompetitionMatchdays(setup) : 0,
+      cup: setup.systems.cup ? cupRequiredWeeks : 0,
+      playoff: setup.systems.playoffs ? estimatePlayoffMatchdays(setup) : 0,
+    }),
+    [setup, cupRequiredWeeks],
+  );
+
+  const phaseCounts = useMemo(
+    () => ({
+      competition: plan?.competitionWeeks.length ?? 0,
+      cup: plan?.cupDates.length ?? 0,
+      playoff: plan?.playoffWeeks.length ?? 0,
+    }),
+    [plan],
+  );
+
+  const setWeekPhase = useCallback(
+    (weekMonday: string, phase: SeasonSetupWeekPhase | null) => {
+      const monday = weekMonday.slice(0, 10);
+      const next: Record<string, SeasonSetupWeekPhase> = { ...effectiveAssignments };
+
+      if (phase && phase !== "free") {
+        const systemOn =
+          phase === "competition"
+            ? setup.systems.competition
+            : phase === "cup"
+              ? setup.systems.cup
+              : setup.systems.playoffs;
+        if (!systemOn) {
+          toast({
+            title: `${WEEK_PHASE_LABELS[phase]} staat uit`,
+            description: `Zet ${WEEK_PHASE_LABELS[phase].toLowerCase()} aan bij Speelsystemen voor je weken toewijst.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        const need = phaseNeeds[phase];
+        const already = phaseCounts[phase];
+        const weekPlan = plan?.weeks.find((w) => w.weekMonday.slice(0, 10) === monday);
+        const alreadyThisPhase =
+          effectiveAssignments[monday] === phase || Boolean(weekPlan?.phases.includes(phase));
+        if (need > 0 && already >= need && !alreadyThisPhase) {
+          toast({
+            title: `Maximum ${WEEK_PHASE_LABELS[phase].toLowerCase()}weken bereikt`,
+            description: `Er staan al ${already}/${need} ${WEEK_PHASE_LABELS[phase].toLowerCase()}weken in de kalender. Zet eerst een andere week op "Vrijhouden" en kies daarna deze week.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      if (phase === null) delete next[monday];
+      else next[monday] = phase;
+
+      const cupWeeks = Object.entries(next)
+        .filter(([, value]) => value === "cup")
+        .map(([m]) => m)
+        .sort();
+
+      void applySetupAndRefreshPlan({
+        ...setup,
+        weekAssignments: next,
+        cup: {
+          ...setup.cup,
+          weekMode: cupWeeks.length > 0 ? "manual" : "auto",
+          preferredWeeks: cupWeeks,
+        },
+      });
+
+      toast({
+        title: phase
+          ? `Week op ${WEEK_PHASE_LABELS[phase].toLowerCase()} gezet`
+          : "Week terug automatisch",
+        description: `${formatWeekLabel(monday)}${
+          phase === "free" ? " wordt vrijgehouden." : phase ? "" : " volgt opnieuw het voorstel."
+        }`,
+      });
+    },
+    [
+      effectiveAssignments,
+      setup,
+      phaseNeeds,
+      phaseCounts,
+      plan,
+      applySetupAndRefreshPlan,
+      toast,
+    ],
+  );
 
   const handleUnifiedPreview = useCallback(async (opts?: {
     allowDualMatchWeek?: boolean;
@@ -996,9 +1057,10 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
             <CardHeader>
               <CardTitle className="text-base">Weekstrook</CardTitle>
               <CardDescription>
-                {setup.systems.cup
-                  ? "Tik op weken voor beker. Vakantieweken kun je uitzonderlijk speelbaar maken. Blijven er na de beker speelmomenten vrij, dan vult de competitie die op met ploegen die die week geen beker spelen."
-                  : "Effectieve capaciteit per week. Tik op een vakantieweek om die uitzonderlijk speelbaar te maken."}
+                Tik op een week en kies zelf de fase: competitie, beker, play-off of
+                vrijhouden. Weken zonder keuze vult de planner automatisch in. Is een fase
+                al volzet, dan moet je eerst een andere week vrijzetten. Vakantieweken kun
+                je in hetzelfde menu uitzonderlijk speelbaar maken.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1176,11 +1238,17 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   const isCupAssigned = week.phases.includes("cup");
                   const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
                   const selectability = weekAdvice?.selectability;
-                  const cupInteractive = Boolean(setup.systems.cup);
-                  const vacationInteractive = isVacation || isVacationException;
+                  const manualBadgePhase = effectiveAssignments[monday];
 
                   // One status badge max — keeps week cards same height when selected
-                  const statusBadge = isVacationException ? (
+                  const statusBadge = manualBadgePhase ? (
+                    <Badge
+                      variant="outline"
+                      className="w-fit text-[10px] px-1.5 py-0 border-primary/60 text-primary"
+                    >
+                      Vast: {WEEK_PHASE_LABELS[manualBadgePhase].toLowerCase()}
+                    </Badge>
+                  ) : isVacationException ? (
                     <Badge
                       variant="outline"
                       className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
@@ -1257,21 +1325,8 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     </>
                   );
 
-                  const handleWeekClick = () => {
-                    if (isVacation) {
-                      togglePlayableVacationWeek(monday);
-                      return;
-                    }
-                    if (isVacationException && !cupInteractive) {
-                      togglePlayableVacationWeek(monday);
-                      return;
-                    }
-                    if (cupInteractive) {
-                      toggleCupWeek(monday);
-                    }
-                  };
-
-                  const isInteractive = vacationInteractive || cupInteractive;
+                  const manualPhase = effectiveAssignments[monday];
+                  const isInteractive = true;
 
                   if (!isInteractive) {
                     return (
@@ -1290,6 +1345,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   }
 
                   const isSelectedVisual =
+                    Boolean(manualPhase) ||
                     isCupPreferred ||
                     (isCupAssigned && cupWeekMode === "auto" && !weekAdvice?.blockReason) ||
                     isVacationException;
@@ -1311,43 +1367,19 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
 
                   return (
                     <li key={monday} className="h-full flex flex-col gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        onClick={handleWeekClick}
-                        aria-pressed={
-                          isVacation
-                            ? false
-                            : isVacationException || isCupPreferred || isCupAssigned
-                        }
-                        aria-disabled={
-                          !isVacation &&
-                          selectability === "blocked" &&
-                          !isCupPreferred &&
-                          !isVacationException
-                        }
-                        aria-label={
-                          isVacation
-                            ? `Week ${formatWeekLabel(monday)} uitzonderlijk speelbaar maken`
-                            : !cupInteractive && isVacationException
-                              ? `Uitzondering voor week ${formatWeekLabel(monday)} verwijderen`
-                              : selectability === "blocked" && !isCupPreferred
-                                ? `Week ${formatWeekLabel(monday)} niet beschikbaar voor beker`
-                                : `Week ${formatWeekLabel(monday)} ${
-                                    isCupPreferred
-                                      ? "als bekerweek demarkeren"
-                                      : "als bekerweek markeren"
-                                  }`
-                        }
+                        aria-haspopup="menu"
+                        aria-label={`Week ${formatWeekLabel(monday)} — fase kiezen (competitie, beker, play-off of vrijhouden)`}
                         title={
                           isVacation
-                            ? "Tik om deze vakantieweek speelbaar te maken"
-                            : isVacationException && !cupInteractive
-                              ? "Tik om uitzondering te verwijderen"
-                              : weekAdvice?.blockReason ??
-                                weekAdvice?.warningWhileSelected ??
-                                weekAdvice?.warningOnSelect ??
-                                week.sharedDayHint ??
-                                undefined
+                            ? "Vakantieweek — open het menu om die toch speelbaar te maken"
+                            : weekAdvice?.blockReason ??
+                              weekAdvice?.warningWhileSelected ??
+                              week.sharedDayHint ??
+                              "Open het menu om de fase van deze week te kiezen"
                         }
                         className={cn(
                           "w-full h-full rounded-lg border p-2 min-h-[7.5rem] flex flex-col gap-1 text-left",
@@ -1359,6 +1391,63 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                       >
                         {content}
                       </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                          <DropdownMenuLabel className="text-xs">
+                            Week {formatWeekLabel(monday)}
+                            {manualPhase
+                              ? ` · handmatig: ${WEEK_PHASE_LABELS[manualPhase].toLowerCase()}`
+                              : " · automatisch"}
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {isVacation && !isVacationException ? (
+                            <DropdownMenuItem onSelect={() => togglePlayableVacationWeek(monday)}>
+                              Vakantieweek toch speelbaar maken
+                            </DropdownMenuItem>
+                          ) : (
+                            <>
+                              <DropdownMenuItem
+                                disabled={!setup.systems.competition}
+                                onSelect={() => setWeekPhase(monday, "competition")}
+                              >
+                                Competitie ({phaseCounts.competition}/{phaseNeeds.competition})
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!setup.systems.cup}
+                                onSelect={() => setWeekPhase(monday, "cup")}
+                              >
+                                Beker ({phaseCounts.cup}/{phaseNeeds.cup})
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!setup.systems.playoffs}
+                                onSelect={() => setWeekPhase(monday, "playoff")}
+                              >
+                                Play-off ({phaseCounts.playoff}/{phaseNeeds.playoff})
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => setWeekPhase(monday, "free")}>
+                                Vrijhouden (geen wedstrijden)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!manualPhase}
+                                onSelect={() => setWeekPhase(monday, null)}
+                              >
+                                Automatisch laten kiezen
+                              </DropdownMenuItem>
+                              {isVacationException ? (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onSelect={() => togglePlayableVacationWeek(monday)}
+                                  >
+                                    Vakantie-uitzondering verwijderen
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       {isVacationException ? (
                         <button
                           type="button"

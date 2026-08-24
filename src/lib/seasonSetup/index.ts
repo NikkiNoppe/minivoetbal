@@ -4,6 +4,7 @@ export type {
   SeasonSetupCup,
   SeasonSetupPlayoffs,
   SeasonSetupSystems,
+  SeasonSetupWeekPhase,
 } from "./types";
 export {
   SEASON_SETUP_FORMAT_ID,

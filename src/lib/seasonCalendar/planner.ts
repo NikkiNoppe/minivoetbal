@@ -349,7 +349,15 @@ export function buildSeasonPlan(
     vacations,
     playableVacationWeeks,
   });
-  const usable = playable.filter((m) => capacityForWeek(grids, m) > 0);
+  const manualWeeks = input.manualWeeks ?? {};
+  const manualFreeSet = new Set(
+    Object.entries(manualWeeks)
+      .filter(([, value]) => value === "free")
+      .map(([monday]) => toMondayIso(monday)),
+  );
+  const usable = playable.filter(
+    (m) => capacityForWeek(grids, m) > 0 && !manualFreeSet.has(m),
+  );
   const nominal = Math.max(1, input.slotDetails.length || 7);
   const effectiveSlots = resolveEffectiveSlotsPerWeek(grids, nominal);
 
@@ -358,9 +366,23 @@ export function buildSeasonPlan(
 
   const strategy = input.phaseStrategy ?? "balanced";
 
-  // (a) Playoffs: laatste N bruikbare weken
+  // Handmatige weektoewijzingen (weekstrook) — deze staan vast.
+  const manualFor = (phase: "competition" | "cup" | "playoff") =>
+    Object.entries(manualWeeks)
+      .filter(([, value]) => value === phase)
+      .map(([monday]) => toMondayIso(monday))
+      .filter((m) => usable.includes(m))
+      .sort();
+  const manualCup = manualFor("cup");
+  const manualPlayoff = manualFor("playoff");
+  const manualCompetition = manualFor("competition");
+
+  // (a) Playoffs: handmatig gekozen weken, anders de laatste N bruikbare weken
   const playoffNeed = Math.max(0, Math.floor(input.playoffMatchdays));
-  const playoffWeeks = usable.slice(Math.max(0, usable.length - playoffNeed));
+  const playoffWeeks =
+    manualPlayoff.length > 0
+      ? manualPlayoff
+      : usable.slice(Math.max(0, usable.length - playoffNeed));
   const playoffSet = new Set(playoffWeeks);
 
   // (a2) Competitievraag in weken (nodig vóór de bekerkeuze bij "competitie eerst").
@@ -378,16 +400,23 @@ export function buildSeasonPlan(
   // Competitie eerst: de vroegste weken zijn competitie, beker/playoffs komen daarna.
   const competitionFirstWeeks =
     strategy === "competition-first" && weeksNeededComp > 0
-      ? usable.filter((m) => !playoffSet.has(m)).slice(0, weeksNeededComp)
+      ? usable
+          .filter((m) => !playoffSet.has(m) && !manualCup.includes(m))
+          .slice(0, weeksNeededComp)
       : [];
 
   // (b) Cup on remaining
   const cup = reserveCupWeeks({
     ...input,
     cupTeamCount: input.cupTeamCount,
-    reservedMondays: [...playoffWeeks, ...competitionFirstWeeks],
-    preferredMondays: input.cupPreferredWeeks,
-    weekMode: input.cupWeekMode,
+    reservedMondays: [
+      ...playoffWeeks,
+      ...competitionFirstWeeks,
+      ...manualCompetition,
+      ...manualFreeSet,
+    ].filter((m) => !manualCup.includes(m)),
+    preferredMondays: manualCup.length > 0 ? manualCup : input.cupPreferredWeeks,
+    weekMode: manualCup.length > 0 ? "manual" : input.cupWeekMode,
     playableVacationWeeks,
   });
   const cupSet = new Set(cup.dates);
@@ -434,10 +463,17 @@ export function buildSeasonPlan(
   // Nooit méér competitieweken markeren dan er speeldagen nodig zijn: de vroegste
   // weken eerst (chronologisch), de rest blijft "vrij" als buffer.
   const competitionAssigned = (() => {
-    if (weeksNeededComp <= 0) return [];
-    if (strategy === "competition-first") return [...competitionFirstWeeks].sort();
-    const pool = [...new Set([...exclusiveComp, ...sharedCompCandidates])].sort();
-    return pool.slice(0, weeksNeededComp);
+    const manualComp = manualCompetition.filter((m) => !playoffSet.has(m));
+    if (weeksNeededComp <= 0) return manualComp;
+    if (manualComp.length >= weeksNeededComp) return [...manualComp].sort();
+    const base =
+      strategy === "competition-first"
+        ? [...competitionFirstWeeks]
+        : [...new Set([...exclusiveComp, ...sharedCompCandidates])];
+    const pool = base
+      .filter((m) => !manualComp.includes(m) && !manualCup.includes(m))
+      .sort();
+    return [...manualComp, ...pool.slice(0, weeksNeededComp - manualComp.length)].sort();
   })();
   const competitionSet = new Set(competitionAssigned);
 

@@ -12,7 +12,22 @@ import {
   type SeasonSetupCup,
   type SeasonSetupPlayoffs,
   type SeasonSetupSystems,
+  type SeasonSetupWeekPhase,
 } from "./types";
+
+const WEEK_PHASES: SeasonSetupWeekPhase[] = ["competition", "cup", "playoff", "free"];
+
+function normalizeWeekAssignments(raw: unknown): Record<string, SeasonSetupWeekPhase> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, SeasonSetupWeekPhase> = {};
+  for (const [monday, phase] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(monday)) continue;
+    if (typeof phase !== "string") continue;
+    if (!WEEK_PHASES.includes(phase as SeasonSetupWeekPhase)) continue;
+    out[monday] = phase as SeasonSetupWeekPhase;
+  }
+  return out;
+}
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const n = typeof value === "number" ? value : Number(value);
@@ -55,6 +70,7 @@ export function createDefaultSeasonSetup(teamCount = 14): SeasonSetup {
     },
     playableVacationWeeks: [],
     phaseStrategy: "balanced",
+    weekAssignments: {},
   };
 }
 
@@ -162,6 +178,7 @@ export function normalizeSeasonSetup(
     playableVacationWeeks: normalizeIsoMondays(raw.playableVacationWeeks),
     phaseStrategy:
       raw.phaseStrategy === "competition-first" ? "competition-first" : "balanced",
+    weekAssignments: normalizeWeekAssignments(raw.weekAssignments),
 
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
   };

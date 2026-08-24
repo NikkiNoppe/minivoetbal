@@ -97,7 +97,15 @@ export type SeasonDemand = {
    * ISO-maandagen die speelbaar blijven ondanks vakantie (seizoensopzet-uitzondering).
    */
   playableVacationWeeks?: string[];
+  /**
+   * Handmatige fase-toewijzing per week (ISO-maandag → fase). Deze weken worden
+   * vastgezet; de planner vult alleen de rest aan.
+   */
+  manualWeeks?: Record<string, ManualWeekPhase>;
 };
+
+/** Fasen die je handmatig aan een week kunt toewijzen. */
+export type ManualWeekPhase = "competition" | "cup" | "playoff" | "free";
 
 export type SeasonPlan = {
   weeks: SeasonWeekPlan[];

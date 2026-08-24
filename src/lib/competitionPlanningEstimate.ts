@@ -37,6 +37,14 @@ export function isDateInVacationPeriod(
     const start = new Date(`${vacation.start_date.split("T")[0]}T12:00:00`);
     const end = new Date(`${vacation.end_date.split("T")[0]}T12:00:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    if (end < start) {
+      // Typfout in het jaartal (bv. eind 2026-01-10 bij start 2026-12-22):
+      // corrigeer de einddatum naar het volgende jaar i.p.v. de vakantie te negeren.
+      const fixed = new Date(end);
+      fixed.setFullYear(start.getFullYear() + 1);
+      if (fixed >= start) return d >= start && d <= fixed;
+      return false;
+    }
     return d >= start && d <= end;
   });
 }
