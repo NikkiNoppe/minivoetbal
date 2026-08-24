@@ -393,16 +393,22 @@ export function buildSeasonPlan(
   // Competitie eerst: de vroegste weken zijn competitie, beker/playoffs komen daarna.
   const competitionFirstWeeks =
     strategy === "competition-first" && weeksNeededComp > 0
-      ? usable.filter((m) => !playoffSet.has(m)).slice(0, weeksNeededComp)
+      ? usable
+          .filter((m) => !playoffSet.has(m) && !manualCup.includes(m))
+          .slice(0, weeksNeededComp)
       : [];
 
   // (b) Cup on remaining
   const cup = reserveCupWeeks({
     ...input,
     cupTeamCount: input.cupTeamCount,
-    reservedMondays: [...playoffWeeks, ...competitionFirstWeeks],
-    preferredMondays: input.cupPreferredWeeks,
-    weekMode: input.cupWeekMode,
+    reservedMondays: [
+      ...playoffWeeks,
+      ...competitionFirstWeeks,
+      ...manualCompetition,
+    ].filter((m) => !manualCup.includes(m)),
+    preferredMondays: manualCup.length > 0 ? manualCup : input.cupPreferredWeeks,
+    weekMode: manualCup.length > 0 ? "manual" : input.cupWeekMode,
     playableVacationWeeks,
   });
   const cupSet = new Set(cup.dates);
