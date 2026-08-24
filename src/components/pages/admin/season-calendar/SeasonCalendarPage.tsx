@@ -1243,53 +1243,15 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   const isCupPreferred = preferredCupSet.has(monday);
                   const isCupAssigned = week.phases.includes("cup");
                   const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
-                  const selectability = weekAdvice?.selectability;
-                  
-
-                  // One status badge max — keeps week cards same height when selected
-                  const statusBadge = isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
-                    <Badge
-                      variant="secondary"
-                      className="w-fit text-[10px] px-1.5 py-0 bg-sky-100 text-sky-950"
-                    >
-                      {isCupPreferred ? "Bekerkeuze" : "Beker"}
-                    </Badge>
-                  ) : selectability === "suggested" ? (
-                    <Badge
-                      variant="outline"
-                      className="w-fit text-[10px] px-1.5 py-0 border-dashed border-primary/50 text-primary"
-                    >
-                      Voorstel
-                    </Badge>
-                  ) : selectability === "tight" ? (
-                    <Badge
-                      variant="outline"
-                      className="w-fit text-[10px] px-1.5 py-0 border-orange-400/70 text-orange-950 bg-orange-50"
-                    >
-                      Krap
-                    </Badge>
-                  ) : null;
 
                   const content = (
                     <>
                       <span className="text-xs font-medium tabular-nums">
                         {formatWeekLabel(monday)}
                       </span>
-                      <div className="flex flex-wrap items-center gap-1 min-h-[18px]">
-                        {isShared ? (
-                          <Badge
-                            variant="outline"
-                            className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
-                          >
-                            Gedeeld
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0">
-                            {style.label}
-                          </Badge>
-                        )}
-                        {statusBadge}
-                      </div>
+                      <span className="text-xs font-medium opacity-90">
+                        {isShared ? "Gedeeld" : style.label}
+                      </span>
                       {week.sharedDayHint ? (
                         <span
                           className="text-[10px] leading-tight text-muted-foreground line-clamp-1"
