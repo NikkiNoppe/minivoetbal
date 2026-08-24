@@ -731,9 +731,13 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
         weekAssignments: next,
         cup: {
           ...setup.cup,
-          weekMode: cupWeeks.length > 0 ? "manual" : "auto",
+          // Eenmaal handmatig blijft handmatig: bij deselecteren wordt de week
+          // niet automatisch elders ingevuld — de gebruiker kiest zelf.
+          weekMode:
+            cupWeeks.length > 0 || cupWeekMode === "manual" ? "manual" : "auto",
           preferredWeeks: cupWeeks,
         },
+
       });
 
       toast({
