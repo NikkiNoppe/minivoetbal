@@ -1425,40 +1425,15 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        aria-pressed={
-                          isVacation
-                            ? false
-                            : isVacationException || isCupPreferred || isCupAssigned
-                        }
-                        aria-disabled={
-                          !isVacation &&
-                          selectability === "blocked" &&
-                          !isCupPreferred &&
-                          !isVacationException
-                        }
-                        aria-label={
-                          isVacation
-                            ? `Week ${formatWeekLabel(monday)} uitzonderlijk speelbaar maken`
-                            : isVacationException
-                              ? `Uitzondering voor week ${formatWeekLabel(monday)} verwijderen`
-                              : selectability === "blocked" && !isCupPreferred
-                                ? `Week ${formatWeekLabel(monday)} niet beschikbaar voor beker`
-                                : `Week ${formatWeekLabel(monday)} ${
-                                    isCupPreferred
-                                      ? "als bekerweek demarkeren"
-                                      : "als bekerweek markeren"
-                                  }`
-                        }
+                        aria-haspopup="menu"
+                        aria-label={`Week ${formatWeekLabel(monday)} — fase kiezen (competitie, beker, play-off of vrijhouden)`}
                         title={
                           isVacation
-                            ? "Tik om deze vakantieweek speelbaar te maken"
-                            : isVacationException
-                              ? "Tik om uitzondering te verwijderen"
-                              : weekAdvice?.blockReason ??
-                                weekAdvice?.warningWhileSelected ??
-                                weekAdvice?.warningOnSelect ??
-                                week.sharedDayHint ??
-                                undefined
+                            ? "Vakantieweek — open het menu om die toch speelbaar te maken"
+                            : weekAdvice?.blockReason ??
+                              weekAdvice?.warningWhileSelected ??
+                              week.sharedDayHint ??
+                              "Open het menu om de fase van deze week te kiezen"
                         }
                         className={cn(
                           "w-full h-full rounded-lg border p-2 min-h-[7.5rem] flex flex-col gap-1 text-left",
