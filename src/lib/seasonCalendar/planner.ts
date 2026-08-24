@@ -358,9 +358,24 @@ export function buildSeasonPlan(
 
   const strategy = input.phaseStrategy ?? "balanced";
 
-  // (a) Playoffs: laatste N bruikbare weken
+  // Handmatige weektoewijzingen (weekstrook) — deze staan vast.
+  const manualWeeks = input.manualWeeks ?? {};
+  const manualFor = (phase: "competition" | "cup" | "playoff") =>
+    Object.entries(manualWeeks)
+      .filter(([, value]) => value === phase)
+      .map(([monday]) => toMondayIso(monday))
+      .filter((m) => usable.includes(m))
+      .sort();
+  const manualCup = manualFor("cup");
+  const manualPlayoff = manualFor("playoff");
+  const manualCompetition = manualFor("competition");
+
+  // (a) Playoffs: handmatig gekozen weken, anders de laatste N bruikbare weken
   const playoffNeed = Math.max(0, Math.floor(input.playoffMatchdays));
-  const playoffWeeks = usable.slice(Math.max(0, usable.length - playoffNeed));
+  const playoffWeeks =
+    manualPlayoff.length > 0
+      ? manualPlayoff
+      : usable.slice(Math.max(0, usable.length - playoffNeed));
   const playoffSet = new Set(playoffWeeks);
 
   // (a2) Competitievraag in weken (nodig vóór de bekerkeuze bij "competitie eerst").
