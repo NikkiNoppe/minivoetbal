@@ -561,15 +561,18 @@ const PlayOffPage: React.FC = () => {
   }, []);
 
   if (isLoading) {
-    return <PlayoffLoading />;
+    return <PlayoffLoading subtitle={seasonSubtitle} />;
   }
 
   if (error) {
-    return <PlayoffError onRetry={() => refetch()} />;
+    return <PlayoffError subtitle={seasonSubtitle} />;
   }
 
-  if (!data?.hasData) {
-    return <PlayoffEmptyState />;
+  const hasStandings =
+    (data?.po1Teams?.length ?? 0) > 0 || (data?.po2Teams?.length ?? 0) > 0;
+
+  if (!data?.hasData || !hasStandings) {
+    return <PlayoffEmptyState subtitle={seasonSubtitle} />;
   }
 
   const { po1Teams, po2Teams, headToHeadMatches = [] } = data;
@@ -594,8 +597,9 @@ const PlayOffPage: React.FC = () => {
       <PageHeader
         title="Play-Off"
         icon={Target}
-        subtitle="Seizoen 2025-2026"
+        subtitle={seasonSubtitle}
       />
+
 
       <section role="region" aria-labelledby="po1-heading">
         <h2
