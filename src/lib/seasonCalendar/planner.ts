@@ -356,28 +356,16 @@ export function buildSeasonPlan(
   const notes: string[] = [];
   const rationale: string[] = [];
 
+  const strategy = input.phaseStrategy ?? "balanced";
+
   // (a) Playoffs: laatste N bruikbare weken
   const playoffNeed = Math.max(0, Math.floor(input.playoffMatchdays));
   const playoffWeeks = usable.slice(Math.max(0, usable.length - playoffNeed));
   const playoffSet = new Set(playoffWeeks);
 
-  // (b) Cup on remaining
-  const cup = reserveCupWeeks({
-    ...input,
-    cupTeamCount: input.cupTeamCount,
-    reservedMondays: playoffWeeks,
-    preferredMondays: input.cupPreferredWeeks,
-    weekMode: input.cupWeekMode,
-    playableVacationWeeks,
-  });
-  const cupSet = new Set(cup.dates);
-
-  // (c) Competitie: eerst exclusieve weken (zonder beker), daarna bekerweken waar
-  // na de beker nog speelmomenten vrij blijven. Zelfde beleid als de generator:
-  // ploegen zonder beker die week mogen die resterende momenten gebruiken.
-  const competitionCandidates = usable.filter((m) => !playoffSet.has(m));
+  // (a2) Competitievraag in weken (nodig vóór de bekerkeuze bij "competitie eerst").
   // Weken = max(capaciteit, speeldagen): een ploeg speelt ≤1×/week, dus speeldagen
-  // domineren bij oneven reeksen (anders blijven late weken ten onrechte “vrij”).
+  // domineren bij oneven reeksen.
   const weeksNeededComp = (() => {
     const matchdays = Math.max(0, Math.floor(input.competitionMatchdays ?? 0));
     const matches = Math.max(0, Math.floor(input.competitionMatches));
@@ -387,9 +375,33 @@ export function buildSeasonPlan(
     return Math.max(byCapacity, matchdays);
   })();
 
+  // Competitie eerst: de vroegste weken zijn competitie, beker/playoffs komen daarna.
+  const competitionFirstWeeks =
+    strategy === "competition-first" && weeksNeededComp > 0
+      ? usable.filter((m) => !playoffSet.has(m)).slice(0, weeksNeededComp)
+      : [];
+
+  // (b) Cup on remaining
+  const cup = reserveCupWeeks({
+    ...input,
+    cupTeamCount: input.cupTeamCount,
+    reservedMondays: [...playoffWeeks, ...competitionFirstWeeks],
+    preferredMondays: input.cupPreferredWeeks,
+    weekMode: input.cupWeekMode,
+    playableVacationWeeks,
+  });
+  const cupSet = new Set(cup.dates);
+
+
+  // (c) Competitie: eerst exclusieve weken (zonder beker), daarna bekerweken waar
+  // na de beker nog speelmomenten vrij blijven. Zelfde beleid als de generator:
+  // ploegen zonder beker die week mogen die resterende momenten gebruiken.
+  const competitionCandidates = usable.filter((m) => !playoffSet.has(m));
+
   const exclusiveComp = competitionCandidates.filter((m) => !cupSet.has(m));
   const hasWeekShortage = exclusiveComp.length < weeksNeededComp;
   const canShareByDay = cup.daySeparation.separated;
+
 
   // Hoeveel momenten de beker per bekerweek nodig heeft — zelfde verdeling als
   // de bekergenerator (ronde na ronde, per week tot de slotcapaciteit vol is).
@@ -419,12 +431,16 @@ export function buildSeasonPlan(
           capacityForWeek(grids, m) > (cupSlotsPerCupWeek.get(m) ?? 0),
       )
     : [];
-  // Alle bruikbare weken blijven beschikbaar voor competitie (niet alleen de
-  // eerste N) — anders blijven late weken (mei/juni) ten onrechte “vrij” terwijl
-  // packing ze wél nodig heeft bij bekerconflicten eerder in het seizoen.
-  const competitionAssigned =
-    weeksNeededComp <= 0 ? [] : [...exclusiveComp, ...sharedCompCandidates];
+  // Nooit méér competitieweken markeren dan er speeldagen nodig zijn: de vroegste
+  // weken eerst (chronologisch), de rest blijft "vrij" als buffer.
+  const competitionAssigned = (() => {
+    if (weeksNeededComp <= 0) return [];
+    if (strategy === "competition-first") return [...competitionFirstWeeks].sort();
+    const pool = [...new Set([...exclusiveComp, ...sharedCompCandidates])].sort();
+    return pool.slice(0, weeksNeededComp);
+  })();
   const competitionSet = new Set(competitionAssigned);
+
 
   const sharedCupMondays = cup.dates.filter((d) => competitionSet.has(d));
   const daySeparation = cup.daySeparation;
@@ -523,6 +539,11 @@ export function buildSeasonPlan(
   );
 
   rationale.push("Playoffs gereserveerd aan het einde van het seizoen.");
+  if (strategy === "competition-first") {
+    rationale.push(
+      `Competitie eerst: de ${competitionAssigned.length} vroegste speelweken zijn competitie, beker en play-offs volgen daarna.`,
+    );
+  }
   if (input.cupWeekMode === "manual" && (input.cupPreferredWeeks?.length ?? 0) > 0) {
     rationale.push("Bekerweken handmatig gestuurd via de weekstrook.");
   } else {

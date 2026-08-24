@@ -54,6 +54,12 @@ export type SeasonSetup = {
    * Vakantie blijft in Instellingen staan; packing mag deze weken wél gebruiken.
    */
   playableVacationWeeks?: string[];
+  /**
+   * Volgorde van de blokken in de kalender.
+   * balanced = planner kiest · competition-first = competitie vooraan (bv. tot nieuwjaar),
+   * beker en play-offs daarna.
+   */
+  phaseStrategy?: "balanced" | "competition-first";
   updatedAt?: string;
 };
 

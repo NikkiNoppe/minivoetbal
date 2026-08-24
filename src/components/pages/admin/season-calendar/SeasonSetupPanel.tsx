@@ -237,9 +237,42 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                 );
               })}
             </ul>
+
+            <div className="space-y-1.5 pt-1">
+              <Label htmlFor="setup-phase-strategy">Volgorde in de kalender</Label>
+              <Select
+                value={setup.phaseStrategy ?? "balanced"}
+                disabled={disabled}
+                onValueChange={(v) =>
+                  onChange({
+                    ...setup,
+                    phaseStrategy:
+                      v === "competition-first" ? "competition-first" : "balanced",
+                  })
+                }
+              >
+                <SelectTrigger id="setup-phase-strategy" className="min-h-[44px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="balanced">
+                    Automatisch spreiden (beker tussen de competitie)
+                  </SelectItem>
+                  <SelectItem value="competition-first">
+                    Competitie eerst, daarna beker &amp; play-offs
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                “Competitie eerst” vult de vroegste speelweken met competitie (bv. tot
+                nieuwjaar) en zet beker en play-offs in de weken daarna. Individuele
+                bekerweken blijf je zelf aanklikken in de weekstrook.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </section>
+
 
       {hasDetailSections ? (
         <section className="space-y-3" aria-labelledby="season-setup-details-heading">

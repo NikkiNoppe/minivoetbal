@@ -54,6 +54,7 @@ export function createDefaultSeasonSetup(teamCount = 14): SeasonSetup {
       rounds: 2,
     },
     playableVacationWeeks: [],
+    phaseStrategy: "balanced",
   };
 }
 
@@ -159,6 +160,9 @@ export function normalizeSeasonSetup(
     cup: normalizeCup(raw.cup, teamCount),
     playoffs: normalizePlayoffs(raw.playoffs),
     playableVacationWeeks: normalizeIsoMondays(raw.playableVacationWeeks),
+    phaseStrategy:
+      raw.phaseStrategy === "competition-first" ? "competition-first" : "balanced",
+
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
   };
 }
