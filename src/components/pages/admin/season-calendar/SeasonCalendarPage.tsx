@@ -1240,8 +1240,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     week.configAvailableCount <= 0 || week.phases.includes("blocked");
                   const isVacation = week.phases.includes("vacation");
                   const isVacationException = playableVacationSet.has(monday);
-                  const isCupPreferred = preferredCupSet.has(monday);
-                  const isCupAssigned = week.phases.includes("cup");
                   const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
 
                   const content = (
