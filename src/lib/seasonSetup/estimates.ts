@@ -83,6 +83,19 @@ export function estimatePlayoffMatchdays(setup: SeasonSetup): number {
   return Math.max(2, setup.playoffs.rounds * 2);
 }
 
+/**
+ * Wedstrijden-schatting play-offs: per speeldag spelen top- en bottomgroep
+ * parallel (elk floor(n/2) wedstrijden).
+ */
+export function estimatePlayoffMatches(setup: SeasonSetup): number {
+  if (!setup.systems.playoffs) return 0;
+  const perMatchday =
+    Math.floor(Math.max(0, setup.playoffs.topTeams) / 2) +
+    Math.floor(Math.max(0, setup.playoffs.bottomTeams) / 2);
+  return estimatePlayoffMatchdays(setup) * perMatchday;
+}
+
+
 export function resolveCupTeamCount(setup: SeasonSetup, liveTeamCount: number): number {
   if (!setup.systems.cup) return 0;
   if (setup.cup.useAllTeams) return Math.max(2, liveTeamCount);
