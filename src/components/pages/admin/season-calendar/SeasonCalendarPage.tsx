@@ -1314,24 +1314,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     );
                   }
 
-                  const isPlayoffWeek = week.phases.includes("playoff");
                   const ringClass = isVacation
                     ? "opacity-80 hover:opacity-100 border-dashed"
-                    : isVacationException
-                      ? "ring-2 ring-sky-500 border-sky-500"
-                      : isPlayoffWeek
-                        ? "ring-2 ring-emerald-500 border-emerald-500"
-                        : selectability === "blocked" && !isBlocked
-                          ? null
-                          : selectability === "blocked"
-                            ? "opacity-55"
-                            : isCupPreferred && selectability === "tight"
-                              ? "ring-2 ring-orange-500 border-orange-500"
-                              : selectability === "suggested"
-                                ? "border-2 border-dashed border-primary/50"
-                                : selectability === "tight"
-                                  ? "ring-1 ring-orange-300/80 border-orange-300/60"
-                                  : null;
+                    : isBlocked
+                      ? "opacity-55"
+                      : null;
 
 
                   return (
