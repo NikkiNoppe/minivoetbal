@@ -202,8 +202,9 @@ export function reserveCupWeeks(input: {
 
   let dates: string[] = [];
 
-  if (weekMode === "manual" && preferredUsable.length > 0) {
-    // Handmatig: gebruik gekozen weken chronologisch; vul aan met auto als te weinig.
+  if (weekMode === "manual") {
+    // Handmatig: exact de gekozen weken — nooit automatisch aanvullen.
+
     if (preferredUsable.length >= required) {
       const spacedIdx = pickSpacedIndices(preferredUsable.length, required);
       dates = spacedIdx.map((i) => preferredUsable[i]).sort();
@@ -211,18 +212,16 @@ export function reserveCupWeeks(input: {
         `Bekerweken handmatig gestuurd: ${preferredUsable.length} gekozen, ${required} gebruikt (gespreid).`,
       );
     } else {
-      dates = [...preferredUsable];
-      const used = new Set(dates);
-      for (const m of sortByScore(usable)) {
-        if (dates.length >= required) break;
-        if (!used.has(m)) dates.push(m);
-      }
-      dates = dates.sort().slice(0, required);
+      // Handmatige modus = volledige controle: NIET automatisch aanvullen.
+      dates = [...preferredUsable].sort();
       notes.push(
-        `Handmatig ${preferredUsable.length}/${required} bekerweken gekozen — rest automatisch aangevuld.`,
+        `Handmatig ${preferredUsable.length}/${required} bekerweken gekozen — kies de resterende week(en) zelf.`,
       );
-      rationale.push("Geselecteerde bekerweken eerst; ontbrekende weken via capaciteit.");
+      rationale.push(
+        "Handmatige bekerweken worden exact gevolgd; er wordt niets automatisch bijgeplaatst.",
+      );
     }
+
   } else {
     // Efficiency first: kies weken met genoeg capaciteit voor 1/8-dichtheid
     const firstRoundNeed = Math.max(1, bracket.firstRoundWeeks);
@@ -289,9 +288,12 @@ export function reserveCupWeeks(input: {
   }
   if (dates.length < required) {
     notes.push(
-      `Onvoldoende bruikbare weken: ${dates.length}/${required}. Verleng seizoen, verruim timeslot-geldigheid of verklein het deelnemersveld.`,
+      weekMode === "manual"
+        ? `Nog ${required - dates.length} bekerweek(en) te kiezen (${dates.length}/${required}). Selecteer zelf de gewenste week(en).`
+        : `Onvoldoende bruikbare weken: ${dates.length}/${required}. Verleng seizoen, verruim timeslot-geldigheid of verklein het deelnemersveld.`,
     );
   }
+
 
   rationale.push(
     "Weken met 0 effectieve slots (buiten timeslot-periode of volledig geblokkeerd) worden overgeslagen.",
