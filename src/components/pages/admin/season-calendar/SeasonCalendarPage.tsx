@@ -3,6 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/layout";
 import { AlertCircle, CalendarRange, Info, Loader2, Save, Sparkles, Wand2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +34,7 @@ import {
   createDefaultSeasonSetup,
   ensureAtLeastOneSystem,
   estimateCompetitionMatchdays,
+  estimatePlayoffMatchdays,
   getSeasonPreviewSession,
   mergeSeasonSetupIntoFormats,
   normalizeSeasonSetup,
@@ -34,6 +43,7 @@ import {
   subscribeSeasonPreviewSession,
   type SeasonPreviewProgress,
   type SeasonSetup,
+  type SeasonSetupWeekPhase,
   type UnifiedSeasonPreview,
 } from "@/lib/seasonSetup";
 import { getSuperAdminTenantById } from "@/config/superAdminTenants";
