@@ -1373,21 +1373,8 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     </>
                   );
 
-                  const handleWeekClick = () => {
-                    if (isVacation) {
-                      togglePlayableVacationWeek(monday);
-                      return;
-                    }
-                    if (isVacationException && !cupInteractive) {
-                      togglePlayableVacationWeek(monday);
-                      return;
-                    }
-                    if (cupInteractive) {
-                      toggleCupWeek(monday);
-                    }
-                  };
-
-                  const isInteractive = vacationInteractive || cupInteractive;
+                  const manualPhase = effectiveAssignments[monday];
+                  const isInteractive = true;
 
                   if (!isInteractive) {
                     return (
@@ -1406,6 +1393,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   }
 
                   const isSelectedVisual =
+                    Boolean(manualPhase) ||
                     isCupPreferred ||
                     (isCupAssigned && cupWeekMode === "auto" && !weekAdvice?.blockReason) ||
                     isVacationException;
@@ -1427,9 +1415,10 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
 
                   return (
                     <li key={monday} className="h-full flex flex-col gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        onClick={handleWeekClick}
                         aria-pressed={
                           isVacation
                             ? false
@@ -1475,6 +1464,63 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                       >
                         {content}
                       </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                          <DropdownMenuLabel className="text-xs">
+                            Week {formatWeekLabel(monday)}
+                            {manualPhase
+                              ? ` · handmatig: ${WEEK_PHASE_LABELS[manualPhase].toLowerCase()}`
+                              : " · automatisch"}
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {isVacation && !isVacationException ? (
+                            <DropdownMenuItem onSelect={() => togglePlayableVacationWeek(monday)}>
+                              Vakantieweek toch speelbaar maken
+                            </DropdownMenuItem>
+                          ) : (
+                            <>
+                              <DropdownMenuItem
+                                disabled={!setup.systems.competition}
+                                onSelect={() => setWeekPhase(monday, "competition")}
+                              >
+                                Competitie ({phaseCounts.competition}/{phaseNeeds.competition})
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!setup.systems.cup}
+                                onSelect={() => setWeekPhase(monday, "cup")}
+                              >
+                                Beker ({phaseCounts.cup}/{phaseNeeds.cup})
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!setup.systems.playoffs}
+                                onSelect={() => setWeekPhase(monday, "playoff")}
+                              >
+                                Play-off ({phaseCounts.playoff}/{phaseNeeds.playoff})
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => setWeekPhase(monday, "free")}>
+                                Vrijhouden (geen wedstrijden)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={!manualPhase}
+                                onSelect={() => setWeekPhase(monday, null)}
+                              >
+                                Automatisch laten kiezen
+                              </DropdownMenuItem>
+                              {isVacationException ? (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onSelect={() => togglePlayableVacationWeek(monday)}
+                                  >
+                                    Vakantie-uitzondering verwijderen
+                                  </DropdownMenuItem>
+                                </>
+                              ) : null}
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       {isVacationException ? (
                         <button
                           type="button"
