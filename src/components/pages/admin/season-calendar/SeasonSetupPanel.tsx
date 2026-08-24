@@ -522,7 +522,9 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                 defaultOpen={false}
                 badge={
                   <Badge variant="secondary" className="text-[10px] shrink-0">
-                    ~{estimatePlayoffMatchdays(setup)} speeldagen
+                    ~{estimatePlayoffMatches(setup)} wedstrijden ·{" "}
+                    {estimatePlayoffMatchdays(setup)} speeldagen
+
                   </Badge>
                 }
                 contentClassName="space-y-4"
