@@ -556,6 +556,7 @@ export function buildSeasonPlan(
       phases,
       freeCount: g.freeCount,
       configAvailableCount: g.configAvailableCount,
+      totalConfiguredCount: g.totalConfiguredCount,
       reservedCupSlots: cupSlots,
       reservedPlayoffSlots: playoffSet.has(weekMonday) ? g.freeCount : 0,
       reservedCompetitionSlots: compSlots,
