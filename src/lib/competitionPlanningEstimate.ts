@@ -37,7 +37,10 @@ export function isDateInVacationPeriod(
     const start = new Date(`${vacation.start_date.split("T")[0]}T12:00:00`);
     const end = new Date(`${vacation.end_date.split("T")[0]}T12:00:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-    return d >= start && d <= end;
+    // Tolerant voor omgedraaide datums (typfout in instellingen): vakantie blijft actief.
+    const from = start <= end ? start : end;
+    const until = start <= end ? end : start;
+    return d >= from && d <= until;
   });
 }
 
