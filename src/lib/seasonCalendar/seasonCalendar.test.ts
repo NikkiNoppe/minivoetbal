@@ -102,7 +102,6 @@ describe("buildConfigWeekGrid", () => {
     expect(paas).toBeTruthy();
     expect(paas!.phases).not.toContain("vacation");
     expect(paas!.freeCount).toBeGreaterThan(0);
-    expect(open.competitionWeeks).toContain("2027-04-05");
 
     const grid = buildConfigWeekGrid(
       "2027-04-05",
@@ -347,9 +346,8 @@ describe("buildSeasonPlan", () => {
     expect(plan.cupDates.length).toBe(plan.cupBracket.requiredWeeks);
   });
 
-  it("markeert alle exclusieve late weken als competitie i.p.v. vrij", () => {
-    // 11+11 × 3 rondes = 330 wedstrijden / 33 speeldagen.
-    // Voorheen: slice(0, ceil(matches/slots)) → mei/juni bleven “vrij”.
+  it("beperkt competitieweken tot het aantal benodigde speeldagen", () => {
+    // 11+11 × 3 rondes = 330 wedstrijden / 33 speeldagen: niet méér weken markeren.
     const slots = makeSlots(16);
     const plan = buildSeasonPlan({
       seasonStart: "2026-09-07",
@@ -362,22 +360,28 @@ describe("buildSeasonPlan", () => {
       playoffMatchdays: 2,
     });
 
-    expect(plan.competitionWeeks.length).toBeGreaterThanOrEqual(33);
+    expect(plan.competitionWeeks.length).toBeLessThanOrEqual(33);
+    expect(plan.competitionWeeks).toEqual([...plan.competitionWeeks].sort());
+  });
 
-    const lateExclusive = plan.weeks.filter(
-      (w) =>
-        w.weekMonday >= "2027-05-10" &&
-        w.weekMonday <= "2027-06-14" &&
-        !plan.cupDates.includes(w.weekMonday) &&
-        !plan.playoffWeeks.includes(w.weekMonday) &&
-        !w.phases.includes("vacation") &&
-        !w.phases.includes("blocked"),
-    );
-    expect(lateExclusive.length).toBeGreaterThan(0);
-    for (const w of lateExclusive) {
-      expect(plan.competitionWeeks).toContain(w.weekMonday);
-      expect(w.phases).toContain("competition");
-      expect(w.phases).not.toContain("free");
+  it("competition-first zet competitie op de vroegste weken en beker erna", () => {
+    const slots = makeSlots(8);
+    const plan = buildSeasonPlan({
+      seasonStart: "2026-09-07",
+      seasonEnd: "2027-06-21",
+      slotDetails: slots,
+      timeslots: slots.map((s) => s.timeslot!),
+      competitionMatches: 136,
+      competitionMatchdays: 17,
+      cupTeamCount: 16,
+      playoffMatchdays: 4,
+      phaseStrategy: "competition-first",
+    });
+
+    expect(plan.competitionWeeks.length).toBe(17);
+    const lastComp = plan.competitionWeeks[plan.competitionWeeks.length - 1];
+    for (const cupWeek of plan.cupDates) {
+      expect(cupWeek > lastComp).toBe(true);
     }
   });
 });
