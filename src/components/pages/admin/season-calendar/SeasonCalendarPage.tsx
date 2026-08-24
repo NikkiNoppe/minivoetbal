@@ -87,6 +87,13 @@ const PHASE_STYLES: Record<
   },
 };
 
+const WEEK_PHASE_LABELS: Record<SeasonSetupWeekPhase, string> = {
+  competition: "Competitie",
+  cup: "Beker",
+  playoff: "Play-off",
+  free: "Vrijhouden",
+};
+
 /** @deprecated Alleen voor type-compatibiliteit; hub heeft geen subtabs meer. */
 export type SeasonPlanningTab = "calendar" | "competition" | "cup" | "playoffs";
 
@@ -704,6 +711,105 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
       },
     });
   }, [setup, applySetupAndRefreshPlan]);
+
+  const effectiveAssignments = useMemo(() => {
+    const base: Record<string, SeasonSetupWeekPhase> = {};
+    if (cupWeekMode === "manual") {
+      for (const d of preferredCupWeeks) base[d.slice(0, 10)] = "cup";
+    }
+    return { ...base, ...(setup.weekAssignments ?? {}) };
+  }, [cupWeekMode, preferredCupWeeks, setup.weekAssignments]);
+
+  const phaseNeeds = useMemo(
+    () => ({
+      competition: setup.systems.competition ? estimateCompetitionMatchdays(setup) : 0,
+      cup: setup.systems.cup ? cupRequiredWeeks : 0,
+      playoff: setup.systems.playoffs ? estimatePlayoffMatchdays(setup) : 0,
+    }),
+    [setup, cupRequiredWeeks],
+  );
+
+  const phaseCounts = useMemo(
+    () => ({
+      competition: plan?.competitionWeeks.length ?? 0,
+      cup: plan?.cupDates.length ?? 0,
+      playoff: plan?.playoffWeeks.length ?? 0,
+    }),
+    [plan],
+  );
+
+  const setWeekPhase = useCallback(
+    (weekMonday: string, phase: SeasonSetupWeekPhase | null) => {
+      const monday = weekMonday.slice(0, 10);
+      const next: Record<string, SeasonSetupWeekPhase> = { ...effectiveAssignments };
+
+      if (phase && phase !== "free") {
+        const systemOn =
+          phase === "competition"
+            ? setup.systems.competition
+            : phase === "cup"
+              ? setup.systems.cup
+              : setup.systems.playoffs;
+        if (!systemOn) {
+          toast({
+            title: `${WEEK_PHASE_LABELS[phase]} staat uit`,
+            description: `Zet ${WEEK_PHASE_LABELS[phase].toLowerCase()} aan bij Speelsystemen voor je weken toewijst.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        const need = phaseNeeds[phase];
+        const already = phaseCounts[phase];
+        const weekPlan = plan?.weeks.find((w) => w.weekMonday.slice(0, 10) === monday);
+        const alreadyThisPhase =
+          effectiveAssignments[monday] === phase || Boolean(weekPlan?.phases.includes(phase));
+        if (need > 0 && already >= need && !alreadyThisPhase) {
+          toast({
+            title: `Maximum ${WEEK_PHASE_LABELS[phase].toLowerCase()}weken bereikt`,
+            description: `Er staan al ${already}/${need} ${WEEK_PHASE_LABELS[phase].toLowerCase()}weken in de kalender. Zet eerst een andere week op "Vrijhouden" en kies daarna deze week.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      if (phase === null) delete next[monday];
+      else next[monday] = phase;
+
+      const cupWeeks = Object.entries(next)
+        .filter(([, value]) => value === "cup")
+        .map(([m]) => m)
+        .sort();
+
+      void applySetupAndRefreshPlan({
+        ...setup,
+        weekAssignments: next,
+        cup: {
+          ...setup.cup,
+          weekMode: cupWeeks.length > 0 ? "manual" : "auto",
+          preferredWeeks: cupWeeks,
+        },
+      });
+
+      toast({
+        title: phase
+          ? `Week op ${WEEK_PHASE_LABELS[phase].toLowerCase()} gezet`
+          : "Week terug automatisch",
+        description: `${formatWeekLabel(monday)}${
+          phase === "free" ? " wordt vrijgehouden." : phase ? "" : " volgt opnieuw het voorstel."
+        }`,
+      });
+    },
+    [
+      effectiveAssignments,
+      setup,
+      phaseNeeds,
+      phaseCounts,
+      plan,
+      applySetupAndRefreshPlan,
+      toast,
+    ],
+  );
 
   const handleUnifiedPreview = useCallback(async (opts?: {
     allowDualMatchWeek?: boolean;
