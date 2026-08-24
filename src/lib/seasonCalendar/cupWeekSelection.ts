@@ -111,14 +111,13 @@ export function evaluateCupWeekSelection(
     if (blockReason) {
       selectability = "blocked";
     } else if (isSelected) {
-      selectability =
-        warningWhileSelected && (week.freeCount < minSlots || isCompetition)
-          ? "tight"
-          : "selected";
+      // "Krap" alleen bij écht te weinig speelmomenten — een competitieweek met
+      // voldoende slots is niet krap, die deelt gewoon de week met dagscheiding.
+      selectability = week.freeCount < minSlots ? "tight" : "selected";
     } else if (isAutoSuggested) {
       selectability = "suggested";
       suggestionMondays.push(monday);
-    } else if (warningOnSelect) {
+    } else if (week.freeCount < minSlots) {
       selectability = "tight";
     } else {
       selectability = "available";
