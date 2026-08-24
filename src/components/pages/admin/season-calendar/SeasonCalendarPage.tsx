@@ -1292,11 +1292,17 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   const isCupAssigned = week.phases.includes("cup");
                   const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
                   const selectability = weekAdvice?.selectability;
-                  const cupInteractive = Boolean(setup.systems.cup);
-                  const vacationInteractive = isVacation || isVacationException;
+                  const manualBadgePhase = effectiveAssignments[monday];
 
                   // One status badge max — keeps week cards same height when selected
-                  const statusBadge = isVacationException ? (
+                  const statusBadge = manualBadgePhase ? (
+                    <Badge
+                      variant="outline"
+                      className="w-fit text-[10px] px-1.5 py-0 border-primary/60 text-primary"
+                    >
+                      Vast: {WEEK_PHASE_LABELS[manualBadgePhase].toLowerCase()}
+                    </Badge>
+                  ) : isVacationException ? (
                     <Badge
                       variant="outline"
                       className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
@@ -1433,7 +1439,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         aria-label={
                           isVacation
                             ? `Week ${formatWeekLabel(monday)} uitzonderlijk speelbaar maken`
-                            : !cupInteractive && isVacationException
+                            : isVacationException
                               ? `Uitzondering voor week ${formatWeekLabel(monday)} verwijderen`
                               : selectability === "blocked" && !isCupPreferred
                                 ? `Week ${formatWeekLabel(monday)} niet beschikbaar voor beker`
@@ -1446,7 +1452,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         title={
                           isVacation
                             ? "Tik om deze vakantieweek speelbaar te maken"
-                            : isVacationException && !cupInteractive
+                            : isVacationException
                               ? "Tik om uitzondering te verwijderen"
                               : weekAdvice?.blockReason ??
                                 weekAdvice?.warningWhileSelected ??
