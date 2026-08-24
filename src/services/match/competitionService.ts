@@ -1216,14 +1216,17 @@ export const competitionService = {
       );
 
       const packOptsBase = {
-        // Altijd max. 2: restslots blijven anders leeg als een ploeg die week
-        // al speelde (Kuurne: ~50 vrije slots, packing vast op late speeldag).
-        // preferFreshWeeks houdt 1×/week als er nog verse weken zijn.
-        maxTeamAppearancesPerWeek: 2 as const,
+        // Standaard: exact 1 volledige speeldag per week (oneven aantal ploegen
+        // → bye). Enkel in dual-modus mag een ploeg 2× per week spelen en mogen
+        // speeldagen door elkaar lopen om de kalender rond te krijgen.
+        maxTeamAppearancesPerWeek: (dualWeek ? 2 : 1) as 1 | 2,
+        maxMatchdayOverlap: dualWeek ? undefined : 0,
+        chronologicalMatchdays: !dualWeek,
         preferFreshWeeks: true,
         reverseMatchdays: false,
         sequentialRounds: true,
         maxRoundOverlapWeeks: 1,
+
         externalBusyTeamsByWeek: (w: number) => {
           const monday = toMondayIso(playingWeeks[w]);
           const ids = config.cupBusyTeamsByMonday?.[monday];
