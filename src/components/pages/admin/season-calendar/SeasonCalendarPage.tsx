@@ -1244,7 +1244,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   const isCupAssigned = week.phases.includes("cup");
                   const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
                   const selectability = weekAdvice?.selectability;
-                  const manualBadgePhase = effectiveAssignments[monday];
+                  
 
                   // One status badge max — keeps week cards same height when selected
                   const statusBadge = isVacationException ? (
