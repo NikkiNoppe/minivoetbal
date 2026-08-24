@@ -67,7 +67,7 @@ const PHASE_STYLES: Record<
   },
   cup: {
     label: "Beker",
-    className: "bg-amber-50 text-amber-950 border-amber-300/60",
+    className: "bg-sky-50 text-sky-950 border-sky-300/60",
   },
   playoff: {
     label: "Play-off",
@@ -1264,7 +1264,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   ) : isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
                     <Badge
                       variant="secondary"
-                      className="w-fit text-[10px] px-1.5 py-0 bg-amber-100 text-amber-950"
+                      className="w-fit text-[10px] px-1.5 py-0 bg-sky-100 text-sky-950"
                     >
                       {isCupPreferred ? "Bekerkeuze" : "Beker"}
                     </Badge>
@@ -1293,7 +1293,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         {isShared ? (
                           <Badge
                             variant="outline"
-                            className="w-fit text-[10px] px-1.5 py-0 border-amber-400/70 bg-amber-50 text-amber-950"
+                            className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
                           >
                             Gedeeld
                           </Badge>
