@@ -116,6 +116,7 @@ export function seasonSetupToDemand(
     competitionMatchdays: estimateCompetitionMatchdays(setup),
     cupTeamCount: resolveCupTeamCount(setup, liveTeamCount),
     playoffMatchdays: estimatePlayoffMatchdays(setup),
+    phaseStrategy: setup.phaseStrategy ?? "balanced",
     cupWeekMode: setup.cup.weekMode ?? "auto",
     cupPreferredWeeks: setup.cup.preferredWeeks ?? [],
     playableVacationWeeks: setup.playableVacationWeeks ?? [],

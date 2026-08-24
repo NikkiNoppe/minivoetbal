@@ -84,6 +84,11 @@ export type SeasonDemand = {
   competitionMatchdays?: number;
   cupTeamCount: number;
   playoffMatchdays: number;
+  /**
+   * balanced (default) = beker op de beste weken, competitie errond.
+   * competition-first = competitie op de vroegste weken, beker/play-offs erna.
+   */
+  phaseStrategy?: "balanced" | "competition-first";
   /** auto (default) of handmatig gekozen bekerweken. */
   cupWeekMode?: "auto" | "manual";
   /** ISO-maandagen die als bekerweek geprefereerd/vastgezet zijn. */

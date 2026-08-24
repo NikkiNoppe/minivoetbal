@@ -539,6 +539,11 @@ export function buildSeasonPlan(
   );
 
   rationale.push("Playoffs gereserveerd aan het einde van het seizoen.");
+  if (strategy === "competition-first") {
+    rationale.push(
+      `Competitie eerst: de ${competitionAssigned.length} vroegste speelweken zijn competitie, beker en play-offs volgen daarna.`,
+    );
+  }
   if (input.cupWeekMode === "manual" && (input.cupPreferredWeeks?.length ?? 0) > 0) {
     rationale.push("Bekerweken handmatig gestuurd via de weekstrook.");
   } else {

@@ -54,6 +54,7 @@ export function createDefaultSeasonSetup(teamCount = 14): SeasonSetup {
       rounds: 2,
     },
     playableVacationWeeks: [],
+    phaseStrategy: "balanced",
   };
 }
 
