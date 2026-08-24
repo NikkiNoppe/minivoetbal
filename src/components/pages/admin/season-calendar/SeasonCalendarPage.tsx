@@ -1369,7 +1369,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                             : isCupPreferred && selectability === "tight"
                               ? "ring-2 ring-orange-500 border-orange-500"
                               : isSelectedVisual
-                                ? "ring-2 ring-amber-500 border-amber-500"
+                                ? "ring-2 ring-primary border-primary"
                                 : selectability === "suggested"
                                   ? "border-2 border-dashed border-primary/50"
                                   : selectability === "tight"
