@@ -25,8 +25,9 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { withOrgQueryKey } from "@/lib/orgQueryKey";
-
+import { seasonService } from "@/services/seasonService";
 import { deriveSeasonLabel } from "@/services/archiveService";
+
 import { PUBLIC_ROUTES } from "@/config/routes";
 
 /** Dynamisch seizoenlabel ("Seizoen 2026-2027") uit de seizoensinstellingen. */
