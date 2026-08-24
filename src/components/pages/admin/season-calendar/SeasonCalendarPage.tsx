@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DropdownMenu,
@@ -67,7 +66,7 @@ const PHASE_STYLES: Record<
   },
   cup: {
     label: "Beker",
-    className: "bg-sky-50 text-sky-950 border-sky-300/60",
+    className: "bg-amber-50 text-amber-950 border-amber-300/60",
   },
   playoff: {
     label: "Play-off",
@@ -1109,7 +1108,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {cupWeekMode === "manual"
-                      ? "Blauwe rand = gekozen. Gestippelde rand = voorstel/mogelijkheid. Rood/gedimd = niet mogelijk (tik voor uitleg). Oranje tip = krap maar toegestaan."
+                      ? "Kleur toont de fase: blauw = competitie, geel = beker, groen = play-off. Rood/gedimd = niet mogelijk (tik voor uitleg)."
                       : "Gestippelde weken zijn het automatische voorstel. Tik een week om handmatig te sturen; geblokkeerde weken geven een foutmelding."}
                   </p>
                   {cupWeekAdvice ? (
@@ -1240,56 +1239,16 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     week.configAvailableCount <= 0 || week.phases.includes("blocked");
                   const isVacation = week.phases.includes("vacation");
                   const isVacationException = playableVacationSet.has(monday);
-                  const isCupPreferred = preferredCupSet.has(monday);
-                  const isCupAssigned = week.phases.includes("cup");
                   const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
-                  const selectability = weekAdvice?.selectability;
-                  
-
-                  // One status badge max — keeps week cards same height when selected
-                  const statusBadge = isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
-                    <Badge
-                      variant="secondary"
-                      className="w-fit text-[10px] px-1.5 py-0 bg-sky-100 text-sky-950"
-                    >
-                      {isCupPreferred ? "Bekerkeuze" : "Beker"}
-                    </Badge>
-                  ) : selectability === "suggested" ? (
-                    <Badge
-                      variant="outline"
-                      className="w-fit text-[10px] px-1.5 py-0 border-dashed border-primary/50 text-primary"
-                    >
-                      Voorstel
-                    </Badge>
-                  ) : selectability === "tight" ? (
-                    <Badge
-                      variant="outline"
-                      className="w-fit text-[10px] px-1.5 py-0 border-orange-400/70 text-orange-950 bg-orange-50"
-                    >
-                      Krap
-                    </Badge>
-                  ) : null;
 
                   const content = (
                     <>
                       <span className="text-xs font-medium tabular-nums">
                         {formatWeekLabel(monday)}
                       </span>
-                      <div className="flex flex-wrap items-center gap-1 min-h-[18px]">
-                        {isShared ? (
-                          <Badge
-                            variant="outline"
-                            className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
-                          >
-                            Gedeeld
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0">
-                            {style.label}
-                          </Badge>
-                        )}
-                        {statusBadge}
-                      </div>
+                      <span className="text-xs font-medium opacity-90">
+                        {isShared ? "Gedeeld" : style.label}
+                      </span>
                       {week.sharedDayHint ? (
                         <span
                           className="text-[10px] leading-tight text-muted-foreground line-clamp-1"
@@ -1352,24 +1311,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     );
                   }
 
-                  const isPlayoffWeek = week.phases.includes("playoff");
                   const ringClass = isVacation
                     ? "opacity-80 hover:opacity-100 border-dashed"
-                    : isVacationException
-                      ? "ring-2 ring-sky-500 border-sky-500"
-                      : isPlayoffWeek
-                        ? "ring-2 ring-emerald-500 border-emerald-500"
-                        : selectability === "blocked" && !isBlocked
-                          ? null
-                          : selectability === "blocked"
-                            ? "opacity-55"
-                            : isCupPreferred && selectability === "tight"
-                              ? "ring-2 ring-orange-500 border-orange-500"
-                              : selectability === "suggested"
-                                ? "border-2 border-dashed border-primary/50"
-                                : selectability === "tight"
-                                  ? "ring-1 ring-orange-300/80 border-orange-300/60"
-                                  : null;
+                    : isBlocked
+                      ? "opacity-55"
+                      : null;
 
 
                   return (
