@@ -21,6 +21,28 @@ import ResponsiveStandingsTable, {
   type StandingsTeamRow,
 } from "@/components/tables/ResponsiveStandingsTable";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useOrgQueryScope, withOrgQueryKey } from "@/hooks/useOrganization";
+import { seasonService } from "@/services/seasonService";
+import { deriveSeasonLabel } from "@/services/archiveService";
+import { PUBLIC_ROUTES } from "@/config/routes";
+
+/** Dynamisch seizoenlabel ("Seizoen 2026-2027") uit de seizoensinstellingen. */
+function useSeasonSubtitle(): string | undefined {
+  const { organizationId, orgQueryEnabled } = useOrgQueryScope();
+  const { data } = useQuery({
+    queryKey: withOrgQueryKey(["seasonData"], organizationId),
+    queryFn: () => seasonService.getSeasonData(organizationId!),
+    enabled: orgQueryEnabled,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+  return data
+    ? `Seizoen ${deriveSeasonLabel(data.season_start_date, data.season_end_date)}`
+    : undefined;
+}
+
 
 function mapPlayoffToStandingsRows(teams: PlayoffTeam[]): StandingsTeamRow[] {
   return teams.map((team) => ({
