@@ -45,7 +45,7 @@ export type SeasonSetupPlayoffs = {
 };
 
 /** Fase die je handmatig aan een week in de weekstrook kunt geven. */
-export type SeasonSetupWeekPhase = "competition" | "cup" | "playoff";
+export type SeasonSetupWeekPhase = "competition" | "cup" | "playoff" | "free";
 
 export type SeasonSetup = {
   systems: SeasonSetupSystems;

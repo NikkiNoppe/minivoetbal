@@ -15,7 +15,7 @@ import {
   type SeasonSetupWeekPhase,
 } from "./types";
 
-const WEEK_PHASES: SeasonSetupWeekPhase[] = ["competition", "cup", "playoff"];
+const WEEK_PHASES: SeasonSetupWeekPhase[] = ["competition", "cup", "playoff", "free"];
 
 function normalizeWeekAssignments(raw: unknown): Record<string, SeasonSetupWeekPhase> {
   if (!raw || typeof raw !== "object") return {};

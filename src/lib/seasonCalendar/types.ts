@@ -105,7 +105,7 @@ export type SeasonDemand = {
 };
 
 /** Fasen die je handmatig aan een week kunt toewijzen. */
-export type ManualWeekPhase = "competition" | "cup" | "playoff";
+export type ManualWeekPhase = "competition" | "cup" | "playoff" | "free";
 
 export type SeasonPlan = {
   weeks: SeasonWeekPlan[];

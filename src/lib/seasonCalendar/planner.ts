@@ -349,7 +349,15 @@ export function buildSeasonPlan(
     vacations,
     playableVacationWeeks,
   });
-  const usable = playable.filter((m) => capacityForWeek(grids, m) > 0);
+  const manualWeeks = input.manualWeeks ?? {};
+  const manualFreeSet = new Set(
+    Object.entries(manualWeeks)
+      .filter(([, value]) => value === "free")
+      .map(([monday]) => toMondayIso(monday)),
+  );
+  const usable = playable.filter(
+    (m) => capacityForWeek(grids, m) > 0 && !manualFreeSet.has(m),
+  );
   const nominal = Math.max(1, input.slotDetails.length || 7);
   const effectiveSlots = resolveEffectiveSlotsPerWeek(grids, nominal);
 
@@ -359,7 +367,6 @@ export function buildSeasonPlan(
   const strategy = input.phaseStrategy ?? "balanced";
 
   // Handmatige weektoewijzingen (weekstrook) — deze staan vast.
-  const manualWeeks = input.manualWeeks ?? {};
   const manualFor = (phase: "competition" | "cup" | "playoff") =>
     Object.entries(manualWeeks)
       .filter(([, value]) => value === phase)
