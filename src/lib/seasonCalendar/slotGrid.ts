@@ -115,6 +115,7 @@ export function buildConfigWeekGrid(
   return {
     weekMonday: monday,
     slots,
+    totalConfiguredCount: slots.length,
     configAvailableCount,
     freeCount: configAvailableCount,
     occupiedCompetition: 0,
@@ -205,6 +206,7 @@ export function applyOccupancyToWeekGrid(
     occupiedCup,
     occupiedPlayoff,
     freeCount,
+    totalConfiguredCount: slots.length,
     configAvailableCount: slots.length - blockedConfig,
   };
 }
