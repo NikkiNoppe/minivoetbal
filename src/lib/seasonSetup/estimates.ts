@@ -75,24 +75,29 @@ export function describeCompetitionMatchdayMath(setup: SeasonSetup): string | nu
 }
 
 /**
- * Speeldagen-schatting: top & bottom parallel → ~2 weken per ronde
- * (halve finale / finale-achtig), min. 2.
+ * Play-offs zijn round-robin per groep (top & bottom spelen parallel):
+ * speeldagen = rondes × speeldagen-per-ronde van de grootste groep.
  */
 export function estimatePlayoffMatchdays(setup: SeasonSetup): number {
   if (!setup.systems.playoffs) return 0;
-  return Math.max(2, setup.playoffs.rounds * 2);
+  const rounds = Math.max(0, Math.floor(setup.playoffs.rounds));
+  if (rounds < 1) return 0;
+  const top = Math.max(0, Math.floor(setup.playoffs.topTeams));
+  const bottom = Math.max(0, Math.floor(setup.playoffs.bottomTeams));
+  return rounds * Math.max(matchdaysPerRound(top), matchdaysPerRound(bottom));
 }
 
 /**
- * Wedstrijden-schatting play-offs: per speeldag spelen top- en bottomgroep
- * parallel (elk floor(n/2) wedstrijden).
+ * Wedstrijden-schatting play-offs: round-robin per groep, som van top + bottom.
+ * Bv. 8 ploegen × 2 rondes = 56, 7 ploegen × 2 rondes = 42.
  */
 export function estimatePlayoffMatches(setup: SeasonSetup): number {
   if (!setup.systems.playoffs) return 0;
-  const perMatchday =
-    Math.floor(Math.max(0, setup.playoffs.topTeams) / 2) +
-    Math.floor(Math.max(0, setup.playoffs.bottomTeams) / 2);
-  return estimatePlayoffMatchdays(setup) * perMatchday;
+  const rounds = Math.max(0, Math.floor(setup.playoffs.rounds));
+  return (
+    estimateRoundRobinMatches(setup.playoffs.topTeams, rounds) +
+    estimateRoundRobinMatches(setup.playoffs.bottomTeams, rounds)
+  );
 }
 
 
@@ -159,7 +164,7 @@ export function summarizeSeasonSetup(
   }
   if (setup.systems.playoffs) {
     lines.push(
-      `Play-offs · top ${setup.playoffs.topTeams} + bottom ${setup.playoffs.bottomTeams} · ${setup.playoffs.rounds} ronde(s) · ~${estimatePlayoffMatchdays(setup)} speeldagen`,
+      `Play-offs · top ${setup.playoffs.topTeams} + bottom ${setup.playoffs.bottomTeams} · ${setup.playoffs.rounds} ronde(s) · ~${estimatePlayoffMatches(setup)} wedstrijden · ${estimatePlayoffMatchdays(setup)} speeldagen`,
     );
   }
   if (lines.length === 0) {
