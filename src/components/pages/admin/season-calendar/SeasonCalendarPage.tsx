@@ -1071,9 +1071,9 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
             </CardHeader>
             <CardContent className="space-y-4">
               {setup.systems.cup ? (
-                <div className="space-y-3 rounded-lg border border-amber-300/50 bg-amber-50/60 p-3">
+                <div className="space-y-3 rounded-lg border border-sky-300/50 bg-sky-50/60 p-3">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <p className="text-sm font-medium text-amber-950">
+                    <p className="text-sm font-medium text-sky-950">
                       Bekerweken{" "}
                       <span className="font-normal text-muted-foreground">
                         ({preferredCupWeeks.length}
@@ -1109,12 +1109,12 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {cupWeekMode === "manual"
-                      ? "Gele rand = gekozen. Gestippelde rand = voorstel/mogelijkheid. Rood/gedimd = niet mogelijk (tik voor uitleg). Oranje tip = krap maar toegestaan."
+                      ? "Blauwe rand = gekozen. Gestippelde rand = voorstel/mogelijkheid. Rood/gedimd = niet mogelijk (tik voor uitleg). Oranje tip = krap maar toegestaan."
                       : "Gestippelde weken zijn het automatische voorstel. Tik een week om handmatig te sturen; geblokkeerde weken geven een foutmelding."}
                   </p>
                   {cupWeekAdvice ? (
                     <p
-                      className="text-sm text-amber-950"
+                      className="text-sm text-sky-950"
                       role="status"
                       aria-live="polite"
                     >
@@ -1550,7 +1550,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
         </div>
 
         {competitionCapacityWarning ? (
-          <Alert className="border-amber-400/50 bg-amber-50 text-amber-950">
+          <Alert className="border-orange-400/50 bg-orange-50 text-orange-950">
             <AlertCircle className="h-4 w-4" aria-hidden />
             <AlertTitle>Capaciteit competitie</AlertTitle>
             <AlertDescription className="text-sm space-y-1">
