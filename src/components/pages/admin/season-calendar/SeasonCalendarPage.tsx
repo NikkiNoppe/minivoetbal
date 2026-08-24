@@ -1247,14 +1247,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   
 
                   // One status badge max — keeps week cards same height when selected
-                  const statusBadge = isVacationException ? (
-                    <Badge
-                      variant="outline"
-                      className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
-                    >
-                      Uitzondering
-                    </Badge>
-                  ) : isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
+                  const statusBadge = isCupPreferred || (isCupAssigned && cupWeekMode === "auto") ? (
                     <Badge
                       variant="secondary"
                       className="w-fit text-[10px] px-1.5 py-0 bg-sky-100 text-sky-950"
