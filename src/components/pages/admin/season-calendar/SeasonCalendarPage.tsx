@@ -1244,17 +1244,10 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   const isCupAssigned = week.phases.includes("cup");
                   const weekAdvice = cupWeekAdvice?.byWeek.get(monday);
                   const selectability = weekAdvice?.selectability;
-                  const manualBadgePhase = effectiveAssignments[monday];
+                  
 
                   // One status badge max — keeps week cards same height when selected
-                  const statusBadge = manualBadgePhase ? (
-                    <Badge
-                      variant="outline"
-                      className="w-fit text-[10px] px-1.5 py-0 border-primary/60 text-primary"
-                    >
-                      Vast: {WEEK_PHASE_LABELS[manualBadgePhase].toLowerCase()}
-                    </Badge>
-                  ) : isVacationException ? (
+                  const statusBadge = isVacationException ? (
                     <Badge
                       variant="outline"
                       className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
@@ -1326,7 +1319,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                             week.freeCount === week.totalConfiguredCount && week.totalConfiguredCount > 0
                               ? "bg-emerald-500"
                               : week.freeCount >= week.totalConfiguredCount - 1 && week.totalConfiguredCount > 0
-                                ? "bg-emerald-400"
+                                ? "bg-orange-400"
                                 : "bg-current opacity-70",
                           )}
                           style={{ width: `${capacityPct}%` }}
@@ -1338,7 +1331,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                           week.freeCount === week.totalConfiguredCount && week.totalConfiguredCount > 0
                             ? "font-semibold text-emerald-600"
                             : week.freeCount >= week.totalConfiguredCount - 1 && week.totalConfiguredCount > 0
-                              ? "text-emerald-600"
+                              ? "text-orange-600"
                               : "opacity-80",
                         )}
                       >
