@@ -582,61 +582,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     [seasonBounds, buildPlanFromSetup, liveTeamCount, scheduleAutoSave],
   );
 
-  const toggleCupWeek = useCallback(
-    (weekMonday: string) => {
-      if (!setup.systems.cup) return;
-      const advice = cupWeekAdvice?.byWeek.get(weekMonday.slice(0, 10));
-      const current = setup.cup.preferredWeeks ?? [];
-      const exists = current.includes(weekMonday);
-
-      if (!exists && advice?.blockReason) {
-        toast({
-          title: "Week niet mogelijk voor beker",
-          description: advice.blockReason,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!exists && advice?.warningOnSelect) {
-        toast({
-          title: "Let op bij deze bekerweek",
-          description: advice.warningOnSelect,
-        });
-      }
-
-      if (
-        !exists &&
-        cupRequiredWeeks > 0 &&
-        current.length >= cupRequiredWeeks
-      ) {
-        toast({
-          title: "Extra bekerweek",
-          description: `Je hebt al ${current.length}/${cupRequiredWeeks} weken. Extra keuzes mag — de planner spreidt ${cupRequiredWeeks} weken uit je selectie.`,
-        });
-      }
-
-      const preferredWeeks = exists
-        ? current.filter((d) => d !== weekMonday)
-        : [...current, weekMonday].sort();
-      void applySetupAndRefreshPlan({
-        ...setup,
-        cup: {
-          ...setup.cup,
-          weekMode: "manual",
-          preferredWeeks,
-        },
-      });
-    },
-    [
-      setup,
-      applySetupAndRefreshPlan,
-      cupWeekAdvice,
-      cupRequiredWeeks,
-      toast,
-    ],
-  );
-
   const togglePlayableVacationWeek = useCallback(
     (weekMonday: string) => {
       const monday = weekMonday.slice(0, 10);
@@ -1112,9 +1057,10 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
             <CardHeader>
               <CardTitle className="text-base">Weekstrook</CardTitle>
               <CardDescription>
-                {setup.systems.cup
-                  ? "Tik op weken voor beker. Vakantieweken kun je uitzonderlijk speelbaar maken. Blijven er na de beker speelmomenten vrij, dan vult de competitie die op met ploegen die die week geen beker spelen."
-                  : "Effectieve capaciteit per week. Tik op een vakantieweek om die uitzonderlijk speelbaar te maken."}
+                Tik op een week en kies zelf de fase: competitie, beker, play-off of
+                vrijhouden. Weken zonder keuze vult de planner automatisch in. Is een fase
+                al volzet, dan moet je eerst een andere week vrijzetten. Vakantieweken kun
+                je in hetzelfde menu uitzonderlijk speelbaar maken.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
