@@ -294,34 +294,17 @@ const ScheduleSkeleton = memo(() => (
 ));
 ScheduleSkeleton.displayName = 'ScheduleSkeleton';
 
-const PlayoffLoading = memo(() => (
+const PlayoffLoading = memo(({ subtitle }: { subtitle?: string }) => (
   <div className="space-y-6 motion-safe:animate-slide-up">
-    <PageHeader
-      title="Play-Off"
-        icon={Target}
-      subtitle="Seizoen 2025-2026"
-    />
-    <section aria-labelledby="po1-loading-heading">
-      <h2
-        id="po1-loading-heading"
-        className="text-lg font-semibold text-[var(--color-700)] mb-3 flex items-center gap-2"
-      >
-        <Trophy className="w-5 h-5 text-primary" aria-hidden="true" />
-        Play-Off 1
-      </h2>
-      <ResponsiveStandingsTable isLoading embeddedInCard />
-    </section>
+    <PageHeader title="Play-Off" icon={Target} subtitle={subtitle} />
+    <ResponsiveStandingsTable isLoading embeddedInCard />
   </div>
 ));
 PlayoffLoading.displayName = 'PlayoffLoading';
 
-const PlayoffError = memo(({ onRetry }: { onRetry: () => void }) => (
+const PlayoffError = memo(({ subtitle }: { subtitle?: string }) => (
   <div className="space-y-6 animate-slide-up">
-    <PageHeader 
-      title="Play-Off Klassement"
-        icon={Target} 
-      subtitle="Seizoen 2025-2026"
-    />
+    <PageHeader title="Play-Off" icon={Target} subtitle={subtitle} />
     <Card>
       <CardContent className="py-12">
         <div className="text-center">
@@ -337,27 +320,31 @@ const PlayoffError = memo(({ onRetry }: { onRetry: () => void }) => (
 ));
 PlayoffError.displayName = 'PlayoffError';
 
-const PlayoffEmptyState = memo(() => (
+const PlayoffEmptyState = memo(({ subtitle }: { subtitle?: string }) => (
   <div className="space-y-6 animate-slide-up">
-    <PageHeader 
-      title="Play-Off Klassement"
-        icon={Target} 
-      subtitle="Seizoen 2025-2026"
-    />
+    <PageHeader title="Play-Off" icon={Target} subtitle={subtitle} />
     <Card>
       <CardContent className="py-12">
-        <div className="text-center">
-          <Trophy className="h-8 w-8 mx-auto mb-4" style={{ color: 'var(--accent)' }} />
-          <h3 className="text-lg font-semibold mb-2">Geen Play-Off Data</h3>
-          <p style={{ color: 'var(--accent)' }}>
-            Er zijn momenteel geen play-off gegevens beschikbaar.
+        <div className="text-center max-w-md mx-auto">
+          <Trophy className="h-8 w-8 mx-auto mb-4 text-primary" aria-hidden="true" />
+          <h3 className="text-lg font-semibold mb-2">Play-offs nog niet gestart</h3>
+          <p className="text-sm text-muted-foreground mb-5">
+            De play-offs starten pas na afloop van de reguliere competitie. Volg
+            ondertussen de stand en het speelschema van de competitie.
           </p>
+          <Link
+            to={PUBLIC_ROUTES.competitie}
+            className="inline-flex items-center justify-center rounded-md border-[1.5px] border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Naar de competitie
+          </Link>
         </div>
       </CardContent>
     </Card>
   </div>
 ));
 PlayoffEmptyState.displayName = 'PlayoffEmptyState';
+
 
 // Compact match list item - 2 lines max with perfect time centering
 const MatchListItem = memo(({ match }: { match: any }) => {
