@@ -252,7 +252,7 @@ export const fetchPublicPlayoffData = async (organizationId: number) => {
     upcomingMatches,
     pastMatches,
     headToHeadMatches,
-    hasData: regularStandings.length > 0,
+    hasData: playoffMatches.length > 0,
     isFinalized,
   };
 };
