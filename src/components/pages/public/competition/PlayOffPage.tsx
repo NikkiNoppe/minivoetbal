@@ -23,8 +23,9 @@ import ResponsiveStandingsTable, {
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useOrgQueryScope, withOrgQueryKey } from "@/hooks/useOrganization";
-import { seasonService } from "@/services/seasonService";
+import { useOrgQueryScope } from "@/hooks/useOrganization";
+import { withOrgQueryKey } from "@/lib/orgQueryKey";
+
 import { deriveSeasonLabel } from "@/services/archiveService";
 import { PUBLIC_ROUTES } from "@/config/routes";
 
