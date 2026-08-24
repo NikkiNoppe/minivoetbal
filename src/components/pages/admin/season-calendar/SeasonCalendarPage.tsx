@@ -752,12 +752,14 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     [
       effectiveAssignments,
       setup,
+      cupWeekMode,
       phaseNeeds,
       phaseCounts,
       plan,
       applySetupAndRefreshPlan,
       toast,
     ],
+
   );
 
   const handleUnifiedPreview = useCallback(async (opts?: {
