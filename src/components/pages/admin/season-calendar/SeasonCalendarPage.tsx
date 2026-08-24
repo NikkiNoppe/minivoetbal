@@ -1353,11 +1353,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   }
 
                   const isPlayoffWeek = week.phases.includes("playoff");
-                  const isSelectedVisual =
-                    Boolean(manualPhase) ||
-                    isCupPreferred ||
-                    (isCupAssigned && cupWeekMode === "auto" && !weekAdvice?.blockReason) ||
-                    isVacationException;
                   const ringClass = isVacation
                     ? "opacity-80 hover:opacity-100 border-dashed"
                     : isVacationException
@@ -1370,13 +1365,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                             ? "opacity-55"
                             : isCupPreferred && selectability === "tight"
                               ? "ring-2 ring-orange-500 border-orange-500"
-                              : isSelectedVisual
-                                ? "ring-2 ring-primary border-primary"
-                                : selectability === "suggested"
-                                  ? "border-2 border-dashed border-primary/50"
-                                  : selectability === "tight"
-                                    ? "ring-1 ring-orange-300/80 border-orange-300/60"
-                                    : null;
+                              : selectability === "suggested"
+                                ? "border-2 border-dashed border-primary/50"
+                                : selectability === "tight"
+                                  ? "ring-1 ring-orange-300/80 border-orange-300/60"
+                                  : null;
 
 
                   return (
