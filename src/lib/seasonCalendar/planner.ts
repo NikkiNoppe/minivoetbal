@@ -413,6 +413,7 @@ export function buildSeasonPlan(
       ...playoffWeeks,
       ...competitionFirstWeeks,
       ...manualCompetition,
+      ...manualFreeSet,
     ].filter((m) => !manualCup.includes(m)),
     preferredMondays: manualCup.length > 0 ? manualCup : input.cupPreferredWeeks,
     weekMode: manualCup.length > 0 ? "manual" : input.cupWeekMode,
