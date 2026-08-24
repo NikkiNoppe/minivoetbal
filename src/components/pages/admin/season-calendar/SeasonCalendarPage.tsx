@@ -1247,14 +1247,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   const manualBadgePhase = effectiveAssignments[monday];
 
                   // One status badge max — keeps week cards same height when selected
-                  const statusBadge = manualBadgePhase ? (
-                    <Badge
-                      variant="outline"
-                      className="w-fit text-[10px] px-1.5 py-0 border-primary/60 text-primary"
-                    >
-                      Vast: {WEEK_PHASE_LABELS[manualBadgePhase].toLowerCase()}
-                    </Badge>
-                  ) : isVacationException ? (
+                  const statusBadge = isVacationException ? (
                     <Badge
                       variant="outline"
                       className="w-fit text-[10px] px-1.5 py-0 border-sky-400/70 bg-sky-50 text-sky-950"
