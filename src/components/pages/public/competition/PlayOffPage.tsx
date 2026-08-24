@@ -414,7 +414,9 @@ MatchGroup.displayName = 'MatchGroup';
 
 // Main component - Mobile-first
 const PlayOffPage: React.FC = () => {
-  const { data, isLoading, error, refetch } = usePublicPlayoffData();
+  const { data, isLoading, error } = usePublicPlayoffData();
+  const seasonSubtitle = useSeasonSubtitle();
+
   const [selectedDivision, setSelectedDivision] = useState<string>("all");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
   const [openSpeeldagen, setOpenSpeeldagen] = useState<string[]>([]);
