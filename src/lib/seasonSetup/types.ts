@@ -44,6 +44,9 @@ export type SeasonSetupPlayoffs = {
   rounds: 1 | 2;
 };
 
+/** Fase die je handmatig aan een week in de weekstrook kunt geven. */
+export type SeasonSetupWeekPhase = "competition" | "cup" | "playoff";
+
 export type SeasonSetup = {
   systems: SeasonSetupSystems;
   competition: SeasonSetupCompetition;
@@ -60,6 +63,11 @@ export type SeasonSetup = {
    * beker en play-offs daarna.
    */
   phaseStrategy?: "balanced" | "competition-first";
+  /**
+   * Handmatige fase per week (ISO-maandag → competition | cup | playoff).
+   * Deze weken staan vast; de planner vult de rest automatisch aan.
+   */
+  weekAssignments?: Record<string, SeasonSetupWeekPhase>;
   updatedAt?: string;
 };
 

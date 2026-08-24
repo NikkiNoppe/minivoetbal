@@ -120,6 +120,7 @@ export function seasonSetupToDemand(
     cupWeekMode: setup.cup.weekMode ?? "auto",
     cupPreferredWeeks: setup.cup.preferredWeeks ?? [],
     playableVacationWeeks: setup.playableVacationWeeks ?? [],
+    manualWeeks: setup.weekAssignments ?? {},
   };
 }
 
