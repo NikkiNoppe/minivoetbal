@@ -68,7 +68,8 @@ describe("evaluateCupWeekSelection", () => {
     });
 
     const comp = result.byWeek.get("2026-11-02");
-    expect(comp?.selectability).toBe("tight");
+    // Genoeg vrije slots: niet "krap", enkel een dagscheidingswaarschuwing.
+    expect(comp?.selectability).toBe("selected");
     expect(comp?.warningWhileSelected).toMatch(/dagscheiding/i);
 
     const tight = result.byWeek.get("2026-11-09");
