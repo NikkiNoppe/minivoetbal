@@ -1321,11 +1321,23 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         aria-hidden
                       >
                         <div
-                          className="h-full bg-current opacity-70"
+                          className={cn(
+                            "h-full",
+                            week.freeCount === week.configAvailableCount && week.configAvailableCount > 0
+                              ? "bg-emerald-500"
+                              : "bg-current opacity-70",
+                          )}
                           style={{ width: `${capacityPct}%` }}
                         />
                       </div>
-                      <span className="text-[10px] tabular-nums opacity-80">
+                      <span
+                        className={cn(
+                          "text-[10px] tabular-nums",
+                          week.freeCount === week.configAvailableCount && week.configAvailableCount > 0
+                            ? "font-semibold text-emerald-600"
+                            : "opacity-80",
+                        )}
+                      >
                         {week.freeCount}/{week.configAvailableCount} vrij
                       </span>
                     </>
