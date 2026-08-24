@@ -1319,7 +1319,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                             week.freeCount === week.totalConfiguredCount && week.totalConfiguredCount > 0
                               ? "bg-emerald-500"
                               : week.freeCount >= week.totalConfiguredCount - 1 && week.totalConfiguredCount > 0
-                                ? "bg-emerald-400"
+                                ? "bg-orange-400"
                                 : "bg-current opacity-70",
                           )}
                           style={{ width: `${capacityPct}%` }}
@@ -1331,7 +1331,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                           week.freeCount === week.totalConfiguredCount && week.totalConfiguredCount > 0
                             ? "font-semibold text-emerald-600"
                             : week.freeCount >= week.totalConfiguredCount - 1 && week.totalConfiguredCount > 0
-                              ? "text-emerald-600"
+                              ? "text-orange-600"
                               : "opacity-80",
                         )}
                       >
