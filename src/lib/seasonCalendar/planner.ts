@@ -288,9 +288,12 @@ export function reserveCupWeeks(input: {
   }
   if (dates.length < required) {
     notes.push(
-      `Onvoldoende bruikbare weken: ${dates.length}/${required}. Verleng seizoen, verruim timeslot-geldigheid of verklein het deelnemersveld.`,
+      weekMode === "manual"
+        ? `Nog ${required - dates.length} bekerweek(en) te kiezen (${dates.length}/${required}). Selecteer zelf de gewenste week(en).`
+        : `Onvoldoende bruikbare weken: ${dates.length}/${required}. Verleng seizoen, verruim timeslot-geldigheid of verklein het deelnemersveld.`,
     );
   }
+
 
   rationale.push(
     "Weken met 0 effectieve slots (buiten timeslot-periode of volledig geblokkeerd) worden overgeslagen.",
