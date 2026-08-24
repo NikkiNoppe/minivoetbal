@@ -36,15 +36,7 @@ export function createDefaultSeasonData(): SeasonData {
     venue_timeslots: [],
     vacation_periods: [],
     slot_unavailability: [],
-    day_names: [
-      'maandag',
-      'dinsdag',
-      'woensdag',
-      'donderdag',
-      'vrijdag',
-      'zaterdag',
-      'zondag',
-    ],
+    day_names: ['maandag', 'dinsdag'],
   };
 }
 
