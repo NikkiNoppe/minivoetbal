@@ -1109,7 +1109,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {cupWeekMode === "manual"
-                      ? "Blauwe rand = gekozen. Gestippelde rand = voorstel/mogelijkheid. Rood/gedimd = niet mogelijk (tik voor uitleg). Oranje tip = krap maar toegestaan."
+                      ? "Kleur toont de fase: blauw = competitie, geel = beker, groen = play-off. Rood/gedimd = niet mogelijk (tik voor uitleg)."
                       : "Gestippelde weken zijn het automatische voorstel. Tik een week om handmatig te sturen; geblokkeerde weken geven een foutmelding."}
                   </p>
                   {cupWeekAdvice ? (
