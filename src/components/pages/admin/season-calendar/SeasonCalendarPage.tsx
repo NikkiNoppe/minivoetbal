@@ -67,7 +67,7 @@ const PHASE_STYLES: Record<
   },
   cup: {
     label: "Beker",
-    className: "bg-sky-50 text-sky-950 border-sky-300/60",
+    className: "bg-amber-50 text-amber-950 border-amber-300/60",
   },
   playoff: {
     label: "Play-off",
