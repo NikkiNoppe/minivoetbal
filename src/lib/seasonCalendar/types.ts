@@ -29,6 +29,8 @@ export type EffectiveSlot = {
 export type WeekSlotGrid = {
   weekMonday: string;
   slots: EffectiveSlot[];
+  /** Totaal aantal geconfigureerde slots voor deze week (voor weergave). */
+  totalConfiguredCount: number;
   /** Slots beschikbaar na config-blokkades (valid_from/until, unavailability). */
   configAvailableCount: number;
   /** Slots beschikbaar na config + bestaande wedstrijd-occupancy. */
@@ -67,6 +69,8 @@ export type SeasonWeekPlan = {
   phases: SeasonPhase[];
   freeCount: number;
   configAvailableCount: number;
+  /** Totaal aantal geconfigureerde slots voor deze week (voor weergave). */
+  totalConfiguredCount: number;
   reservedCupSlots?: number;
   reservedCompetitionSlots?: number;
   reservedPlayoffSlots?: number;

@@ -1233,8 +1233,8 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                     : (week.phases[0] ?? "free");
                   const style = PHASE_STYLES[primary];
                   const capacityPct =
-                    week.configAvailableCount > 0
-                      ? Math.round((week.freeCount / week.configAvailableCount) * 100)
+                    week.totalConfiguredCount > 0
+                      ? Math.round((week.freeCount / week.totalConfiguredCount) * 100)
                       : 0;
                   const isBlocked =
                     week.configAvailableCount <= 0 || week.phases.includes("blocked");
@@ -1323,9 +1323,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                         <div
                           className={cn(
                             "h-full",
-                            week.freeCount === week.configAvailableCount && week.configAvailableCount > 0
+                            week.freeCount === week.totalConfiguredCount && week.totalConfiguredCount > 0
                               ? "bg-emerald-500"
-                              : "bg-current opacity-70",
+                              : week.freeCount >= week.totalConfiguredCount - 1 && week.totalConfiguredCount > 0
+                                ? "bg-emerald-400"
+                                : "bg-current opacity-70",
                           )}
                           style={{ width: `${capacityPct}%` }}
                         />
@@ -1333,12 +1335,14 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                       <span
                         className={cn(
                           "text-[10px] tabular-nums",
-                          week.freeCount === week.configAvailableCount && week.configAvailableCount > 0
+                          week.freeCount === week.totalConfiguredCount && week.totalConfiguredCount > 0
                             ? "font-semibold text-emerald-600"
-                            : "opacity-80",
+                            : week.freeCount >= week.totalConfiguredCount - 1 && week.totalConfiguredCount > 0
+                              ? "text-emerald-600"
+                              : "opacity-80",
                         )}
                       >
-                        {week.freeCount}/{week.configAvailableCount} vrij
+                        {week.freeCount}/{week.totalConfiguredCount} vrij
                       </span>
                     </>
                   );

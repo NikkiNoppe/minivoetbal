@@ -13,6 +13,7 @@ function week(
     phases,
     freeCount: free,
     configAvailableCount: config,
+    totalConfiguredCount: config,
   };
 }
 
