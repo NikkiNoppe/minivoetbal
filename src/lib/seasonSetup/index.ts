@@ -25,6 +25,8 @@ export {
   estimateCompetitionMatches,
   estimateCompetitionMatchdays,
   estimatePlayoffMatchdays,
+  estimatePlayoffMatches,
+
   estimateRoundRobinMatches,
   matchdaysPerRound,
   resolveCupTeamCount,
