@@ -202,8 +202,9 @@ export function reserveCupWeeks(input: {
 
   let dates: string[] = [];
 
-  if (weekMode === "manual" && preferredUsable.length > 0) {
-    // Handmatig: gebruik gekozen weken chronologisch; vul aan met auto als te weinig.
+  if (weekMode === "manual") {
+    // Handmatig: exact de gekozen weken — nooit automatisch aanvullen.
+
     if (preferredUsable.length >= required) {
       const spacedIdx = pickSpacedIndices(preferredUsable.length, required);
       dates = spacedIdx.map((i) => preferredUsable[i]).sort();
