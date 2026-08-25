@@ -5,11 +5,19 @@ export type {
   SeasonSetupPlayoffs,
   SeasonSetupSystems,
   SeasonSetupWeekPhase,
+  CompetitionByePin,
 } from "./types";
 export {
   SEASON_SETUP_FORMAT_ID,
   SEASON_SETUP_FORMAT_NAME,
 } from "./types";
+export { splitPlayoffGroups } from "./playoffSplit";
+export {
+  findTeamOrderForByePins,
+  orderTeamsForByePins,
+  validateByePins,
+  byeTeamForRoundMatchday,
+} from "./competitionByePin";
 export {
   addDivisionToSetup,
   buildSeasonSetupFormat,

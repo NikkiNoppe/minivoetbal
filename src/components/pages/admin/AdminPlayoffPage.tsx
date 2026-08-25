@@ -20,6 +20,7 @@ import { teamService } from "@/services/core/teamService";
 import { seasonService } from "@/services/seasonService";
 import { fetchCupMatchesForSession } from "@/services/core/matchesSessionFetch";
 import { cn } from "@/lib/utils";
+import { splitPlayoffGroups } from "@/lib/seasonSetup";
 
 interface TeamStanding {
   team_id: number;
@@ -325,8 +326,12 @@ const AdminPlayoffPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }
   const [cupMatches, setCupMatches] = useState<{ match_date: string }[]>([]);
 
   // Configuration state
-  const [topTeamCount, setTopTeamCount] = useState(8);
-  const [bottomTeamCount, setBottomTeamCount] = useState(7);
+  const playoffSplit = useMemo(
+    () => splitPlayoffGroups(standings.length || teams.length || 14),
+    [standings.length, teams.length],
+  );
+  const topTeamCount = playoffSplit.topTeams;
+  const bottomTeamCount = playoffSplit.bottomTeams;
   const [rounds, setRounds] = useState(2);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -379,8 +384,6 @@ const AdminPlayoffPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }
         if (seasonData.season_end_date) setEndDate(seasonData.season_end_date);
         const setup = seasonData.season_setup;
         if (setup?.systems?.playoffs && setup.playoffs) {
-          setTopTeamCount(setup.playoffs.topTeams);
-          setBottomTeamCount(setup.playoffs.bottomTeams);
           setRounds(setup.playoffs.rounds);
         }
       } catch (e) {
@@ -787,26 +790,17 @@ const AdminPlayoffPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }
                   contentClassName="space-y-3"
                 >
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Top Playoff Teams</Label>
-                      <Select value={topTeamCount.toString()} onValueChange={v => setTopTeamCount(parseInt(v))}>
-                        <SelectTrigger className="h-11">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[6, 7, 8].map(n => <SelectItem key={n} value={n.toString()}>{n} teams (pos 1-{n})</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <p className="text-xs font-medium">Top Playoff Teams</p>
+                      <div className="flex min-h-[44px] items-center rounded-lg border border-primary/20 bg-muted/40 px-3 py-2 text-sm">
+                        {topTeamCount} ploegen (pos. 1–{topTeamCount})
+                      </div>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Bottom Playoff Teams</Label>
-                      <Select value={bottomTeamCount.toString()} onValueChange={v => setBottomTeamCount(parseInt(v))}>
-                        <SelectTrigger className="h-11">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[6, 7, 8].map(n => <SelectItem key={n} value={n.toString()}>{n} teams (pos {topTeamCount + 1}-{topTeamCount + n})</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <p className="text-xs font-medium">Bottom Playoff Teams</p>
+                      <div className="flex min-h-[44px] items-center rounded-lg border border-primary/20 bg-muted/40 px-3 py-2 text-sm">
+                        {bottomTeamCount} ploegen (pos. {topTeamCount + 1}–
+                        {topTeamCount + bottomTeamCount})
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Aantal Rondes</Label>
@@ -826,26 +820,17 @@ const AdminPlayoffPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }
               {/* Desktop: Grid layout for advanced options */}
               <div className="hidden sm:grid sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Top Playoff Teams</Label>
-                  <Select value={topTeamCount.toString()} onValueChange={v => setTopTeamCount(parseInt(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[6, 7, 8].map(n => <SelectItem key={n} value={n.toString()}>{n} teams (pos 1-{n})</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <p className="text-sm font-medium">Top Playoff Teams</p>
+                  <div className="flex min-h-[44px] items-center rounded-lg border border-primary/20 bg-muted/40 px-3 py-2 text-sm">
+                    {topTeamCount} ploegen (pos. 1–{topTeamCount})
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Bottom Playoff Teams</Label>
-                  <Select value={bottomTeamCount.toString()} onValueChange={v => setBottomTeamCount(parseInt(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[6, 7, 8].map(n => <SelectItem key={n} value={n.toString()}>{n} teams (pos {topTeamCount + 1}-{topTeamCount + n})</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <p className="text-sm font-medium">Bottom Playoff Teams</p>
+                  <div className="flex min-h-[44px] items-center rounded-lg border border-primary/20 bg-muted/40 px-3 py-2 text-sm">
+                    {bottomTeamCount} ploegen (pos. {topTeamCount + 1}–
+                    {topTeamCount + bottomTeamCount})
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Aantal Rondes</Label>

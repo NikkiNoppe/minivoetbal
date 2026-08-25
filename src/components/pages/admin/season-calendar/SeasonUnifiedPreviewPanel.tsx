@@ -89,18 +89,10 @@ function formatDate(iso: string): string {
   }
 }
 
-function previewRoundLabel(row: UnifiedPreviewRow): string {
-  if (row.phase === "competition" && row.round) return `Ronde ${row.round}`;
-  if (row.phase === "cup") {
-    const s = (row.speeldag || "").toLowerCase();
-    if (s.includes("voorronde")) return "Voorronde";
-    if (s.includes("1/8")) return "1/8";
-    if (s.includes("kwart")) return "Kwart";
-    if (s.includes("halve")) return "Halve";
-    if (s.includes("finale")) return "Finale";
-  }
-  if (row.phase === "playoff") return "Play-off";
-  return "—";
+function previewVenueLabel(row: UnifiedPreviewRow): string {
+  const v = (row.venue || "").trim();
+  if (!v || v === "—" || v === "BYE") return "—";
+  return v;
 }
 
 function isByePreviewRow(row: UnifiedPreviewRow): boolean {
@@ -698,8 +690,8 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                             </p>
                           )}
                           <p className="text-xs text-muted-foreground">
-                            {previewRoundLabel(row) !== "—"
-                              ? `${previewRoundLabel(row)} · ${row.speeldag}`
+                            {previewVenueLabel(row) !== "—"
+                              ? `${row.speeldag} · ${previewVenueLabel(row)}`
                               : row.speeldag}
                           </p>
                           {row.note && !isFree && !isMarker ? (
@@ -715,10 +707,10 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                       <thead className="bg-muted/40 sticky top-0">
                         <tr>
                           <th className="text-left p-2 font-medium">Fase</th>
-                          <th className="text-left p-2 font-medium">Ronde</th>
                           <th className="text-left p-2 font-medium">Speeldag</th>
                           <th className="text-left p-2 font-medium">Thuis</th>
                           <th className="text-left p-2 font-medium">Uit</th>
+                          <th className="text-left p-2 font-medium">Locatie</th>
                           <th className="text-left p-2 font-medium">Datum</th>
                           <th className="text-left p-2 font-medium">Tijd</th>
                         </tr>
@@ -745,9 +737,6 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                                   {badge.label}
                                 </Badge>
                               </td>
-                              <td className="p-2 whitespace-nowrap">
-                                {previewRoundLabel(row)}
-                              </td>
                               <td className="p-2 whitespace-nowrap">{row.speeldag}</td>
                               <td className="p-2">
                                 {isFree ? (
@@ -764,6 +753,9 @@ const SeasonUnifiedPreviewPanel: React.FC<SeasonUnifiedPreviewPanelProps> = ({
                                 ) : (
                                   <TeamCell row={row} side="away" lookup={conflictMap} />
                                 )}
+                              </td>
+                              <td className="p-2 whitespace-nowrap">
+                                {previewVenueLabel(row)}
                               </td>
                               <td className="p-2 tabular-nums whitespace-nowrap">
                                 {formatDate(row.match_date)}

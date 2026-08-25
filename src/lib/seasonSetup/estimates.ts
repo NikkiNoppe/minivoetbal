@@ -89,7 +89,7 @@ export function estimatePlayoffMatchdays(setup: SeasonSetup): number {
 
 /**
  * Wedstrijden-schatting play-offs: round-robin per groep, som van top + bottom.
- * Bv. 8 ploegen × 2 rondes = 56, 7 ploegen × 2 rondes = 42.
+ * Bv. 17 ploegen → top 9 + bottom 8; 9×2 rondes = 72, 8×2 rondes = 56.
  */
 export function estimatePlayoffMatches(setup: SeasonSetup): number {
   if (!setup.systems.playoffs) return 0;

@@ -8,6 +8,12 @@ export type SeasonSetupSystems = {
   playoffs: boolean;
 };
 
+export type CompetitionByePin = {
+  teamId: number;
+  /** Speeldagnummer binnen één competitieronde (1..n bij oneven poule). */
+  roundMatchday: number;
+};
+
 export type SeasonSetupCompetition = {
   /** Aantal competitierondes (thuis/uit = 2 typisch). */
   regularRounds: number;
@@ -24,6 +30,10 @@ export type SeasonSetupCompetition = {
    * Team → reeks-id. Wordt bewaard in season_setup zodat je niet opnieuw hoeft toe te wijzen.
    */
   teamDivisions?: Record<number, number>;
+  /**
+   * Vaste competitie-bye: ploeg rust op opgegeven speeldag (alleen bij oneven poule).
+   */
+  byePins?: CompetitionByePin[];
 };
 
 export type SeasonSetupCup = {
@@ -36,11 +46,17 @@ export type SeasonSetupCup = {
   weekMode?: "auto" | "manual";
   /** ISO-maandagen (YYYY-MM-DD) die als bekerweek mogen/moeten. */
   preferredWeeks?: string[];
+  /**
+   * Ploegen die verplicht in de voorronde spelen (bv. nieuwe ploegen).
+   * Lengte = 2 × aantal voorronde-wedstrijden; rest krijgt bye.
+   */
+  voorrondeTeamIds?: number[];
 };
 
 export type SeasonSetupPlayoffs = {
-  topTeams: 6 | 7 | 8;
-  bottomTeams: 6 | 7 | 8;
+  /** Afgeleid van het echte teamantal (oneven → extra in de top). */
+  topTeams: number;
+  bottomTeams: number;
   rounds: 1 | 2;
 };
 

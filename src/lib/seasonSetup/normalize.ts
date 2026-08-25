@@ -4,6 +4,8 @@ import {
   normalizeCompetitionFormat,
   type CompetitionFormat,
 } from "@/services/competitionDataService";
+import { splitPlayoffGroups } from "./playoffSplit";
+import type { CompetitionByePin } from "./types";
 import {
   SEASON_SETUP_FORMAT_ID,
   SEASON_SETUP_FORMAT_NAME,
@@ -35,14 +37,10 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
   return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
-function asPlayoffTeamCount(value: unknown, fallback: 6 | 7 | 8): 6 | 7 | 8 {
-  const n = clampInt(value, 6, 8, fallback);
-  return (n === 6 || n === 7 || n === 8 ? n : fallback) as 6 | 7 | 8;
-}
-
 export function createDefaultSeasonSetup(teamCount = 14): SeasonSetup {
   const divisions = createDefaultDivisions();
   const perDiv = Math.max(2, Math.floor(teamCount / divisions.length) || 4);
+  const playoffSplit = splitPlayoffGroups(teamCount);
   return {
     systems: {
       competition: true,
@@ -56,16 +54,18 @@ export function createDefaultSeasonSetup(teamCount = 14): SeasonSetup {
       estimatedTeamCount: Math.max(2, teamCount),
       divisionTeamCounts: divisions.map(() => perDiv),
       teamDivisions: {},
+      byePins: [],
     },
     cup: {
       useAllTeams: true,
       teamCount: Math.max(2, teamCount),
       weekMode: "auto",
       preferredWeeks: [],
+      voorrondeTeamIds: [],
     },
     playoffs: {
-      topTeams: 8,
-      bottomTeams: 8,
+      topTeams: playoffSplit.topTeams,
+      bottomTeams: playoffSplit.bottomTeams,
       rounds: 2,
     },
     playableVacationWeeks: [],
@@ -80,6 +80,29 @@ function normalizeSystems(raw: Partial<SeasonSetupSystems> | undefined): SeasonS
     cup: Boolean(raw?.cup),
     playoffs: Boolean(raw?.playoffs),
   };
+}
+
+function normalizeByePins(raw: unknown): CompetitionByePin[] {
+  if (!Array.isArray(raw)) return [];
+  const seenMd = new Set<number>();
+  const seenTeam = new Set<number>();
+  const out: CompetitionByePin[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const teamId = Number((item as CompetitionByePin).teamId);
+    const roundMatchday = clampInt(
+      (item as CompetitionByePin).roundMatchday,
+      1,
+      128,
+      0,
+    );
+    if (!Number.isFinite(teamId) || teamId <= 0 || roundMatchday < 1) continue;
+    if (seenMd.has(roundMatchday) || seenTeam.has(teamId)) continue;
+    seenMd.add(roundMatchday);
+    seenTeam.add(teamId);
+    out.push({ teamId, roundMatchday });
+  }
+  return out;
 }
 
 function normalizeCompetition(
@@ -129,6 +152,7 @@ function normalizeCompetition(
     divisionTeamCounts:
       hasDivisions && hasAssignments ? assignedCounts : trimmedCounts,
     teamDivisions: hasDivisions ? teamDivisions : {},
+    byePins: normalizeByePins(raw?.byePins),
   };
 }
 
@@ -147,18 +171,32 @@ function normalizeCup(raw: Partial<SeasonSetupCup> | undefined, teamCount: numbe
   const useAllTeams = raw?.useAllTeams !== false;
   const weekMode = raw?.weekMode === "manual" ? "manual" : "auto";
   const preferredWeeks = normalizeIsoMondays(raw?.preferredWeeks);
+  const voorrondeTeamIds = Array.isArray(raw?.voorrondeTeamIds)
+    ? [
+        ...new Set(
+          raw.voorrondeTeamIds
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0),
+        ),
+      ]
+    : [];
   return {
     useAllTeams,
     teamCount: clampInt(raw?.teamCount, 2, 128, teamCount),
     weekMode,
     preferredWeeks,
+    voorrondeTeamIds,
   };
 }
 
-function normalizePlayoffs(raw: Partial<SeasonSetupPlayoffs> | undefined): SeasonSetupPlayoffs {
+function normalizePlayoffs(
+  raw: Partial<SeasonSetupPlayoffs> | undefined,
+  teamCount: number,
+): SeasonSetupPlayoffs {
+  const split = splitPlayoffGroups(teamCount);
   return {
-    topTeams: asPlayoffTeamCount(raw?.topTeams, 8),
-    bottomTeams: asPlayoffTeamCount(raw?.bottomTeams, 8),
+    topTeams: split.topTeams,
+    bottomTeams: split.bottomTeams,
     rounds: clampInt(raw?.rounds, 1, 2, 2) === 1 ? 1 : 2,
   };
 }
@@ -174,7 +212,7 @@ export function normalizeSeasonSetup(
     systems: normalizeSystems(raw.systems),
     competition: normalizeCompetition(raw.competition, teamCount),
     cup: normalizeCup(raw.cup, teamCount),
-    playoffs: normalizePlayoffs(raw.playoffs),
+    playoffs: normalizePlayoffs(raw.playoffs, teamCount),
     playableVacationWeeks: normalizeIsoMondays(raw.playableVacationWeeks),
     phaseStrategy:
       raw.phaseStrategy === "competition-first" ? "competition-first" : "balanced",

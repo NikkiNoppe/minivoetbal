@@ -25,6 +25,7 @@ import {
 } from "@/lib/cupBracketPlan";
 import {
   buildNextRoundPrefill,
+  pinForcedVoorrondeOrder,
   seedCupTeamOrder,
   type CupTeamRankMap,
 } from "@/lib/cupTeamSeeding";
@@ -485,7 +486,7 @@ export const bekerService = {
     attempts?: number,
     byeTeamId?: number | null,
     organizationId?: number,
-    options?: { teamRank?: CupTeamRankMap },
+    options?: { teamRank?: CupTeamRankMap; forcedPlayingTeamIds?: number[] },
   ): Promise<{
     success: boolean;
     message: string;
@@ -853,13 +854,24 @@ export const bekerService = {
       let lastFailure: string | null = null;
       const firstByeCount = bracketPlan.rounds[0]?.byeCount ?? 0;
       const teamRank = options?.teamRank ?? {};
+      const forcedPlayingTeamIds = (options?.forcedPlayingTeamIds ?? [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && teams.includes(id));
       for (let t = 0; t < tries; t++) {
-        const shuffled = seedCupTeamOrder({
-          teams,
-          teamRank,
-          byeCount: firstByeCount,
-          forcedByeTeamId: byeTeamId,
-        });
+        const shuffled = pinForcedVoorrondeOrder(
+          seedCupTeamOrder({
+            teams,
+            teamRank,
+            byeCount: firstByeCount,
+            forcedByeTeamId:
+              byeTeamId != null && !forcedPlayingTeamIds.includes(byeTeamId)
+                ? byeTeamId
+                : null,
+            forcedPlayingTeamIds,
+          }),
+          firstByeCount,
+          forcedPlayingTeamIds,
+        );
         const { plan: p, totalCombined, failureReason } = await buildPlanForOrder(shuffled);
         if (failureReason) lastFailure = failureReason;
         if (!p.length) continue;
@@ -933,7 +945,7 @@ export const bekerService = {
     selectedDates: string[],
     byeTeamId?: number | null,
     organizationId?: number,
-    options?: { teamRank?: CupTeamRankMap },
+    options?: { teamRank?: CupTeamRankMap; forcedPlayingTeamIds?: number[] },
   ): Promise<{ success: boolean; message: string }> {
     try {
       console.log('🏆 Starting cup tournament creation...');
@@ -984,12 +996,23 @@ export const bekerService = {
         return { success: false, message: "Geen geldig bekerbracket voor dit aantal teams." };
       }
 
-      const shuffledTeams = seedCupTeamOrder({
-        teams,
-        teamRank: options?.teamRank ?? {},
-        byeCount: firstRound.byeCount,
-        forcedByeTeamId: byeTeamId,
-      });
+      const forcedPlayingTeamIds = (options?.forcedPlayingTeamIds ?? [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && teams.includes(id));
+      const shuffledTeams = pinForcedVoorrondeOrder(
+        seedCupTeamOrder({
+          teams,
+          teamRank: options?.teamRank ?? {},
+          byeCount: firstRound.byeCount,
+          forcedByeTeamId:
+            byeTeamId != null && !forcedPlayingTeamIds.includes(byeTeamId)
+              ? byeTeamId
+              : null,
+          forcedPlayingTeamIds,
+        }),
+        firstRound.byeCount,
+        forcedPlayingTeamIds,
+      );
 
       // Convert selected dates to playing weeks (Mondays)
       const playingWeeks = bekerService.convertToPlayingWeeks(selectedDates);

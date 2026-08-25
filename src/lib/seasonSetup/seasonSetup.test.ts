@@ -9,7 +9,10 @@ import {
   estimateCompetitionMatches,
   estimateCompetitionMatchdays,
   estimatePlayoffMatchdays,
+  estimatePlayoffMatches,
+  normalizeSeasonSetup,
   seasonSetupToDemand,
+  splitPlayoffGroups,
 } from "./index";
 import {
   compareMatchdayKeys,
@@ -93,6 +96,46 @@ describe("seasonSetup estimates", () => {
     expect(demand.cupTeamCount).toBe(14);
     expect(demand.playoffMatchdays).toBe(estimatePlayoffMatchdays(setup));
     expect(demand.competitionMatchdays).toBe(estimateCompetitionMatchdays(setup));
+  });
+});
+
+describe("splitPlayoffGroups", () => {
+  it("zet 17 ploegen in top 9 + bottom 8", () => {
+    expect(splitPlayoffGroups(17)).toEqual({ topTeams: 9, bottomTeams: 8 });
+  });
+
+  it("splitst even aantallen gelijk", () => {
+    expect(splitPlayoffGroups(16)).toEqual({ topTeams: 8, bottomTeams: 8 });
+    expect(splitPlayoffGroups(14)).toEqual({ topTeams: 7, bottomTeams: 7 });
+  });
+});
+
+describe("normalizeSeasonSetup playoffs", () => {
+  it("leidt groepen af van teamantal, niet van opgeslagen 8+8", () => {
+    const setup = normalizeSeasonSetup(
+      {
+        systems: { competition: true, cup: false, playoffs: true },
+        playoffs: { topTeams: 8, bottomTeams: 8, rounds: 2 },
+      },
+      17,
+    );
+    expect(setup.playoffs).toMatchObject({ topTeams: 9, bottomTeams: 8, rounds: 2 });
+  });
+
+  it("gebruikt 7+7 als default bij 14 ploegen", () => {
+    expect(createDefaultSeasonSetup(14).playoffs).toMatchObject({
+      topTeams: 7,
+      bottomTeams: 7,
+    });
+  });
+
+  it("schat speeldagen op de grootste groep (9 bij 17 ploegen)", () => {
+    const setup = createDefaultSeasonSetup(17);
+    setup.systems.playoffs = true;
+    setup.playoffs.rounds = 2;
+    expect(setup.playoffs).toMatchObject({ topTeams: 9, bottomTeams: 8 });
+    expect(estimatePlayoffMatchdays(setup)).toBe(18);
+    expect(estimatePlayoffMatches(setup)).toBe(128);
   });
 });
 

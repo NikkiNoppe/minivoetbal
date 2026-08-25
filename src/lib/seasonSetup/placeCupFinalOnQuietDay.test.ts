@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { UnifiedPreviewRow } from "./buildUnifiedPreview";
 import {
   compareUnifiedPreviewRows,
+  lastPlayableCupFinalDay,
   lastPlayableFriday,
   pinCupFinalToDate,
   relocateCupFinalToStandaloneDay,
@@ -132,7 +133,7 @@ describe("relocateCupFinalToStandaloneDay", () => {
     expect(result.rows).toHaveLength(2);
   });
 
-  it("zet de finale op het laatste vrije moment (vrijdag laat)", () => {
+  it("zet de finale op het laatste vrije ma/di-moment (niet vrijdag)", () => {
     const rows: UnifiedPreviewRow[] = [
       row({
         phase: "cup",
@@ -169,12 +170,56 @@ describe("relocateCupFinalToStandaloneDay", () => {
         homeLabel: "—",
         awayLabel: "—",
       }),
+      row({
+        phase: "free",
+        speeldag: "Vrij",
+        match_date: "2027-06-28",
+        match_time: "21:00",
+        homeLabel: "—",
+        awayLabel: "—",
+      }),
     ];
     const result = relocateCupFinalToStandaloneDay(rows);
     expect(result.moved).toBe(true);
-    expect(result.toDate).toBe("2027-06-25");
+    // 28 jun 2027 = maandag — voorkeur boven vr 25 jun
+    expect(result.toDate).toBe("2027-06-28");
     const finale = result.rows.find((r) => r.speeldag === "Finale");
     expect(finale?.match_time).toBe("21:00");
+  });
+
+  it("negeert vrijdag als er nog een maandag vrij is", () => {
+    const rows: UnifiedPreviewRow[] = [
+      row({
+        phase: "cup",
+        speeldag: "Halve Finale 1",
+        match_date: "2027-06-07",
+      }),
+      row({
+        phase: "cup",
+        speeldag: "Finale",
+        match_date: "2027-06-07",
+        match_time: "20:00",
+      }),
+      row({
+        phase: "free",
+        speeldag: "Vrij",
+        match_date: "2027-07-02",
+        match_time: "21:00",
+        homeLabel: "—",
+        awayLabel: "—",
+      }),
+      row({
+        phase: "free",
+        speeldag: "Vrij",
+        match_date: "2027-06-28",
+        match_time: "20:00",
+        homeLabel: "—",
+        awayLabel: "—",
+      }),
+    ];
+    const result = relocateCupFinalToStandaloneDay(rows);
+    expect(result.moved).toBe(true);
+    expect(result.toDate).toBe("2027-06-28");
   });
 
   it("schuift de finale niet terug als die al later is dan het laatste vrije slot", () => {
@@ -199,12 +244,15 @@ describe("relocateCupFinalToStandaloneDay", () => {
   });
 });
 
-describe("lastPlayableFriday / pinCupFinalToDate", () => {
-  it("neemt de vrijdag van de laatste speelweek", () => {
-    expect(lastPlayableFriday(["2027-06-14", "2027-06-21"])).toBe("2027-06-25");
+describe("lastPlayableCupFinalDay / pinCupFinalToDate", () => {
+  it("neemt de maandag van de laatste speelweek (niet vrijdag)", () => {
+    expect(lastPlayableCupFinalDay(["2027-06-14", "2027-06-21"])).toBe("2027-06-21");
+    expect(lastPlayableCupFinalDay(["2027-06-14", "2027-06-21"], 2)).toBe("2027-06-22");
+    // legacy alias blijft werken maar wijst nu naar maandag
+    expect(lastPlayableFriday(["2027-06-14", "2027-06-21"])).toBe("2027-06-21");
   });
 
-  it("zet de finale op die vrijdag", () => {
+  it("zet de finale op die maandag", () => {
     const plan = [
       {
         unique_number: "FINAL",
@@ -214,8 +262,8 @@ describe("lastPlayableFriday / pinCupFinalToDate", () => {
         slot_index: 3,
       },
     ];
-    expect(pinCupFinalToDate(plan, "2027-06-25")).toBe(true);
-    expect(plan[0].match_date).toBe("2027-06-25");
+    expect(pinCupFinalToDate(plan, "2027-06-21")).toBe(true);
+    expect(plan[0].match_date).toBe("2027-06-21");
     expect(plan[0].match_time).toBe("21:00");
     expect(plan[0].slot_index).toBe(-1);
   });

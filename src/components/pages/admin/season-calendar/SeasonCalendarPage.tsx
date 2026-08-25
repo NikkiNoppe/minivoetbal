@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/layout";
-import { AlertCircle, CalendarRange, Info, Loader2, Save, Sparkles, Wand2, X } from "lucide-react";
+import { AlertCircle, CalendarRange, Info, Loader2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { useOrgAwareNavigate } from "@/hooks/useOrgAwareNavigate";
@@ -39,6 +39,7 @@ import {
   normalizeSeasonSetup,
   runSeasonPreviewGeneration,
   seasonSetupToDemand,
+  splitPlayoffGroups,
   subscribeSeasonPreviewSession,
   type SeasonPreviewProgress,
   type SeasonSetup,
@@ -53,6 +54,7 @@ import {
   type SeasonDataChangedDetail,
 } from "@/lib/seasonDataEvents";
 import SeasonSetupPanel from "./SeasonSetupPanel";
+import SeasonStepSection from "./SeasonStepSection";
 import SeasonUnifiedPreviewPanel from "./SeasonUnifiedPreviewPanel";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -93,6 +95,17 @@ const WEEK_PHASE_LABELS: Record<SeasonSetupWeekPhase, string> = {
   free: "Vrijhouden",
 };
 
+const PHASE_FILL_FRAMES: Array<{
+  key: "competition" | "cup" | "playoff";
+  title: string;
+  unit: string;
+  style: SeasonPhase;
+}> = [
+  { key: "competition", title: "Competitie", unit: "speeldagen", style: "competition" },
+  { key: "cup", title: "Beker", unit: "speelweken", style: "cup" },
+  { key: "playoff", title: "Play-offs", unit: "speeldagen", style: "playoff" },
+];
+
 /** @deprecated Alleen voor type-compatibiliteit; hub heeft geen subtabs meer. */
 export type SeasonPlanningTab = "calendar" | "competition" | "cup" | "playoffs";
 
@@ -116,8 +129,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
   const { organizationId, orgQueryEnabled } = useOrgQueryScope();
   const { isTabVisible, loading: visibilityLoading } = useTabVisibility();
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [setup, setSetup] = useState<SeasonSetup>(() => createDefaultSeasonSetup());
   const [liveTeamCount, setLiveTeamCount] = useState(14);
   const [teams, setTeams] = useState<Array<{ team_id: number; team_name: string }>>([]);
@@ -301,65 +312,37 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
   }, [loadDefaults, visibilityLoading]);
 
   /** Herbouw kalender uit verse Instellingen (vakanties, veldblokkades, seizoensdata). */
-  const refreshPlanFromSettings = useCallback(
-    async (opts?: { silent?: boolean; toastOnDone?: boolean }) => {
-      if (!orgQueryEnabled || organizationId == null) return;
-      const silent = opts?.silent ?? true;
-      try {
-        if (silent) setSettingsSyncing(true);
-        else setGenerating(true);
+  const refreshPlanFromSettings = useCallback(async () => {
+    if (!orgQueryEnabled || organizationId == null) return;
+    try {
+      setSettingsSyncing(true);
+      seasonService.clearSeasonDataCache(organizationId);
+      const seasonData = await seasonService.getSeasonData(organizationId);
+      const start = seasonData.season_start_date || "";
+      const end = seasonData.season_end_date || "";
+      const bounds = start && end ? { start, end } : null;
+      setSeasonBounds(bounds);
 
-        seasonService.clearSeasonDataCache(organizationId);
-        const seasonData = await seasonService.getSeasonData(organizationId);
-        const start = seasonData.season_start_date || "";
-        const end = seasonData.season_end_date || "";
-        const bounds = start && end ? { start, end } : null;
-        setSeasonBounds(bounds);
-
-        if (!bounds) {
-          setPlan(null);
-          return;
-        }
-
-        const nextPlan = await buildPlanFromSetup(setup, liveTeamCount);
-        if (nextPlan) {
-          setPlan(nextPlan);
-          if (opts?.toastOnDone) {
-            toast({
-              title: "Kalender bijgewerkt",
-              description: `Op basis van Instellingen · ${nextPlan.efficiency.usableWeeks} bruikbare weken`,
-            });
-          }
-        }
-      } catch (e) {
-        if (!silent || opts?.toastOnDone) {
-          toast({
-            title: "Kalender vernieuwen mislukt",
-            description: e instanceof Error ? e.message : "Onbekende fout",
-            variant: "destructive",
-          });
-        }
-      } finally {
-        if (silent) setSettingsSyncing(false);
-        else setGenerating(false);
+      if (!bounds) {
+        setPlan(null);
+        return;
       }
-    },
-    [
-      orgQueryEnabled,
-      organizationId,
-      setup,
-      liveTeamCount,
-      buildPlanFromSetup,
-      toast,
-    ],
-  );
+
+      const nextPlan = await buildPlanFromSetup(setup, liveTeamCount);
+      if (nextPlan) setPlan(nextPlan);
+    } catch {
+      // Auto-sync: geen toast; weekstrook blijft op laatste bekende plan.
+    } finally {
+      setSettingsSyncing(false);
+    }
+  }, [orgQueryEnabled, organizationId, setup, liveTeamCount, buildPlanFromSetup]);
 
   const scheduleSettingsRefresh = useCallback(() => {
     if (settingsRefreshTimerRef.current) {
       clearTimeout(settingsRefreshTimerRef.current);
     }
     settingsRefreshTimerRef.current = setTimeout(() => {
-      void refreshPlanFromSettings({ silent: true });
+      void refreshPlanFromSettings();
     }, 300);
   }, [refreshPlanFromSettings]);
 
@@ -399,40 +382,22 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     };
   }, []);
 
-  const handleGenerate = useCallback(async () => {
-    await refreshPlanFromSettings({ silent: false, toastOnDone: true });
-  }, [refreshPlanFromSettings]);
-
-  const handleSave = useCallback(async (opts?: { silent?: boolean; nextSetup?: SeasonSetup }) => {
+  const handleSave = useCallback(async (opts?: { nextSetup?: SeasonSetup }) => {
     if (!orgQueryEnabled || organizationId == null) {
-      const message = "Organisatie-context ontbreekt nog. Probeer opnieuw.";
-      if (opts?.silent) {
-        setAutoSaveStatus("error");
-        setAutoSaveError(message);
-      } else {
-        toast({ title: "Opslaan mislukt", description: message, variant: "destructive" });
-      }
+      setAutoSaveStatus("error");
+      setAutoSaveError("Organisatie-context ontbreekt nog. Probeer opnieuw.");
       return;
     }
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
-    if (savePromiseRef.current) {
-      if (opts?.silent) return;
-      setSaving(true);
-      await savePromiseRef.current;
-    }
+    if (savePromiseRef.current) return;
     const source = opts?.nextSetup ?? setupRef.current;
     const job = (async () => {
       try {
-        if (opts?.silent) {
-          setAutoSaveStatus("saving");
-          setAutoSaveError(null);
-        } else {
-          setSaving(true);
-          setAutoSaveError(null);
-        }
+        setAutoSaveStatus("saving");
+        setAutoSaveError(null);
         const toSave = ensureAtLeastOneSystem({
           ...source,
           updatedAt: new Date().toISOString(),
@@ -454,32 +419,11 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
           throw new Error(result.message);
         }
         setSetup(toSave);
-        if (opts?.silent) {
-          setAutoSaveStatus("saved");
-        } else {
-          setSaving(false);
-          toast({
-            title: "Opzet opgeslagen",
-            description:
-              "Speelsystemen en parameters zijn bewaard. Fase-tabbladen gebruiken deze opzet.",
-          });
-          const nextPlan = await buildPlanFromSetup(toSave, liveTeamCount);
-          if (nextPlan) setPlan(nextPlan);
-        }
+        setAutoSaveStatus("saved");
       } catch (e) {
         const message = e instanceof Error ? e.message : "Onbekende fout";
-        if (opts?.silent) {
-          setAutoSaveStatus("error");
-          setAutoSaveError(message);
-        } else {
-          toast({
-            title: "Opslaan mislukt",
-            description: message,
-            variant: "destructive",
-          });
-        }
-      } finally {
-        if (!opts?.silent) setSaving(false);
+        setAutoSaveStatus("error");
+        setAutoSaveError(message);
       }
     })();
     savePromiseRef.current = job;
@@ -488,13 +432,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     } finally {
       if (savePromiseRef.current === job) savePromiseRef.current = null;
     }
-  }, [
-    orgQueryEnabled,
-    organizationId,
-    liveTeamCount,
-    buildPlanFromSetup,
-    toast,
-  ]);
+  }, [orgQueryEnabled, organizationId]);
 
   /** Debounced auto-save na wijzigingen (incl. reeks-toewijzing). */
   const scheduleAutoSave = useCallback(
@@ -504,7 +442,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       setAutoSaveStatus("saving");
       autoSaveTimerRef.current = setTimeout(() => {
-        void handleSave({ silent: true, nextSetup });
+        void handleSave({ nextSetup });
       }, 700);
     },
     [orgQueryEnabled, organizationId, handleSave],
@@ -512,21 +450,20 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
 
   const handleSetupChange = useCallback(
     (next: SeasonSetup) => {
-      setSetup(next);
-      scheduleAutoSave(next);
+      const synced: SeasonSetup = {
+        ...next,
+        playoffs: { ...next.playoffs, ...splitPlayoffGroups(liveTeamCount) },
+      };
+      setSetup(synced);
+      scheduleAutoSave(synced);
     },
-    [scheduleAutoSave],
+    [scheduleAutoSave, liveTeamCount],
   );
 
   const weeksToShow = useMemo(() => plan?.weeks ?? [], [plan]);
   const cupRequiredWeeks = plan?.cupBracket.requiredWeeks ?? 0;
-  const cupSlotsPerWeek = plan?.cupBracket.slotsPerWeekUsed ?? 0;
   const preferredCupWeeks = setup.cup.preferredWeeks ?? [];
   const cupWeekMode = setup.cup.weekMode ?? "auto";
-  const preferredCupSet = useMemo(
-    () => new Set(preferredCupWeeks.map((d) => d.slice(0, 10))),
-    [preferredCupWeeks],
-  );
   const playableVacationWeeks = setup.playableVacationWeeks ?? [];
   const playableVacationSet = useMemo(
     () => new Set(playableVacationWeeks.map((d) => d.slice(0, 10))),
@@ -568,11 +505,15 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
 
   const applySetupAndRefreshPlan = useCallback(
     async (nextSetup: SeasonSetup) => {
-      setSetup(nextSetup);
-      scheduleAutoSave(nextSetup);
+      const synced: SeasonSetup = {
+        ...nextSetup,
+        playoffs: { ...nextSetup.playoffs, ...splitPlayoffGroups(liveTeamCount) },
+      };
+      setSetup(synced);
+      scheduleAutoSave(synced);
       if (!seasonBounds) return;
       try {
-        const nextPlan = await buildPlanFromSetup(nextSetup, liveTeamCount);
+        const nextPlan = await buildPlanFromSetup(synced, liveTeamCount);
         if (nextPlan) setPlan(nextPlan);
       } catch {
         // stil: UI blijft op vorige plan
@@ -613,48 +554,6 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
     },
     [setup, applySetupAndRefreshPlan, toast],
   );
-
-  const setCupWeekMode = useCallback(
-    (weekMode: "auto" | "manual") => {
-      void applySetupAndRefreshPlan({
-        ...setup,
-        cup: {
-          ...setup.cup,
-          weekMode,
-          preferredWeeks:
-            weekMode === "auto"
-              ? setup.cup.preferredWeeks ?? []
-              : setup.cup.preferredWeeks?.length
-                ? setup.cup.preferredWeeks
-                : plan?.cupDates ?? [],
-        },
-      });
-    },
-    [setup, plan?.cupDates, applySetupAndRefreshPlan],
-  );
-
-  const seedCupWeeksFromPlan = useCallback(() => {
-    if (!plan?.cupDates.length) return;
-    void applySetupAndRefreshPlan({
-      ...setup,
-      cup: {
-        ...setup.cup,
-        weekMode: "manual",
-        preferredWeeks: [...plan.cupDates].sort(),
-      },
-    });
-  }, [setup, plan?.cupDates, applySetupAndRefreshPlan]);
-
-  const clearCupWeekSelection = useCallback(() => {
-    void applySetupAndRefreshPlan({
-      ...setup,
-      cup: {
-        ...setup.cup,
-        weekMode: "auto",
-        preferredWeeks: [],
-      },
-    });
-  }, [setup, applySetupAndRefreshPlan]);
 
   const effectiveAssignments = useMemo(() => {
     const base: Record<string, SeasonSetupWeekPhase> = {};
@@ -939,289 +838,121 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
         slotsPerWeek={plan?.cupBracket.slotsPerWeekUsed}
         teams={teams}
         allowedSystems={allowedSystems}
-        availableMoments={
-          plan
-            ? plan.weeks.reduce((sum, week) => sum + week.configAvailableCount, 0)
-            : undefined
-        }
         onChange={handleSetupChange}
+        statusFooter={
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
+            <p
+              className={cn(
+                "text-xs min-h-[20px]",
+                autoSaveStatus === "error" ? "text-destructive" : "text-muted-foreground",
+              )}
+              aria-live="polite"
+            >
+              {autoSaveStatus === "saving"
+                ? "Automatisch opslaan…"
+                : autoSaveStatus === "saved"
+                  ? "Automatisch bewaard"
+                  : autoSaveStatus === "error"
+                    ? `Auto-opslaan mislukt${autoSaveError ? ` — ${autoSaveError}` : ""}`
+                    : "Wijzigingen (incl. reeksen) worden automatisch bewaard"}
+            </p>
+            {autoSaveStatus === "error" ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-[44px] w-full sm:w-auto"
+                onClick={() => void handleSave()}
+              >
+                Opnieuw
+              </Button>
+            ) : null}
+          </div>
+        }
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
-        <Button
-          type="button"
-          className="min-h-[44px]"
-          onClick={() => void handleSave()}
-          disabled={saving}
-          loading={saving}
-        >
-          <Save className="mr-2 h-4 w-4" aria-hidden />
-          Opzet opslaan
-        </Button>
-        <p
-          className={cn(
-            "text-xs min-h-[20px]",
-            autoSaveStatus === "error" ? "text-destructive" : "text-muted-foreground",
-          )}
-          aria-live="polite"
-        >
-          {autoSaveStatus === "saving"
-            ? "Automatisch opslaan…"
-            : autoSaveStatus === "saved"
-              ? "Automatisch bewaard"
-              : autoSaveStatus === "error"
-                ? `Auto-opslaan mislukt${autoSaveError ? ` — ${autoSaveError}` : ""} · gebruik de knop`
-                : "Wijzigingen (incl. reeksen) worden automatisch bewaard"}
-        </p>
-      </div>
-
-      <section
-        className="space-y-4 border-t border-primary/20 pt-6 mt-2"
-        aria-labelledby="season-calendar-section-heading"
+      <SeasonStepSection
+        step={3}
+        title="Kalender"
+        headingId="season-calendar-section-heading"
+        className="border-t border-primary/20 pt-6 mt-2"
+        contentClassName="space-y-4"
       >
-        <div className="space-y-1 border-b border-primary/15 pb-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Stap 3
+        {settingsSyncing ? (
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            Kalender synchroniseren met Instellingen…
           </p>
-          <h3
-            id="season-calendar-section-heading"
-            className="text-base font-semibold text-brand-dark"
-          >
-            Kalender
-          </h3>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-[44px] w-full sm:w-auto"
-            onClick={handleGenerate}
-            disabled={generating || settingsSyncing || !seasonBounds}
-          >
-            {generating || settingsSyncing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                {settingsSyncing ? "Instellingen laden…" : "Genereren…"}
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-4 w-4" aria-hidden />
-                Kalender vernieuwen
-              </>
-            )}
-          </Button>
-          {settingsSyncing ? (
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              Kalender synchroniseren met Instellingen…
-            </p>
-          ) : null}
-        </div>
+        ) : null}
 
       {plan ? (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Card className="border-primary/20">
-              <CardContent className="p-3 sm:p-4">
-                <p className="text-xs text-muted-foreground">Bruikbare weken</p>
-                <p className="text-xl font-semibold text-brand-dark tabular-nums">
-                  {plan.efficiency.usableWeeks}
-                  <span className="text-sm font-normal text-muted-foreground">
-                    /{plan.efficiency.playableWeeks}
-                  </span>
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-3 sm:p-4">
-                <p className="text-xs text-muted-foreground">Benutting</p>
-                <p className="text-xl font-semibold text-brand-dark tabular-nums">
-                  {Math.round(plan.efficiency.utilization * 100)}%
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-3 sm:p-4">
-                <p className="text-xs text-muted-foreground">Bekerweken</p>
-                <p className="text-xl font-semibold text-brand-dark tabular-nums">
-                  {plan.cupDates.length}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="border-primary/20">
-              <CardContent className="p-3 sm:p-4">
-                <p className="text-xs text-muted-foreground">Gedeeld (dagen)</p>
-                <p className="text-xl font-semibold text-brand-dark tabular-nums">
-                  {plan.efficiency.sharedWeeks}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
           <Card className="border-primary/20 shadow-lg">
-            <CardHeader>
+            <CardHeader className="space-y-3">
               <CardTitle className="text-base">Weekstrook</CardTitle>
+              <ul
+                className="grid grid-cols-3 gap-2"
+                aria-label="Ingevulde speelweken per fase"
+              >
+                {PHASE_FILL_FRAMES.map((frame) => {
+                  const filled = phaseCounts[frame.key];
+                  const need = phaseNeeds[frame.key];
+                  const active = need > 0;
+                  const complete = active && filled >= need;
+                  const short = active && filled < need;
+                  const pct = !active ? 0 : Math.min(100, Math.round((filled / Math.max(need, 1)) * 100));
+                  return (
+                    <li
+                      key={frame.key}
+                      className={cn(
+                        "rounded-lg border p-2 sm:p-3 min-w-0 flex flex-col gap-1 min-h-[72px]",
+                        PHASE_STYLES[frame.style].className,
+                        !active && "opacity-60",
+                      )}
+                      aria-label={
+                        active
+                          ? `${frame.title}: ${filled} van ${need} ${frame.unit} ingevuld`
+                          : `${frame.title}: uit`
+                      }
+                    >
+                      <p className="text-xs font-medium leading-tight truncate">
+                        {frame.title}
+                      </p>
+                      {active ? (
+                        <>
+                          <p className="text-sm sm:text-lg font-semibold tabular-nums leading-none">
+                            {filled}/{need}
+                          </p>
+                          <p className="text-[10px] sm:text-xs leading-tight">
+                            {frame.unit} ingevuld
+                          </p>
+                          <div
+                            className="mt-auto h-1.5 rounded-full bg-black/10 overflow-hidden"
+                            aria-hidden
+                          >
+                            <div
+                              className={cn(
+                                "h-full",
+                                complete
+                                  ? "bg-emerald-500"
+                                  : short
+                                    ? "bg-orange-400"
+                                    : "bg-current opacity-70",
+                              )}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-xs leading-tight">Uit</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
               <CardDescription>
-                Tik op een week en kies zelf de fase: competitie, beker, play-off of
-                vrijhouden. Weken zonder keuze vult de planner automatisch in. Is een fase
-                al volzet, dan moet je eerst een andere week vrijzetten. Vakantieweken kun
-                je in hetzelfde menu uitzonderlijk speelbaar maken.
+                Tik op een week om de fase te kiezen. Weken zonder keuze vult de planner in.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {setup.systems.cup ? (
-                <div className="space-y-3 rounded-lg border border-sky-300/50 bg-sky-50/60 p-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <p className="text-sm font-medium text-sky-950">
-                      Bekerweken{" "}
-                      <span className="font-normal text-muted-foreground">
-                        ({preferredCupWeeks.length}
-                        {cupRequiredWeeks > 0
-                          ? ` gekozen · ${cupRequiredWeeks} nodig${
-                              cupSlotsPerWeek > 0
-                                ? ` · ~${cupSlotsPerWeek} slots/week`
-                                : ""
-                            }`
-                          : " gekozen"})
-                      </span>
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={cupWeekMode === "auto" ? "default" : "outline"}
-                        className="min-h-[44px]"
-                        onClick={() => setCupWeekMode("auto")}
-                      >
-                        Automatisch
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={cupWeekMode === "manual" ? "default" : "outline"}
-                        className="min-h-[44px]"
-                        onClick={() => setCupWeekMode("manual")}
-                      >
-                        Handmatig
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {cupWeekMode === "manual"
-                      ? "Kleur toont de fase: blauw = competitie, geel = beker, groen = play-off. Rood/gedimd = niet mogelijk (tik voor uitleg)."
-                      : "Gestippelde weken zijn het automatische voorstel. Tik een week om handmatig te sturen; geblokkeerde weken geven een foutmelding."}
-                  </p>
-                  {cupWeekAdvice ? (
-                    <p
-                      className="text-sm text-sky-950"
-                      role="status"
-                      aria-live="polite"
-                    >
-                      {cupWeekAdvice.statusLine}
-                    </p>
-                  ) : null}
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="min-h-[44px]"
-                      onClick={seedCupWeeksFromPlan}
-                      disabled={!plan?.cupDates.length}
-                    >
-                      <Wand2 className="h-3.5 w-3.5 mr-1.5" aria-hidden />
-                      Voorstel vastzetten
-                    </Button>
-                    {cupWeekAdvice && cupWeekAdvice.suggestionMondays.length > 0 ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="min-h-[44px]"
-                        onClick={() => {
-                          const need = Math.max(
-                            0,
-                            cupRequiredWeeks - preferredCupWeeks.length,
-                          );
-                          if (need <= 0) {
-                            toast({
-                              title: "Genoeg bekerweken",
-                              description: `Je hebt al ${preferredCupWeeks.length}/${cupRequiredWeeks} gekozen.`,
-                            });
-                            return;
-                          }
-                          const add = cupWeekAdvice.suggestionMondays.slice(0, need);
-                          void applySetupAndRefreshPlan({
-                            ...setup,
-                            cup: {
-                              ...setup.cup,
-                              weekMode: "manual",
-                              preferredWeeks: [...preferredCupWeeks, ...add].sort(),
-                            },
-                          });
-                          toast({
-                            title: "Suggesties toegevoegd",
-                            description: `${add.length} week(en) uit het voorstel toegevoegd.`,
-                          });
-                        }}
-                      >
-                        <Sparkles className="h-3.5 w-3.5 mr-1.5" aria-hidden />
-                        Vul met suggesties
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="min-h-[44px]"
-                      onClick={clearCupWeekSelection}
-                      disabled={preferredCupWeeks.length === 0 && cupWeekMode === "auto"}
-                    >
-                      Selectie wissen
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="space-y-2 rounded-lg border border-sky-300/50 bg-sky-50/70 p-3">
-                <p className="text-sm font-medium text-sky-950">
-                  Speeluitzonderingen (vakantie)
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Tik op een vakantieweek hieronder om die speelbaar te maken. Verwijder
-                  een uitzondering hier of via de knop onder die week.
-                </p>
-                {playableVacationWeeks.length > 0 ? (
-                  <ul className="flex flex-wrap gap-2" aria-label="Actieve speeluitzonderingen">
-                    {playableVacationWeeks.map((monday) => {
-                      const key = monday.slice(0, 10);
-                      return (
-                        <li key={key}>
-                          <button
-                            type="button"
-                            onClick={() => togglePlayableVacationWeek(key)}
-                            className={cn(
-                              "inline-flex items-center gap-1.5 min-h-[44px] rounded-md border px-3",
-                              "border-sky-400/70 bg-card text-sky-950 text-sm",
-                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                              "hover:bg-sky-100/80",
-                            )}
-                            aria-label={`Uitzondering ${formatWeekLabel(key)} verwijderen`}
-                          >
-                            <span className="tabular-nums">{formatWeekLabel(key)}</span>
-                            <X className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Nog geen uitzonderingen — vakantieweken blijven gesloten.
-                  </p>
-                )}
-              </div>
-
               <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                 {weeksToShow.map((week) => {
                   const monday = week.weekMonday.slice(0, 10);
@@ -1406,9 +1137,9 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
                           type="button"
                           className={cn(
                             "w-full min-h-[44px] rounded-md text-[11px] px-2 inline-flex items-center justify-center gap-1",
-                            "border border-sky-300/70 bg-sky-50 text-sky-950",
+                            "border border-destructive/40 bg-destructive text-destructive-foreground",
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            "hover:bg-sky-100",
+                            "hover:bg-destructive/90",
                           )}
                           onClick={() => togglePlayableVacationWeek(monday)}
                           aria-label={`Uitzondering voor week ${formatWeekLabel(monday)} verwijderen`}
@@ -1423,61 +1154,21 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
               </ul>
             </CardContent>
           </Card>
-
-          {(plan.rationale.length > 0 || plan.notes.length > 0) && (
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-base">Waarom dit plan</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {plan.rationale.length > 0 ? (
-                  <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                    {plan.rationale.map((r) => (
-                      <li key={r}>{r}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                {plan.notes.length > 0 ? (
-                  <Alert className="border-primary/20">
-                    <Info className="h-4 w-4" aria-hidden />
-                    <AlertDescription className="text-sm space-y-1">
-                      {plan.notes.map((n) => (
-                        <p key={n}>{n}</p>
-                      ))}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-              </CardContent>
-            </Card>
-          )}
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Nog geen kalender — klik op &quot;Kalender vernieuwen&quot; na het kiezen van speelsystemen.
+          Nog geen kalender. De weekstrook verschijnt automatisch na het instellen van seizoensdata en speelsystemen.
         </p>
       )}
-      </section>
+      </SeasonStepSection>
 
-      <section
-        className="space-y-4 border-t border-primary/20 pt-6"
-        aria-labelledby="season-preview-section-heading"
+      <SeasonStepSection
+        step={4}
+        title="Preview speelmomenten"
+        headingId="season-preview-section-heading"
+        className="border-t border-primary/20 pt-6"
+        contentClassName="space-y-4"
       >
-        <div className="space-y-1 border-b border-primary/15 pb-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Stap 4
-          </p>
-          <h3
-            id="season-preview-section-heading"
-            className="text-base font-semibold text-brand-dark"
-          >
-            Preview speelmomenten
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Genereer de concrete wedstrijden, controleer ze, en bevestig om ze in de database op te
-            slaan (beker → competitie → play-offs).
-          </p>
-        </div>
-
         {competitionCapacityWarning ? (
           <Alert className="border-orange-400/50 bg-orange-50 text-orange-950">
             <AlertCircle className="h-4 w-4" aria-hidden />
@@ -1506,7 +1197,7 @@ const SeasonCalendarPage: React.FC<SeasonCalendarPageProps> = ({
           confirming={confirmingPreview}
           disabled={!seasonBounds || teams.length === 0}
         />
-      </section>
+      </SeasonStepSection>
     </div>
   );
 };

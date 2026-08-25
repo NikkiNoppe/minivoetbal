@@ -41,10 +41,10 @@ function SectionHeaderContent({
   badge,
 }: Pick<SectionCollapsibleCardProps, "title" | "icon" | "badge">) {
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+    <span className="flex min-w-0 flex-1 items-center gap-x-2 gap-y-1 text-left flex-wrap">
       {icon ? <SectionIcon icon={icon} variant="compact" /> : null}
       <span className="truncate">{title}</span>
-      {badge}
+      {badge ? <span className="min-w-0 max-w-full">{badge}</span> : null}
     </span>
   );
 }

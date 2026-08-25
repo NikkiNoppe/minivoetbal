@@ -6,6 +6,10 @@ import { playoffService } from "@/services/match/playoffService";
 import { loadSlotPlanningContext } from "@/services/match/slotPlanningContext";
 import { buildSeasonSetupFormat } from "./normalize";
 import { resolveCupTeamCount } from "./estimates";
+import {
+  findTeamOrderForByePins,
+  validateByePins,
+} from "./competitionByePin";
 import type { SeasonSetup } from "./types";
 import {
   buildSeasonSlotGrids,
@@ -18,7 +22,7 @@ import { hasSufficientSameWeekDayGap } from "@/lib/competitionWeekPacking";
 import { comparePreviewChronological } from "@/lib/slotPriorityPacking";
 import {
   compareUnifiedPreviewRows,
-  lastPlayableFriday,
+  lastPlayableCupFinalDay,
   pinCupFinalToDate,
   relocateCupFinalToStandaloneDay,
 } from "./placeCupFinalOnQuietDay";
@@ -26,6 +30,7 @@ import {
   buildCupTeamRankMap,
   divisionRankBySortOrder,
 } from "@/lib/cupTeamSeeding";
+import { getCupBracketPlan } from "@/lib/cupBracketPlan";
 import type { SlotUnavailability } from "@/types/slotUnavailability";
 
 export type UnifiedPreviewPhase =
@@ -550,13 +555,41 @@ async function previewCupSection(input: {
       );
     }
 
+    const cupTeamSet = new Set(cupTeams.map((id) => Number(id)));
+    const forcedPlayingTeamIds = (setup.cup.voorrondeTeamIds ?? [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && cupTeamSet.has(id));
+    const firstRound = getCupBracketPlan(
+      cupTeams.length,
+      plan?.cupBracket.slotsPerWeekUsed ?? 7,
+    ).rounds[0];
+    const firstVrPairs =
+      firstRound?.kind === "voorronde" ? firstRound.matchCount : 0;
+    if (firstVrPairs > 0) {
+      const need = firstVrPairs * 2;
+      if (forcedPlayingTeamIds.length === 0) {
+        warnings.push(
+          `Beker-voorronde: nog geen ploegen vastgelegd — kies ${need} ploegen onder Beker → Voorronde-ploegen (bv. nieuwe ploegen).`,
+        );
+      } else if (forcedPlayingTeamIds.length === need) {
+        const names = forcedPlayingTeamIds
+          .map((id) => teamLabel(teams, id))
+          .join(" · ");
+        warnings.push(`Beker-voorronde vastgelegd: ${names}.`);
+      } else {
+        warnings.push(
+          `Beker-voorronde: ${forcedPlayingTeamIds.length}/${need} vastgelegde ploegen — rest wordt automatisch aangevuld.`,
+        );
+      }
+    }
+
     let res = await bekerService.previewCupTournament(
       cupTeams,
       dates,
       8,
       byeTeamId,
       organizationId,
-      { teamRank },
+      { teamRank, forcedPlayingTeamIds },
     );
     if (!res.success && /exact (\d+) speelweken/i.test(res.message || "")) {
       const m = res.message.match(/exact (\d+) speelweken/i);
@@ -578,7 +611,7 @@ async function previewCupSection(input: {
             8,
             byeTeamId,
             organizationId,
-            { teamRank },
+            { teamRank, forcedPlayingTeamIds },
           );
         }
       }
@@ -603,11 +636,12 @@ async function previewCupSection(input: {
     }
 
     const { toMondayIso } = await import("@/lib/competitionPlanningEstimate");
-    const lastFriday = lastPlayableFriday(
+    const lastFinalDay = lastPlayableCupFinalDay(
       (plan?.weeks ?? []).map((w) => w.weekMonday),
+      1,
     );
-    if (lastFriday) {
-      pinCupFinalToDate(res.plan, lastFriday, "21:00");
+    if (lastFinalDay) {
+      pinCupFinalToDate(res.plan, lastFinalDay, "21:00");
     }
     const busyByMonday = cupBusyTeamsByMondayFromPlan(res.plan, toMondayIso);
     const teamDatesByMonday = cupTeamDatesByMondayFromPlan(res.plan, toMondayIso);
@@ -802,6 +836,53 @@ export async function buildUnifiedSeasonPreview(input: {
         );
       }
 
+      const byePins = (setup.competition.byePins ?? []).filter((p) =>
+        teamIds.includes(p.teamId),
+      );
+      if (byePins.length > 0) {
+        const divisionPools: number[][] =
+          format.has_divisions && teamDivisions
+            ? [
+                ...new Set(
+                  byePins
+                    .map((p) => teamDivisions[p.teamId])
+                    .filter((id): id is number => typeof id === "number"),
+                ),
+              ].map((divId) =>
+                teamIds.filter((id) => teamDivisions[id] === divId),
+              )
+            : [teamIds];
+
+        let byePinFailed = false;
+        const pinLines: string[] = [];
+        for (const pool of divisionPools) {
+          const poolPins = byePins.filter((p) => pool.includes(p.teamId));
+          if (poolPins.length === 0) continue;
+          const validation = validateByePins(pool, poolPins);
+          if (!validation.ok) {
+            warnings.push(`Competitie-bye: ${validation.reason}`);
+            byePinFailed = true;
+            break;
+          }
+          if (!findTeamOrderForByePins(pool, poolPins)) byePinFailed = true;
+          for (const pin of poolPins) {
+            pinLines.push(
+              `${teamLabel(teams, pin.teamId)} → speeldag ${pin.roundMatchday}`,
+            );
+          }
+        }
+        if (!byePinFailed && pinLines.length > 0) {
+          warnings.push(`Competitie-bye vastgezet: ${pinLines.join("; ")}.`);
+        } else if (
+          byePinFailed &&
+          !warnings.some((w) => w.startsWith("Competitie-bye:"))
+        ) {
+          warnings.push(
+            "Competitie-bye kon niet worden geplaatst — controleer ploeg en speeldag.",
+          );
+        }
+      }
+
       try {
         const runCompetition = (dual: boolean) =>
           competitionService.previewCompetition({
@@ -811,6 +892,7 @@ export async function buildUnifiedSeasonPreview(input: {
             teams: teamIds,
             organizationId,
             teamDivisions,
+            forcedByePins: byePins,
             reservedCupMondays: plan?.cupDates ?? [],
             reservedPlayoffMondays: plan?.playoffWeeks ?? [],
             shareCupWeeks:

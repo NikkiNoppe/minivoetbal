@@ -15,6 +15,7 @@ import {
 import { Award, Plus, Target, Trophy, Trash2 } from "lucide-react";
 import { SectionCollapsibleCard } from "@/components/layout";
 import { cn } from "@/lib/utils";
+import SeasonStepSection from "./SeasonStepSection";
 import {
   addDivisionToSetup,
   describeCupRounds,
@@ -22,10 +23,12 @@ import {
   estimateCompetitionMatches,
   estimatePlayoffMatchdays,
   estimatePlayoffMatches,
-
+  matchdaysPerRound,
   removeDivisionFromSetup,
   resolveCupTeamCount,
+  splitPlayoffGroups,
   syncDivisionCountsFromAssignments,
+  type CompetitionByePin,
   type SeasonSetup,
 } from "@/lib/seasonSetup";
 import DivisionTeamAssigner, {
@@ -55,7 +58,7 @@ const SYSTEM_CARDS: Array<{
   {
     key: "playoffs",
     title: "Play-offs",
-    description: "Top & bottom na de competitie; 1 of 2 rondes",
+    description: "Alle ploegen: top & bottom (oneven extra in de top); 1 of 2 rondes",
     icon: Target,
   },
 ];
@@ -71,8 +74,8 @@ export interface SeasonSetupPanelProps {
   onChange: (next: SeasonSetup) => void;
   /** Welke systemen mogen getoond worden (visibility). */
   allowedSystems?: Partial<Record<SystemKey, boolean>>;
-  /** Beschikbare speelmomenten uit de kalender (M-slots / configAvailable). */
-  availableMoments?: number;
+  /** Auto-save status, getoond in stap 2. */
+  statusFooter?: React.ReactNode;
 }
 
 const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
@@ -83,7 +86,7 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
   disabled = false,
   onChange,
   allowedSystems,
-  availableMoments,
+  statusFooter,
 }) => {
   const visibleSystems = useMemo(
     () =>
@@ -96,6 +99,11 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
   const cupPlan = useMemo(
     () => describeCupRounds(setup, liveTeamCount, slotsPerWeek),
     [setup, liveTeamCount, slotsPerWeek],
+  );
+
+  const playoffSplit = useMemo(
+    () => splitPlayoffGroups(liveTeamCount),
+    [liveTeamCount],
   );
 
   const toggleSystem = (key: SystemKey, checked: boolean) => {
@@ -140,52 +148,85 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
     );
   };
 
-  const cupMatchCount = cupPlan
-    ? cupPlan.rounds.reduce((sum, r) => sum + r.matchCount, 0)
-    : 0;
-  const competitionMatchCount = setup.systems.competition
-    ? estimateCompetitionMatches(setup)
-    : 0;
-  const demandMatches =
-    (setup.systems.competition ? competitionMatchCount : 0) +
-    (setup.systems.cup ? cupMatchCount : 0);
-  const spareMoments =
-    availableMoments != null ? availableMoments - demandMatches : null;
+  const byePins = setup.competition.byePins ?? [];
+
+  const poolSizeForTeam = (teamId: number): number => {
+    if (!setup.competition.hasDivisions) {
+      return teams.length > 0
+        ? teams.length
+        : setup.competition.estimatedTeamCount;
+    }
+    const divId = teamAssignment[teamId];
+    if (divId == null) return 0;
+    const assigned = teams.filter((t) => teamAssignment[t.team_id] === divId).length;
+    if (assigned > 0) return assigned;
+    const idx = setup.competition.divisions.findIndex((d) => d.id === divId);
+    return idx >= 0 ? (setup.competition.divisionTeamCounts[idx] ?? 0) : 0;
+  };
+
+  const showCompetitionByePins = useMemo(() => {
+    if (!setup.systems.competition) return false;
+    if (!setup.competition.hasDivisions) {
+      const n =
+        teams.length > 0 ? teams.length : setup.competition.estimatedTeamCount;
+      return n % 2 === 1;
+    }
+    return setup.competition.divisions.some((div, index) => {
+      const assigned = teams.filter(
+        (t) => teamAssignment[t.team_id] === div.id,
+      ).length;
+      const count =
+        assigned > 0
+          ? assigned
+          : (setup.competition.divisionTeamCounts[index] ?? 0);
+      return count % 2 === 1;
+    });
+  }, [setup, teams, teamAssignment]);
+
+  const updateByePin = (index: number, patch: Partial<CompetitionByePin>) => {
+    const next = byePins.map((pin, i) =>
+      i === index ? { ...pin, ...patch } : pin,
+    );
+    patchCompetition({ byePins: next });
+  };
+
+  const removeByePin = (index: number) => {
+    patchCompetition({ byePins: byePins.filter((_, i) => i !== index) });
+  };
+
+  const addByePin = () => {
+    const pinnedTeams = new Set(byePins.map((p) => p.teamId));
+    const usedMatchdays = new Set(byePins.map((p) => p.roundMatchday));
+    const candidate = teams.find((t) => !pinnedTeams.has(t.team_id));
+    if (!candidate) return;
+    const poolSize = poolSizeForTeam(candidate.team_id);
+    if (poolSize % 2 === 0) return;
+    const maxMd = matchdaysPerRound(poolSize);
+    let roundMatchday = 1;
+    while (roundMatchday <= maxMd && usedMatchdays.has(roundMatchday)) {
+      roundMatchday += 1;
+    }
+    patchCompetition({
+      byePins: [
+        ...byePins,
+        {
+          teamId: candidate.team_id,
+          roundMatchday: Math.min(roundMatchday, maxMd),
+        },
+      ],
+    });
+  };
+
   const hasDetailSections =
     setup.systems.competition || setup.systems.cup || setup.systems.playoffs;
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3" aria-labelledby="season-setup-systems-heading">
-        <div className="space-y-1 border-b border-primary/15 pb-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Stap 1
-          </p>
-          <h3
-            id="season-setup-systems-heading"
-            className="text-base font-semibold text-brand-dark"
-          >
-            Speelsystemen
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Kies welke onderdelen dit seizoen meedoen. Details per systeem klap je apart open.
-          </p>
-          {availableMoments != null && availableMoments > 0 ? (
-            <p className="text-sm text-brand-dark">
-              {availableMoments} speelmomenten in de kalender
-              {setup.systems.competition
-                ? ` · ${competitionMatchCount} competitiewedstrijden`
-                : ""}
-              {setup.systems.cup ? ` · ${cupMatchCount} bekerwedstrijden` : ""}
-              {spareMoments != null
-                ? spareMoments >= 0
-                  ? ` · ${spareMoments} vrij`
-                  : ` · ${Math.abs(spareMoments)} tekort`
-                : ""}
-            </p>
-          ) : null}
-        </div>
-
+      <SeasonStepSection
+        step={1}
+        title="Speelsystemen"
+        headingId="season-setup-systems-heading"
+      >
         <Card className="border-primary/20 shadow-lg">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Selectie</CardTitle>
@@ -194,17 +235,17 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <ul className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="list">
+            <ul className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-stretch" role="list">
               {visibleSystems.map((sys) => {
                 const Icon = sys.icon;
                 const checked = setup.systems[sys.key];
                 const id = `season-system-${sys.key}`;
                 return (
-                  <li key={sys.key}>
+                  <li key={sys.key} className="h-full min-h-0">
                     <label
                       htmlFor={id}
                       className={cn(
-                        "flex flex-col gap-2 rounded-lg border p-3 min-h-[44px] cursor-pointer transition-colors",
+                        "flex flex-col h-full gap-2 rounded-lg border p-3 min-h-[44px] cursor-pointer transition-colors",
                         "focus-within:ring-2 focus-within:ring-ring",
                         checked
                           ? "border-primary/40 bg-primary/5"
@@ -212,7 +253,7 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                         disabled && "opacity-60 pointer-events-none",
                       )}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-3 flex-1">
                         <Checkbox
                           id={id}
                           checked={checked}
@@ -237,57 +278,16 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                 );
               })}
             </ul>
-
-            <div className="space-y-1.5 pt-1">
-              <Label htmlFor="setup-phase-strategy">Volgorde in de kalender</Label>
-              <Select
-                value={setup.phaseStrategy ?? "balanced"}
-                disabled={disabled}
-                onValueChange={(v) =>
-                  onChange({
-                    ...setup,
-                    phaseStrategy:
-                      v === "competition-first" ? "competition-first" : "balanced",
-                  })
-                }
-              >
-                <SelectTrigger id="setup-phase-strategy" className="min-h-[44px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="balanced">
-                    Automatisch spreiden (beker tussen de competitie)
-                  </SelectItem>
-                  <SelectItem value="competition-first">
-                    Competitie eerst, daarna beker &amp; play-offs
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                “Competitie eerst” vult de vroegste speelweken met competitie (bv. tot
-                nieuwjaar) en zet beker en play-offs in de weken daarna. Individuele
-                bekerweken blijf je zelf aanklikken in de weekstrook.
-              </p>
-            </div>
           </CardContent>
         </Card>
-      </section>
-
+      </SeasonStepSection>
 
       {hasDetailSections ? (
-        <section className="space-y-3" aria-labelledby="season-setup-details-heading">
-          <div className="space-y-1 border-b border-primary/15 pb-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Stap 2
-            </p>
-            <h3
-              id="season-setup-details-heading"
-              className="text-base font-semibold text-brand-dark"
-            >
-              Details per systeem
-            </h3>
-          </div>
-
+        <SeasonStepSection
+          step={2}
+          title="Details per systeem"
+          headingId="season-setup-details-heading"
+        >
           <div className="space-y-3">
             {setup.systems.competition ? (
               <SectionCollapsibleCard
@@ -295,17 +295,14 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                 icon={Trophy}
                 defaultOpen={false}
                 badge={
-                  <Badge variant="secondary" className="text-[10px] shrink-0">
+                  <Badge variant="secondary" className="text-[10px] font-normal whitespace-normal leading-tight max-w-full">
                     ~{estimateCompetitionMatches(setup)} wedstrijden ·{" "}
                     {estimateCompetitionMatchdays(setup)} speeldagen
                   </Badge>
                 }
-                contentClassName="space-y-4"
+                contentClassName="space-y-3 sm:space-y-4 px-3 sm:px-5 py-3 sm:py-4"
               >
-                <p className="text-sm text-muted-foreground -mt-1 mb-2">
-                  Rondes, poule of reeksen — apart van beker en play-offs.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="setup-rounds">Aantal rondes</Label>
                     <Select
@@ -326,9 +323,9 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">
-                      1 = enkelvoudig · 2 = heen én terug · 3 = drie rondes.
-                      Oneven aantal ploegen: +1 speeldag/ronde (bye).
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      1 = enkelvoudig, 2 = heen én terug.
+                      Oneven ploegen: +1 speeldag per ronde (bye).
                     </p>
                   </div>
 
@@ -375,13 +372,13 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <p className="text-sm font-medium text-brand-dark">Reeksen</p>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="min-h-[44px]"
+                        className="min-h-[44px] w-full sm:w-auto"
                         disabled={disabled}
                         onClick={() => onChange(addDivisionToSetup(setup))}
                       >
@@ -450,6 +447,131 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                     </p>
                   </div>
                 )}
+
+                {showCompetitionByePins && teams.length > 0 ? (
+                  <div className="space-y-2 border-t border-primary/10 pt-3">
+                    <p className="text-sm font-medium text-brand-dark">
+                      Bye vastzetten (oneven poule)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Kies welke ploeg rust op welke speeldag. Per speeldag is
+                      maximaal één bye mogelijk.
+                    </p>
+                    {byePins.length > 0 ? (
+                      <ul className="space-y-2">
+                        {byePins.map((pin, index) => {
+                          const maxMd = matchdaysPerRound(poolSizeForTeam(pin.teamId));
+                          const usedMatchdays = new Set(
+                            byePins
+                              .filter((_, i) => i !== index)
+                              .map((p) => p.roundMatchday),
+                          );
+                          return (
+                            <li
+                              key={`${pin.teamId}-${index}`}
+                              className="flex flex-col sm:flex-row gap-2 sm:items-end rounded-lg border border-primary/15 p-3"
+                            >
+                              <div className="flex-1 space-y-1.5 min-w-0">
+                                <Label htmlFor={`bye-team-${index}`}>Ploeg</Label>
+                                <Select
+                                  value={String(pin.teamId)}
+                                  disabled={disabled}
+                                  onValueChange={(v) =>
+                                    updateByePin(index, { teamId: Number(v) })
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={`bye-team-${index}`}
+                                    className="min-h-[44px]"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {teams.map((t) => (
+                                      <SelectItem
+                                        key={t.team_id}
+                                        value={String(t.team_id)}
+                                        disabled={
+                                          byePins.some(
+                                            (p, i) =>
+                                              i !== index && p.teamId === t.team_id,
+                                          )
+                                        }
+                                      >
+                                        {t.team_name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="w-full sm:w-36 space-y-1.5">
+                                <Label htmlFor={`bye-md-${index}`}>Speeldag</Label>
+                                <Select
+                                  value={String(pin.roundMatchday)}
+                                  disabled={disabled}
+                                  onValueChange={(v) =>
+                                    updateByePin(index, {
+                                      roundMatchday: Number(v) || 1,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={`bye-md-${index}`}
+                                    className="min-h-[44px]"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: maxMd }, (_, i) => i + 1).map(
+                                      (md) => (
+                                        <SelectItem
+                                          key={md}
+                                          value={String(md)}
+                                          disabled={usedMatchdays.has(md)}
+                                        >
+                                          Speeldag {md}
+                                        </SelectItem>
+                                      ),
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className="min-h-[44px] min-w-[44px] text-destructive"
+                                disabled={disabled}
+                                aria-label="Bye-pin verwijderen"
+                                onClick={() => removeByePin(index)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Nog geen bye vastgezet — de loting kiest automatisch.
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-[44px] w-full sm:w-auto"
+                      disabled={
+                        disabled ||
+                        teams.length <= byePins.length ||
+                        !teams.some((t) => !byePins.some((p) => p.teamId === t.team_id))
+                      }
+                      onClick={addByePin}
+                    >
+                      <Plus className="h-4 w-4 mr-1" aria-hidden />
+                      Bye toevoegen
+                    </Button>
+                  </div>
+                ) : null}
               </SectionCollapsibleCard>
             ) : null}
 
@@ -457,24 +579,24 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
               <SectionCollapsibleCard
                 title="Beker"
                 icon={Award}
-                defaultOpen={false}
+                defaultOpen={cupPlan?.rounds[0]?.kind === "voorronde"}
                 badge={
                   cupPlan ? (
-                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                    <Badge variant="secondary" className="text-[10px] font-normal whitespace-normal leading-tight max-w-full">
                       {cupPlan.rounds.reduce((sum, r) => sum + r.matchCount, 0)} wedstrijden ·{" "}
                       {cupPlan.requiredWeeks} speelweken
+                      {(setup.cup.voorrondeTeamIds?.length ?? 0) > 0
+                        ? ` · VR ${setup.cup.voorrondeTeamIds!.length}`
+                        : ""}
                     </Badge>
                   ) : undefined
                 }
-                contentClassName="space-y-4"
+                contentClassName="space-y-3 sm:space-y-4 px-3 sm:px-5 py-3 sm:py-4"
               >
-                <p className="text-sm text-muted-foreground -mt-1 mb-2">
-                  Knock-out apart van de competitie. Bekerweken kies je later in de kalender.
-                </p>
                 <label
                   htmlFor="setup-cup-all"
                   className={cn(
-                    "flex items-start gap-3 rounded-lg border border-primary/15 p-3 cursor-pointer",
+                    "flex items-start gap-3 rounded-lg border border-primary/15 p-3 min-h-[44px] cursor-pointer",
                     disabled && "opacity-60 pointer-events-none",
                   )}
                 >
@@ -524,7 +646,7 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                       Rondes ({resolveCupTeamCount(setup, liveTeamCount)} teams ·{" "}
                       {cupPlan.requiredWeeks} speelweken)
                     </p>
-                    <ol className="flex flex-wrap gap-2">
+                    <ol className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-2">
                       {cupPlan.roundLabels.map((round) =>
                         round.type === "group" ? (
                           <li
@@ -547,6 +669,72 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                     </ol>
                   </div>
                 ) : null}
+
+                {cupPlan?.rounds[0]?.kind === "voorronde" && teams.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-brand-dark">
+                      Voorronde-ploegen (nieuwe ploegen)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Kies exact {cupPlan.rounds[0].matchCount * 2} ploegen die de voorronde
+                      spelen. De rest krijgt bye naar de volgende ronde.
+                    </p>
+                    {(setup.cup.voorrondeTeamIds?.length ?? 0) > 0 ? (
+                      <p className="text-sm font-medium text-brand-dark rounded-lg border border-primary/20 bg-muted/40 px-3 py-2">
+                        Gekozen:{" "}
+                        {(setup.cup.voorrondeTeamIds ?? [])
+                          .map(
+                            (id) =>
+                              teams.find((t) => t.team_id === id)?.team_name ??
+                              `Team ${id}`,
+                          )
+                          .join(" · ")}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-destructive">
+                        Nog geen voorronde-ploegen gekozen — anders kiest de loting zelf.
+                      </p>
+                    )}
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                      {teams.map((t) => {
+                        const selected = (setup.cup.voorrondeTeamIds ?? []).includes(
+                          t.team_id,
+                        );
+                        const need = cupPlan.rounds[0].matchCount * 2;
+                        const count = (setup.cup.voorrondeTeamIds ?? []).length;
+                        const atLimit = !selected && count >= need;
+                        return (
+                          <li key={t.team_id}>
+                            <label
+                              htmlFor={`setup-cup-vr-${t.team_id}`}
+                              className={cn(
+                                "flex items-center gap-2 rounded-lg border border-primary/15 px-3 py-2 min-h-[44px] cursor-pointer",
+                                selected && "border-primary/40 bg-muted/40",
+                                (disabled || atLimit) && "opacity-60",
+                                atLimit && "pointer-events-none",
+                              )}
+                            >
+                              <Checkbox
+                                id={`setup-cup-vr-${t.team_id}`}
+                                checked={selected}
+                                disabled={disabled || atLimit}
+                                onCheckedChange={(v) => {
+                                  const cur = setup.cup.voorrondeTeamIds ?? [];
+                                  const next =
+                                    v === true
+                                      ? [...cur, t.team_id].slice(0, need)
+                                      : cur.filter((id) => id !== t.team_id);
+                                  patchCup({ voorrondeTeamIds: next });
+                                }}
+                              />
+                              <span className="text-sm truncate">{t.team_name}</span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
               </SectionCollapsibleCard>
             ) : null}
 
@@ -554,61 +742,35 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
               <SectionCollapsibleCard
                 title="Play-offs"
                 icon={Target}
-                defaultOpen={false}
+                defaultOpen
                 badge={
-                  <Badge variant="secondary" className="text-[10px] shrink-0">
-                    ~{estimatePlayoffMatches(setup)} wedstrijden ·{" "}
-                    {estimatePlayoffMatchdays(setup)} speeldagen
-
+                  <Badge variant="secondary" className="text-[10px] font-normal whitespace-normal leading-tight max-w-full">
+                    ~{estimatePlayoffMatches({ ...setup, playoffs: { ...setup.playoffs, ...playoffSplit } })} wedstrijden ·{" "}
+                    {estimatePlayoffMatchdays({ ...setup, playoffs: { ...setup.playoffs, ...playoffSplit } })} speeldagen
                   </Badge>
                 }
-                contentClassName="space-y-4"
+                contentClassName="space-y-3 sm:space-y-4 px-3 sm:px-5 py-3 sm:py-4"
               >
-                <p className="text-sm text-muted-foreground -mt-1 mb-2">
-                  Top &amp; bottom na de competitie — apart blok, eigen rondes.
+                <p className="text-sm text-muted-foreground">
+                  Alle {liveTeamCount} ploegen doen mee: top {playoffSplit.topTeams} +
+                  bottom {playoffSplit.bottomTeams}
+                  {liveTeamCount % 2 === 1
+                    ? ". Oneven aantal → extra ploeg in de top."
+                    : "."}
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="setup-po-top">Top-teams</Label>
-                    <Select
-                      value={String(setup.playoffs.topTeams)}
-                      disabled={disabled}
-                      onValueChange={(v) =>
-                        patchPlayoffs({ topTeams: Number(v) as 6 | 7 | 8 })
-                      }
-                    >
-                      <SelectTrigger id="setup-po-top" className="min-h-[44px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[6, 7, 8].map((n) => (
-                          <SelectItem key={n} value={String(n)}>
-                            Top {n}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <p className="text-sm font-medium leading-none">Top-ploegen</p>
+                    <div className="flex min-h-[44px] items-center rounded-lg border border-primary/20 bg-muted/40 px-3 py-2 text-sm font-medium text-brand-dark">
+                      Top {playoffSplit.topTeams} (pos. 1–{playoffSplit.topTeams})
+                    </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="setup-po-bottom">Bottom-teams</Label>
-                    <Select
-                      value={String(setup.playoffs.bottomTeams)}
-                      disabled={disabled}
-                      onValueChange={(v) =>
-                        patchPlayoffs({ bottomTeams: Number(v) as 6 | 7 | 8 })
-                      }
-                    >
-                      <SelectTrigger id="setup-po-bottom" className="min-h-[44px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[6, 7, 8].map((n) => (
-                          <SelectItem key={n} value={String(n)}>
-                            Bottom {n}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <p className="text-sm font-medium leading-none">Bottom-ploegen</p>
+                    <div className="flex min-h-[44px] items-center rounded-lg border border-primary/20 bg-muted/40 px-3 py-2 text-sm font-medium text-brand-dark">
+                      Bottom {playoffSplit.bottomTeams} (pos.{" "}
+                      {playoffSplit.topTeams + 1}–{liveTeamCount})
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="setup-po-rounds">Rondes</Label>
@@ -631,8 +793,11 @@ const SeasonSetupPanel: React.FC<SeasonSetupPanelProps> = ({
                 </div>
               </SectionCollapsibleCard>
             ) : null}
+            {statusFooter}
           </div>
-        </section>
+        </SeasonStepSection>
+      ) : statusFooter ? (
+        statusFooter
       ) : null}
     </div>
   );

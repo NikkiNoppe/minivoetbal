@@ -12,7 +12,6 @@ const SeasonPlanningHub: React.FC = () => {
     <div className="space-y-4 sm:space-y-6 animate-slide-up pb-6">
       <PageHeader
         title="Seizoensplanning"
-        subtitle="Opzet, kalender en preview — competitie, beker en play-offs in één flow"
         icon={CalendarRange}
       />
       <SeasonCalendarPage embedded />

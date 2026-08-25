@@ -90,9 +90,40 @@ export function nextSlotAfterVoorrondeSpread(
 }
 
 /**
+ * Zet forcedPlaying hard in de speelgroep (na de byes), ongeacht eerdere shuffle.
+ * Zo blijven nieuwe ploegen altijd in de voorronde, ook na preference-retries.
+ */
+export function pinForcedVoorrondeOrder(
+  fullOrder: number[],
+  byeCount: number,
+  forcedPlayingTeamIds: number[] | undefined,
+): number[] {
+  const n = fullOrder.length;
+  if (n === 0) return fullOrder;
+  const byes = Math.max(0, Math.min(Math.floor(byeCount), n));
+  const playingCount = n - byes;
+  if (playingCount <= 0 || !forcedPlayingTeamIds?.length) return fullOrder;
+
+  const orderSet = new Set(fullOrder);
+  const forced = [
+    ...new Set(
+      forcedPlayingTeamIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && orderSet.has(id)),
+    ),
+  ].slice(0, playingCount);
+  if (forced.length === 0) return fullOrder;
+
+  const forcedSet = new Set(forced);
+  const others = fullOrder.filter((id) => !forcedSet.has(id));
+  return [...others.slice(0, byes), ...forced, ...others.slice(byes)].slice(0, n);
+}
+
+/**
  * Ordening voor openingsronde:
  * - Byes vooraan (bij voorkeur lagere rank = reeks 1)
  * - Speelveld achteraan (bij voorkeur hogere rank = reeks 2+), gepaard zelfde reeks waar mogelijk
+ * - forcedPlayingTeamIds altijd in de voorronde (bv. nieuwe ploegen)
  */
 export function seedCupTeamOrder(input: {
   teams: number[];
@@ -100,6 +131,8 @@ export function seedCupTeamOrder(input: {
   teamRank: CupTeamRankMap;
   byeCount: number;
   forcedByeTeamId?: number | null;
+  /** Verplicht in voorronde (nieuwe ploegen); max. playingCount. */
+  forcedPlayingTeamIds?: number[];
   rng?: () => number;
 }): number[] {
   const rng = input.rng ?? defaultRng;
@@ -121,20 +154,38 @@ export function seedCupTeamOrder(input: {
   let byes: number[] = [];
   let playing: number[] = [];
 
-  if (input.forcedByeTeamId != null && pool.includes(input.forcedByeTeamId)) {
+  const forcedPlaying = [
+    ...new Set(
+      (input.forcedPlayingTeamIds ?? []).filter((id) => pool.includes(id)),
+    ),
+  ].slice(0, playingCount);
+  for (const id of forcedPlaying) {
+    playing.push(id);
+  }
+
+  if (
+    input.forcedByeTeamId != null &&
+    pool.includes(input.forcedByeTeamId) &&
+    !playing.includes(input.forcedByeTeamId)
+  ) {
     byes.push(input.forcedByeTeamId);
   }
 
   for (const id of sortedStrongFirst) {
-    if (byes.includes(id)) continue;
+    if (byes.includes(id) || playing.includes(id)) continue;
     if (byes.length < byeCount) byes.push(id);
     else playing.push(id);
   }
 
-  // Te weinig byes (edge): vul uit playing (sterkste eerst)
-  while (byes.length < byeCount && playing.length > 0) {
-    playing.sort(byRank);
-    byes.push(playing.shift()!);
+  // Te weinig byes (edge): vul uit playing (sterkste eerst), behalve forced playing
+  while (byes.length < byeCount && playing.length > forcedPlaying.length) {
+    const movable = playing
+      .filter((id) => !forcedPlaying.includes(id))
+      .sort(byRank);
+    if (movable.length === 0) break;
+    const moved = movable[0];
+    playing = playing.filter((id) => id !== moved);
+    byes.push(moved);
   }
   // Te veel in byes / te weinig playing
   while (playing.length < playingCount && byes.length > byeCount) {
@@ -144,9 +195,26 @@ export function seedCupTeamOrder(input: {
   while (byes.length > byeCount) {
     playing.push(byes.pop()!);
   }
+  // Te veel playing → push non-forced back to byes
+  while (playing.length > playingCount) {
+    const idx = [...playing]
+      .map((id, i) => ({ id, i }))
+      .reverse()
+      .find((x) => !forcedPlaying.includes(x.id));
+    if (!idx) break;
+    playing.splice(idx.i, 1);
+    byes.push(idx.id);
+  }
 
-  // Speelparen: zelfde reeks samen, daarbinnen shufflen
-  playing = pairPreferSameRank(playing, input.teamRank, rng);
+  // Speelparen: zelfde reeks samen, daarbinnen shufflen — forced playing vooraan houden
+  const forcedSet = new Set(forcedPlaying);
+  const forcedPart = playing.filter((id) => forcedSet.has(id));
+  const restPart = pairPreferSameRank(
+    playing.filter((id) => !forcedSet.has(id)),
+    input.teamRank,
+    rng,
+  );
+  playing = [...pairPreferSameRank(forcedPart, input.teamRank, rng), ...restPart];
   byes = shuffleInPlace([...byes], rng);
 
   return [...byes, ...playing];

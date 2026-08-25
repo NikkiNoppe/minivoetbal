@@ -26,6 +26,10 @@ import {
   MIN_SAME_WEEK_DAY_GAP,
   type PackFailureSuggestion,
 } from "@/lib/competitionWeekPacking";
+import {
+  orderTeamsForByePins,
+  type CompetitionByePin,
+} from "@/lib/seasonSetup/competitionByePin";
 import { appendPeriodBoundedSlots, expandSlotsForDualWeekGap, isoWeekDayDistance } from "@/lib/competitionPreferredDayScope";
 import { isPeriodBoundedTimeslot } from "@/lib/timeslotAvailability";
 import { matchDateFromWeekMonday } from "@/lib/cupBracketPlan";
@@ -113,6 +117,11 @@ export interface CompetitionConfig {
   allowDualMatchWeek?: boolean;
   /** Voortgang tijdens packing (0–100) + label — voor UI-percentage. */
   onProgress?: (progress: { percent: number; label: string }) => void;
+  /**
+   * Vaste bye per ploeg op speeldag binnen één ronde (circle method).
+   * Alleen bij oneven poule; per reeks indien has_divisions.
+   */
+  forcedByePins?: CompetitionByePin[];
 }
 
 export type DivisionAwareMatch = {
@@ -546,7 +555,11 @@ export const competitionService = {
       Object.keys(config.teamDivisions).length > 0;
 
     if (!useDivisions) {
-      const teams = rng ? shuffleArray(config.teams, rng) : config.teams;
+      const teams = orderTeamsForByePins(
+        config.teams,
+        config.forcedByePins ?? [],
+        rng ? (arr) => shuffleArray(arr, rng) : undefined,
+      );
       return this.generateRegularSeasonMatches(teams, rounds).map((m) => ({
         home: m.home,
         away: m.away,
@@ -570,7 +583,14 @@ export const competitionService = {
         (teamId) => assignment[teamId] === division.id,
       );
       if (teamsInDivision.length < 2) continue;
-      if (rng) teamsInDivision = shuffleArray(teamsInDivision, rng);
+      const divPins = (config.forcedByePins ?? []).filter(
+        (p) => assignment[p.teamId] === division.id,
+      );
+      teamsInDivision = orderTeamsForByePins(
+        teamsInDivision,
+        divPins,
+        rng ? (arr) => shuffleArray(arr, rng) : undefined,
+      );
 
       const matches = this.generateRegularSeasonMatches(teamsInDivision, rounds);
       for (const m of matches) {

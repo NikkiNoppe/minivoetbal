@@ -5,6 +5,7 @@ import {
   divisionRankBySortOrder,
   nextRoundSlotRoles,
   nextSlotAfterVoorrondeSpread,
+  pinForcedVoorrondeOrder,
   seedCupTeamOrder,
 } from "./cupTeamSeeding";
 
@@ -37,6 +38,42 @@ describe("seedCupTeamOrder", () => {
     // Byes: vooral reeks 1
     const byesFrom1 = byes.filter((id) => teamRank[id] === 1);
     expect(byesFrom1.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("zet forcedPlayingTeamIds altijd in de voorronde", () => {
+    const teams = Array.from({ length: 17 }, (_, i) => i + 1);
+    const teamRank: Record<number, number> = {};
+    for (const id of teams) teamRank[id] = 1;
+    // 17 → target 16: 1 VR-match, 2 spelers, 15 byes
+    const order = seedCupTeamOrder({
+      teams,
+      teamRank,
+      byeCount: 15,
+      forcedPlayingTeamIds: [16, 17],
+      rng: () => 0.5,
+    });
+    const playing = order.slice(15);
+    expect(playing).toHaveLength(2);
+    expect(playing.sort((a, b) => a - b)).toEqual([16, 17]);
+  });
+});
+
+describe("pinForcedVoorrondeOrder", () => {
+  it("duwt forced ploegen hard in de speelgroep na byes", () => {
+    // 16+17 stonden in de bye-groep; 14+15 speelden VR → na pin: 16+17 speelt VR
+    const scrambled = [
+      16,
+      17,
+      ...Array.from({ length: 13 }, (_, i) => i + 1),
+      14,
+      15,
+    ];
+    expect(scrambled).toHaveLength(17);
+    const pinned = pinForcedVoorrondeOrder(scrambled, 15, [16, 17]);
+    expect(pinned.slice(15).sort((a, b) => a - b)).toEqual([16, 17]);
+    expect(pinned.slice(0, 15)).not.toContain(16);
+    expect(pinned.slice(0, 15)).not.toContain(17);
+    expect(pinned).toHaveLength(17);
   });
 });
 

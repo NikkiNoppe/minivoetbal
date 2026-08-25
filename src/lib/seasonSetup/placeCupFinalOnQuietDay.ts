@@ -101,6 +101,8 @@ export function quietDayScore(
   const dow = isoDayOfWeek(date);
   if (dow === 1) score += 120; // maandag = typische bekerdag
   if (dow === 2) score += 40;
+  // Finale hoort ma/di — vrijdag/andere dagen zwaar afstraffen
+  if (dow !== 1 && dow !== 2) score -= 20_000;
   return score;
 }
 
@@ -129,11 +131,24 @@ function pickLastFreeIndex(rows: UnifiedPreviewRow[], freeIdxs: number[]): numbe
   return best;
 }
 
-/** Vrijdag van de laatste speelweek (ISO). */
-export function lastPlayableFriday(weekMondays: string[]): string | null {
+/** Maandag of dinsdag van de laatste speelweek (ISO) — bekerfinale, nooit vrijdag. */
+export function lastPlayableCupFinalDay(
+  weekMondays: string[],
+  preferredDow: 1 | 2 = 1,
+): string | null {
   const last = [...weekMondays].filter(Boolean).sort().at(-1);
   if (!last) return null;
-  return matchDateFromWeekMonday(last, 5);
+  return matchDateFromWeekMonday(last, preferredDow);
+}
+
+/** @deprecated Gebruik lastPlayableCupFinalDay — finale is ma/di, niet vrijdag. */
+export function lastPlayableFriday(weekMondays: string[]): string | null {
+  return lastPlayableCupFinalDay(weekMondays, 1);
+}
+
+function isEarlyWeekday(iso: string): boolean {
+  const dow = isoDayOfWeek(iso);
+  return dow === 1 || dow === 2;
 }
 
 export function pinCupFinalToDate(
@@ -192,9 +207,16 @@ export function relocateCupFinalToStandaloneDay(
     if (afterPriorCup && d < afterPriorCup) return;
     freeIdxs.push(i);
   });
-  if (freeIdxs.length === 0) {
+  // Finale alleen op ma/di; fallback op alle vrije momenten als die er niet zijn.
+  const earlyFree = freeIdxs.filter((i) => isEarlyWeekday(dateKey(rows[i])));
+  const candidateIdxs = earlyFree.length > 0 ? earlyFree : freeIdxs;
+  if (candidateIdxs.length === 0) {
     const currentOthers = otherMatchesOnDate(rows, currentDate, true);
-    if (currentOthers === 0 && (!afterPriorCup || currentDate >= afterPriorCup)) {
+    if (
+      currentOthers === 0 &&
+      (!afterPriorCup || currentDate >= afterPriorCup) &&
+      isEarlyWeekday(currentDate)
+    ) {
       return { rows, moved: false };
     }
     return {
@@ -202,12 +224,12 @@ export function relocateCupFinalToStandaloneDay(
       moved: false,
       warning:
         afterPriorCup
-          ? `Finale niet verplaatst: geen vrij speelmoment ná ${afterPriorCup}.`
-          : "Finale niet verplaatst: geen vrij speelmoment over voor een alleenstaande dag.",
+          ? `Finale niet verplaatst: geen vrij speelmoment (ma/di) ná ${afterPriorCup}.`
+          : "Finale niet verplaatst: geen vrij speelmoment (ma/di) over voor een alleenstaande dag.",
     };
   }
 
-  const bestIdx = pickLastFreeIndex(rows, freeIdxs);
+  const bestIdx = pickLastFreeIndex(rows, candidateIdxs);
   if (bestIdx < 0) return { rows, moved: false };
 
   const slot = rows[bestIdx];
