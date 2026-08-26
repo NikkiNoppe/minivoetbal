@@ -72,7 +72,7 @@ const Footer: React.FC = () => {
         <div className="mt-4 sm:mt-3 pt-3 sm:pt-2 border-t border-white/20 text-center">
           <p className="text-xs text-white/80 leading-relaxed">
             © {new Date().getFullYear()} {branding.displayName}. Alle rechten voorbehouden.{" "}
-            <span className="opacity-60">v1.260825</span>
+            <span className="opacity-60">v1.260826</span>
           </p>
         </div>
       </div>

@@ -191,6 +191,7 @@ export const ALL_ROUTES = {
 } as const;
 
 // SuperAdmin-only routes (speelformaten + platform/systeem)
+// Berichten (/admin/notification) hoort bij org-admin, niet SuperAdmin-only.
 export const SUPERADMIN_ONLY_ROUTES = [
   ADMIN_ROUTES.competition,
   ADMIN_ROUTES.cup,
@@ -198,7 +199,6 @@ export const SUPERADMIN_ONLY_ROUTES = [
   ADMIN_ROUTES['season-calendar'],
   ADMIN_ROUTES['season-planning'],
   ADMIN_ROUTES['platform-beheer'],
-  ADMIN_ROUTES.notification,
 ] as const;
 
 // Route guards configuratie
