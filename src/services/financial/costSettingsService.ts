@@ -67,10 +67,12 @@ export const costSettingsService = {
       const { data, error } = await supabase.rpc('manage_cost_settings_for_session', {
         ...getRpcSessionArgs(),
         p_operation: 'insert',
+        p_id: null,
         p_name: setting.name,
         p_amount: setting.amount,
         p_category: setting.category,
-      } as any);
+        p_cascade_amount: false,
+      });
 
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) {
@@ -118,7 +120,11 @@ export const costSettingsService = {
         ...getRpcSessionArgs(),
         p_operation: 'delete',
         p_id: id,
-      } as any);
+        p_name: null,
+        p_amount: null,
+        p_category: null,
+        p_cascade_amount: false,
+      });
 
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) {
@@ -194,10 +200,12 @@ export const costSettingsService = {
             {
               ...getRpcSessionArgs(),
               p_operation: 'insert',
+              p_id: null,
               p_name: 'Storting',
               p_amount: 0,
               p_category: 'deposit',
-            } as any,
+              p_cascade_amount: false,
+            },
           );
 
           if (costError) {
@@ -277,12 +285,14 @@ export const costSettingsService = {
         {
           ...getRpcSessionArgs(),
           p_operation: 'insert',
+          p_id: null,
           p_name:
             transaction.description ||
             `Transactie ${new Date(transaction.transaction_date).toLocaleDateString('nl-NL')}`,
           p_amount: transaction.amount,
           p_category: category,
-        } as any,
+          p_cascade_amount: false,
+        },
       );
 
       if (costError) {

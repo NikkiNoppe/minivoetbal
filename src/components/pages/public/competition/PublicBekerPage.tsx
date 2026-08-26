@@ -1,8 +1,7 @@
 import React, { memo, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Award, AlertCircle, Archive, Check, ChevronRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Trophy, Award, AlertCircle, Check, ChevronRight } from "lucide-react";
 import MatchesCupCard from "../../admin/matches/components/MatchesCupCard";
 import { useCupData, CupMatchDisplay } from "@/hooks/useCupData";
 import { PageHeader, PublicPage, PUBLIC_CARD_CLASS, SectionAccordionItem } from "@/components/layout";
@@ -433,17 +432,6 @@ const TournamentContent = memo(({
         icon={Award} 
         subtitle="Seizoen 2025/2026"
       />
-
-      <div className="flex justify-end">
-        <Link
-          to="/archief"
-          className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-900 hover:underline font-medium"
-        >
-          <Archive className="w-4 h-4" />
-          Vorige seizoenen
-        </Link>
-      </div>
-
 
       {/* FEATURE: Progress Indicator - Remove this section if not needed */}
       <ProgressIndicator 

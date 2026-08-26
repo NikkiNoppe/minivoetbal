@@ -198,7 +198,8 @@ export const sortGroupKeys = (groupKeys: string[], isCupMatchList: boolean): str
       Finale: 5,
       Andere: 99,
     };
-    return groupKeys.sort((a, b) => (roundOrder[a] || 99) - (roundOrder[b] || 99));
+    // ?? niet || — order 0 (Voorronde) is falsy en werd anders 99 (onderaan).
+    return groupKeys.sort((a, b) => (roundOrder[a] ?? 99) - (roundOrder[b] ?? 99));
   } else {
     // Sort matchdays numerically
     const getMatchdayNumber = (str: string) => {

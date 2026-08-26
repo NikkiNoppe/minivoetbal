@@ -110,7 +110,7 @@ export function MatchFormPlayerSelectionTable({
     }
   };
 
-  const renderPlayerSelect = (index: number, selection: PlayerSelection, mobile = false) => (
+  const renderPlayerSelect = (index: number, selection: PlayerSelection) => (
     <Select
       value={selection.playerId?.toString() || "no-player"}
       onValueChange={(value) => handlePlayerChange(index, value)}
@@ -196,7 +196,7 @@ export function MatchFormPlayerSelectionTable({
               const playerIdNum = player.player_id;
               const alreadySelected =
                 memoizedSelectedPlayerIds.includes(playerIdNum) && selection.playerId !== playerIdNum;
-              const suspended = !mobile && isPlayerSuspended(playerIdNum, memoizedPlayers);
+              const suspended = isPlayerSuspended(playerIdNum, memoizedPlayers);
               const fullName = `${player.first_name} ${player.last_name}`;
 
               return (
@@ -305,7 +305,7 @@ export function MatchFormPlayerSelectionTable({
               <div key={`${selection.playerId}-${index}`} className="p-2">
                 <div className="grid min-w-0 grid-cols-[4fr_1fr] gap-2">
                   {canEditTeam ? (
-                    <div className="min-w-0">{renderPlayerSelect(index, selection, true)}</div>
+                    <div className="min-w-0">{renderPlayerSelect(index, selection)}</div>
                   ) : (
                     <div className="flex h-8 min-w-0 items-center text-xs">{selection.playerName || "-"}</div>
                   )}

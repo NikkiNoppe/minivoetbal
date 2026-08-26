@@ -112,13 +112,13 @@ function UserMobileCard({
         : `${teams[0].team_name} +${teams.length - 1}`;
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2.5">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
+    <div className="flex items-start gap-2.5 px-3 py-3 min-h-[44px]">
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
         <User className="h-3.5 w-3.5" aria-hidden />
       </span>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 min-w-0">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <p className="truncate text-sm font-semibold text-brand-dark">{user.username}</p>
           <Badge
             variant={roleBadgeVariant(user.role)}
@@ -128,8 +128,8 @@ function UserMobileCard({
             <span className="max-w-[7.5rem] truncate">{roleLabel(user.role)}</span>
           </Badge>
         </div>
-        <p className="truncate text-[11px] text-muted-foreground">{user.email || "—"}</p>
-        <p className="truncate text-[11px] text-muted-foreground/90" title={teams.map((t) => t.team_name).join(", ")}>
+        <p className="break-all text-xs text-muted-foreground">{user.email || "—"}</p>
+        <p className="truncate text-xs text-muted-foreground/90" title={teams.map((t) => t.team_name).join(", ")}>
           {teamSummary}
         </p>
       </div>
@@ -211,48 +211,48 @@ const UserListTable: React.FC<UserListProps> = ({
     : "Geen gebruikers gevonden";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       <div className="grid grid-cols-3 gap-2">
-        <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
+        <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm min-w-0")}>
           <CardContent className="p-2.5 sm:p-4">
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
               Gebruikers
             </p>
-            <p className="mt-0.5 text-lg font-semibold text-brand-dark sm:mt-2 sm:text-2xl">
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-brand-dark sm:mt-2 sm:text-2xl">
               {users.length}
             </p>
           </CardContent>
         </Card>
-        <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
+        <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm min-w-0")}>
           <CardContent className="p-2.5 sm:p-4">
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
               Admins
             </p>
-            <p className="mt-0.5 text-lg font-semibold text-brand-dark sm:mt-2 sm:text-2xl">
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-brand-dark sm:mt-2 sm:text-2xl">
               {users.filter((user) => user.role === "admin").length}
             </p>
           </CardContent>
         </Card>
-        <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
+        <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm min-w-0")}>
           <CardContent className="p-2.5 sm:p-4">
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
               Teamrollen
             </p>
-            <p className="mt-0.5 text-lg font-semibold text-brand-dark sm:mt-2 sm:text-2xl">
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-brand-dark sm:mt-2 sm:text-2xl">
               {users.filter((user) => user.role !== "admin").length}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
+      <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm min-w-0")}>
         <CardContent className="space-y-3 p-3 sm:space-y-4 sm:p-5">
-          <div className="block space-y-2 md:hidden">
+          <div className="flex flex-col gap-2 md:hidden">
             <SearchInput
               placeholder="Zoeken op naam..."
               value={searchTerm}
               onChange={onSearchTermChange}
-              className="min-h-[44px]"
+              className="min-h-[44px] w-full"
             />
             <Select value={roleFilter} onValueChange={onRoleFilterChange}>
               <SelectTrigger className="w-full min-h-[44px]">
@@ -265,18 +265,19 @@ const UserListTable: React.FC<UserListProps> = ({
                 <SelectItem value="referee">Scheidsrechter</SelectItem>
               </SelectContent>
             </Select>
-            {addUserButton ? <div>{addUserButton}</div> : null}
+            {addUserButton ? <div className="w-full">{addUserButton}</div> : null}
           </div>
 
-          <div className="hidden md:flex md:items-end md:gap-4">
-            <div className="flex-1 grid grid-cols-2 gap-4">
+          <div className="hidden md:flex md:flex-wrap md:items-end md:gap-4">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
               <SearchInput
                 placeholder="Zoeken op naam..."
                 value={searchTerm}
                 onChange={onSearchTermChange}
+                className="min-h-[44px] w-full"
               />
               <Select value={roleFilter} onValueChange={onRoleFilterChange}>
-                <SelectTrigger className="min-h-[44px]">
+                <SelectTrigger className="min-h-[44px] w-full">
                   <SelectValue placeholder="Alle rollen" />
                 </SelectTrigger>
                 <SelectContent>
@@ -287,26 +288,26 @@ const UserListTable: React.FC<UserListProps> = ({
                 </SelectContent>
               </Select>
             </div>
-            {addUserButton ? <div className="flex-shrink-0">{addUserButton}</div> : null}
+            {addUserButton ? <div className="shrink-0">{addUserButton}</div> : null}
           </div>
         </CardContent>
       </Card>
 
-      <Card className={cn(PUBLIC_CARD_CLASS, "shadow-lg")}>
-        <CardContent className="min-w-0 overflow-hidden p-0">
+      <Card className={cn(PUBLIC_CARD_CLASS, "shadow-lg min-w-0")}>
+        <CardContent className="min-w-0 p-0">
           {loading ? (
             <>
               <MobileUserSkeleton />
-              <div className="hidden overflow-x-auto md:block">
-                <Table className="table w-full">
+              <div className="hidden w-full min-w-0 md:block">
+                <Table className="table w-full table-fixed">
                   <TableHeader>
                     <TableRow className="table-header-row">
-                      <TableHead className="left min-w-[220px]">Naam</TableHead>
-                      <TableHead className="min-w-[240px]">Email</TableHead>
-                      <TableHead className="min-w-[150px]">Rol</TableHead>
-                      <TableHead className="min-w-[280px]">Teams</TableHead>
+                      <TableHead className="left w-[32%]">Naam</TableHead>
+                      <TableHead className="left hidden w-[26%] lg:table-cell">Email</TableHead>
+                      <TableHead className="left w-[18%]">Rol</TableHead>
+                      <TableHead className="left w-[22%]">Teams</TableHead>
                       {editMode ? (
-                        <TableHead className="right min-w-[104px]">Acties</TableHead>
+                        <TableHead className="right w-[100px]">Acties</TableHead>
                       ) : null}
                     </TableRow>
                   </TableHeader>
@@ -314,19 +315,22 @@ const UserListTable: React.FC<UserListProps> = ({
                     {Array.from({ length: 5 }).map((_, index) => (
                       <TableRow key={`skeleton-${index}`}>
                         <TableCell className="left table-skeleton-cell">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-                            <Skeleton className="h-4 w-32" />
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              <Skeleton className="h-4 w-28" />
+                              <Skeleton className="h-3 w-36 lg:hidden" />
+                            </div>
                           </div>
                         </TableCell>
-                        <TableCell className="table-skeleton-cell">
-                          <Skeleton className="mx-auto h-4 w-40" />
+                        <TableCell className="left table-skeleton-cell hidden lg:table-cell">
+                          <Skeleton className="h-4 w-40" />
                         </TableCell>
-                        <TableCell className="table-skeleton-cell">
-                          <Skeleton className="mx-auto h-6 w-28 rounded-full" />
+                        <TableCell className="left table-skeleton-cell">
+                          <Skeleton className="h-6 w-28 rounded-full" />
                         </TableCell>
-                        <TableCell className="table-skeleton-cell">
-                          <Skeleton className="mx-auto h-6 w-28 rounded-full" />
+                        <TableCell className="left table-skeleton-cell">
+                          <Skeleton className="h-6 w-24 rounded-full" />
                         </TableCell>
                         {editMode ? (
                           <TableCell className="right table-skeleton-cell">
@@ -369,16 +373,16 @@ const UserListTable: React.FC<UserListProps> = ({
                 ))}
               </ul>
 
-              <div className="hidden overflow-x-auto md:block">
-                <Table className="table w-full">
+              <div className="hidden w-full min-w-0 md:block">
+                <Table className="table w-full table-fixed">
                   <TableHeader>
                     <TableRow className="table-header-row">
-                      <TableHead className="left min-w-[220px]">Naam</TableHead>
-                      <TableHead className="min-w-[240px]">Email</TableHead>
-                      <TableHead className="min-w-[150px]">Rol</TableHead>
-                      <TableHead className="min-w-[280px]">Teams</TableHead>
+                      <TableHead className="left w-[32%]">Naam</TableHead>
+                      <TableHead className="left hidden w-[26%] lg:table-cell">Email</TableHead>
+                      <TableHead className="left w-[18%]">Rol</TableHead>
+                      <TableHead className="left w-[22%]">Teams</TableHead>
                       {editMode ? (
-                        <TableHead className="right min-w-[104px]">Acties</TableHead>
+                        <TableHead className="right w-[100px]">Acties</TableHead>
                       ) : null}
                     </TableRow>
                   </TableHeader>
@@ -386,46 +390,50 @@ const UserListTable: React.FC<UserListProps> = ({
                     {users.map((user) => (
                       <TableRow key={user.user_id}>
                         <TableCell className="left font-medium">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary shadow-sm">
                               <User className="h-4 w-4" aria-hidden />
                             </span>
-                            <span className="block truncate max-w-[220px] text-brand-dark">
-                              {user.username}
-                            </span>
+                            <div className="min-w-0 flex-1">
+                              <span className="block truncate text-brand-dark">
+                                {user.username}
+                              </span>
+                              <span
+                                className="mt-0.5 block truncate text-xs text-muted-foreground lg:hidden"
+                                title={user.email || undefined}
+                              >
+                                {user.email || "—"}
+                              </span>
+                            </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          <div
-                            className="mx-auto truncate max-w-[200px]"
-                            title={user.email || undefined}
-                          >
+                        <TableCell className="left text-muted-foreground hidden lg:table-cell">
+                          <div className="min-w-0 truncate" title={user.email || undefined}>
                             {user.email || "—"}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex justify-center">
-                            <Badge
-                              variant={roleBadgeVariant(user.role)}
-                              className="inline-flex items-center gap-1.5 border border-primary/20"
-                            >
-                              {React.createElement(roleIcon(user.role), {
-                                className: "h-3.5 w-3.5 shrink-0",
-                                "aria-hidden": true,
-                              })}
-                              {roleLabel(user.role)}
-                            </Badge>
-                          </div>
+                        <TableCell className="left">
+                          <Badge
+                            variant={roleBadgeVariant(user.role)}
+                            className="inline-flex max-w-full items-center gap-1.5 border border-primary/20"
+                          >
+                            {React.createElement(roleIcon(user.role), {
+                              className: "h-3.5 w-3.5 shrink-0",
+                              "aria-hidden": true,
+                            })}
+                            <span className="truncate">{roleLabel(user.role)}</span>
+                          </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="left">
                           {user.teams && user.teams.length > 0 ? (
-                            <div className="flex flex-wrap justify-center gap-1.5">
+                            <div className="flex min-w-0 flex-wrap gap-1.5">
                               {user.teams.length <= 2 ? (
                                 user.teams.map((team) => (
                                   <Badge
                                     key={team.team_id}
                                     variant="outline"
-                                    className="border-primary/20 bg-brand-50"
+                                    className="max-w-full truncate border-primary/20 bg-brand-50"
+                                    title={team.team_name}
                                   >
                                     {team.team_name}
                                   </Badge>
@@ -434,16 +442,17 @@ const UserListTable: React.FC<UserListProps> = ({
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div className="flex items-center justify-center gap-1.5">
+                                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                         <Badge
                                           variant="outline"
-                                          className="border-primary/20 bg-brand-50"
+                                          className="max-w-[9rem] truncate border-primary/20 bg-brand-50"
+                                          title={user.teams[0].team_name}
                                         >
                                           {user.teams[0].team_name}
                                         </Badge>
                                         <Badge
                                           variant="secondary"
-                                          className="border border-border/70"
+                                          className="shrink-0 border border-border/70"
                                         >
                                           +{user.teams.length - 1}
                                         </Badge>
@@ -471,7 +480,7 @@ const UserListTable: React.FC<UserListProps> = ({
                                 type="button"
                                 onClick={() => onEditUser?.(user)}
                                 variant="unstyled"
-                                className="btn btn--icon btn--edit"
+                                className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
                                 disabled={isUpdating || isDeleting}
                                 aria-label={`Bewerk ${user.username}`}
                               >
@@ -485,7 +494,7 @@ const UserListTable: React.FC<UserListProps> = ({
                                 type="button"
                                 onClick={() => handleDeleteClick(user)}
                                 variant="unstyled"
-                                className="btn btn--icon btn--danger"
+                                className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
                                 disabled={isUpdating || isDeleting}
                                 aria-label={`Verwijder ${user.username}`}
                               >

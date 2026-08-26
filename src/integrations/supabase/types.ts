@@ -1510,11 +1510,11 @@ export type Database = {
       }
       manage_cost_settings_for_session: {
         Args: {
-          p_amount: number
-          p_cascade_amount: boolean
-          p_category: string
-          p_id: number
-          p_name: string
+          p_amount?: number | null
+          p_cascade_amount?: boolean | null
+          p_category?: string | null
+          p_id?: number | null
+          p_name?: string | null
           p_operation: string
           p_session_token: string
         }

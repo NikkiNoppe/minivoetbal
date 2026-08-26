@@ -333,7 +333,30 @@ export const suspensionService = {
           return false;
         }
 
-        const value = !data; // true if NOT suspended
+        let value = !data; // true if NOT suspended
+
+        // Date-refine automatic suspensions (same as batch)
+        try {
+          const matchDateKey = (() => {
+            const y = matchDate.getUTCFullYear();
+            const m = String(matchDate.getUTCMonth() + 1).padStart(2, "0");
+            const d = String(matchDate.getUTCDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+          })();
+          const active = await suspensionService.getActiveSuspensions();
+          const mine = active.filter((s) => s.playerId === playerId);
+          for (const s of mine) {
+            const dates = s.suspendedForMatches?.map((m) => m.date) || [];
+            if (dates.length > 0) {
+              value = !dates.includes(matchDateKey);
+            } else if ((s.matches ?? 0) > 0) {
+              value = false;
+            }
+          }
+        } catch {
+          /* keep RPC value */
+        }
+
         cache.set(cacheKey, { value, ts: Date.now() });
         return value;
       } catch (error) {
@@ -403,10 +426,9 @@ export const suspensionService = {
         }
       });
 
-      // ALSO check automatic (yellow/red card) suspensions calculated client-side,
-      // since the DB RPC only checks `suspended_matches_remaining` and manual suspensions.
-      // A player must be marked ineligible if the given matchDate is in their
-      // suspendedForMatches list of any active automatic suspension.
+      // Enrich with calendar dates of automatic suspensions.
+      // DB RPC blocks ANY date when remaining > 0; refine to next N team matches only
+      // when suspendedForMatches is known (so match N+2 stays selectable while serving N+1).
       try {
         const matchDateKey = (() => {
           const y = matchDate.getUTCFullYear();
@@ -416,17 +438,15 @@ export const suspensionService = {
         })();
 
         const activeSuspensions = await suspensionService.getActiveSuspensions();
-        const suspendedSet = new Set<number>();
         for (const s of activeSuspensions) {
           if (!playerIds.includes(s.playerId)) continue;
-          const dates = s.suspendedForMatches?.map(m => m.date) || [];
-          if (dates.includes(matchDateKey)) {
-            suspendedSet.add(s.playerId);
+          const dates = s.suspendedForMatches?.map((m) => m.date) || [];
+          if (dates.length > 0) {
+            result[s.playerId] = !dates.includes(matchDateKey);
+          } else if ((s.matches ?? 0) > 0 || !result[s.playerId]) {
+            result[s.playerId] = false;
           }
         }
-        suspendedSet.forEach(pid => {
-          result[pid] = false;
-        });
       } catch (e) {
         console.warn('Could not enrich eligibility with automatic suspensions:', e);
       }

@@ -75,10 +75,14 @@ const MatchFormList: React.FC<MatchFormListProps> = ({
     return matchesSearch && matchesDate;
   }), [matches, searchTerm, dateFilter]);
 
-  const isCupMatchList = useMemo(() => 
-    filteredMatches.length > 0 && filteredMatches[0].matchday?.includes('🏆'),
-    [filteredMatches]
-  );
+  const isCupMatchList = useMemo(() => {
+    if (filteredMatches.length === 0) return false;
+    return filteredMatches.some((m) => {
+      const unique = m.uniqueNumber || "";
+      if (unique && getCupRoundName(unique) !== "Andere") return true;
+      return Boolean(m.matchday?.includes("🏆"));
+    });
+  }, [filteredMatches]);
 
   const groupedMatches = useMemo(() => {
     const useWeekGrouping = !isCupMatchList && sortBy === 'week';

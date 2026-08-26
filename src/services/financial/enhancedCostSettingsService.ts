@@ -91,10 +91,12 @@ export const enhancedCostSettingsService = {
       const { data, error } = await supabase.rpc('manage_cost_settings_for_session', {
         ...getRpcSessionArgs(),
         p_operation: 'insert',
+        p_id: null,
         p_name: setting.name,
         p_amount: setting.amount,
         p_category: setting.category,
-      } as any);
+        p_cascade_amount: false,
+      });
 
       logOperation('addCostSetting - QUERY RESULT', { data, error });
       if (error) throw error;
@@ -148,7 +150,11 @@ export const enhancedCostSettingsService = {
         ...getRpcSessionArgs(),
         p_operation: 'delete',
         p_id: id,
-      } as any);
+        p_name: null,
+        p_amount: null,
+        p_category: null,
+        p_cascade_amount: false,
+      });
 
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) {
