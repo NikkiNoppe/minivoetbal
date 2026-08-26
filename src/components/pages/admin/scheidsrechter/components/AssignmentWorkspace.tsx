@@ -1,21 +1,10 @@
 import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { nl } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  buildSeasonMonthOptions,
+  resolveDefaultSeasonMonth,
+} from '@/lib/refereeSeasonMonths';
 import AvailabilityMatrix from './AvailabilityMatrix';
-
-const getMonthOptions = () => {
-  const months = [];
-  const currentDate = new Date();
-  for (let i = -1; i <= 6; i++) {
-    const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
-    months.push({
-      value: format(date, 'yyyy-MM'),
-      label: format(date, 'MMMM yyyy', { locale: nl }),
-    });
-  }
-  return months;
-};
 
 interface AssignmentWorkspaceProps {
   /** Externe maand (YYYY-MM). */
@@ -30,13 +19,14 @@ export const AssignmentWorkspace: React.FC<AssignmentWorkspaceProps> = ({
   selectedMonth: externalMonth,
   onSelectedMonthChange,
 }) => {
-  const [internalMonth, setInternalMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [internalMonth, setInternalMonth] = useState(() => resolveDefaultSeasonMonth());
   const selectedMonth = externalMonth ?? internalMonth;
   const setSelectedMonth = (m: string) => {
     if (onSelectedMonthChange) onSelectedMonthChange(m);
     else setInternalMonth(m);
   };
   const [matrixToolbarContainer, setMatrixToolbarContainer] = useState<HTMLDivElement | null>(null);
+  const monthOptions = buildSeasonMonthOptions();
 
   return (
     <div className="space-y-4">
@@ -48,9 +38,9 @@ export const AssignmentWorkspace: React.FC<AssignmentWorkspaceProps> = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {getMonthOptions().map((opt) => (
+              {monthOptions.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
+                  <span className="capitalize">{opt.label}</span>
                 </SelectItem>
               ))}
             </SelectContent>

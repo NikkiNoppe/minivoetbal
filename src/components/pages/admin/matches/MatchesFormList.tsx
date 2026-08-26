@@ -39,16 +39,28 @@ const getMatchStatus = (match: MatchFormData) => {
     score !== null && score !== undefined;
   
   if (hasValidScore(match.homeScore) && hasValidScore(match.awayScore)) {
-    return { label: "Gespeeld", color: "bg-green-500", icon: CheckCircle };
+    return {
+      label: "Gespeeld",
+      className: "bg-success text-success-foreground border border-success/30",
+      icon: CheckCircle,
+    };
   }
   
   const isAutoLocked = shouldAutoLockMatch(match.date, match.time);
   
   if (match.isLocked || isAutoLocked) {
-    return { label: "Gesloten", color: "bg-red-400", icon: Lock };
+    return {
+      label: "Gesloten",
+      className: "bg-destructive text-destructive-foreground border border-destructive/30",
+      icon: Lock,
+    };
   }
   
-  return { label: "Open", color: "bg-muted", icon: Clock };
+  return {
+    label: "Open",
+    className: "bg-accent text-accent-foreground border border-primary/25",
+    icon: Clock,
+  };
 };
 
 const MatchFormList: React.FC<MatchFormListProps> = ({
@@ -264,19 +276,13 @@ const getGridClassName = (groupKey: string) => {
   const createBadgeSlot = (match: MatchFormData) => {
     const status = getMatchStatus(match);
     const StatusIcon = status.icon;
-    
-    // Use accent color only for "Open" status, keep original colors for others
-    const backgroundColor = status.label === "Open" 
-      ? 'var(--accent)' 
-      : undefined;
-    
+
     return (
       <span className="ml-auto flex items-center gap-2">
-        <span 
-          className={`${status.color} text-white text-xs px-2 py-0.5 shadow-sm rounded flex items-center gap-1`}
-          style={backgroundColor ? { backgroundColor } : undefined}
+        <span
+          className={`${status.className} text-xs font-semibold px-2 py-0.5 shadow-sm rounded flex items-center gap-1`}
         >
-          <StatusIcon className="h-3 w-3 mr-1" />
+          <StatusIcon className="h-3 w-3 shrink-0" aria-hidden />
           {status.label}
         </span>
       </span>

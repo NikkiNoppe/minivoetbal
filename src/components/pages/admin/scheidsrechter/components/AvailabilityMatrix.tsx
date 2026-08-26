@@ -24,6 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SectionCollapsibleCard } from '@/components/layout';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getRpcSessionArgs } from '@/lib/authSession';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,18 +44,24 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { formatDateWithDay, formatTimeForDisplay } from '@/lib/dateUtils';
 import { getLocationOrder } from '@/lib/matchSortingUtils';
+import {
+  buildSeasonMonthOptions,
+  resolveDefaultSeasonMonth,
+} from '@/lib/refereeSeasonMonths';
 import { notificationService } from '@/services/notificationService';
 
 // Types
 interface RefereeInfo {
   user_id: number;
   username: string;
+  email: string | null;
 }
 
 interface AdminUserInfo {
   user_id: number;
   username: string;
   role: string;
+  email?: string | null;
 }
 
 interface SessionMatch {
@@ -99,18 +107,7 @@ interface RefereeCopyMessage {
   assignmentCount: number;
 }
 
-const getMonthOptions = () => {
-  const months = [];
-  const currentDate = new Date();
-  for (let i = -1; i <= 6; i++) {
-    const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
-    months.push({
-      value: format(date, 'yyyy-MM'),
-      label: format(date, 'MMMM yyyy', { locale: nl })
-    });
-  }
-  return months;
-};
+const getMonthOptions = () => buildSeasonMonthOptions();
 
 interface AvailabilityMatrixProps {
   /** Verberg de header (maand-selector + refresh + counter) — handig wanneer parent al een toolbar heeft */
@@ -303,7 +300,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 }) => {
   const { user } = useAuth();
   const showDesktopMatrix = useShowDesktopMatrix();
-  const [internalMonth, setInternalMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [internalMonth, setInternalMonth] = useState(() => resolveDefaultSeasonMonth());
   const selectedMonth = externalMonth ?? internalMonth;
   const setSelectedMonth = (m: string) => {
     if (onSelectedMonthChange) onSelectedMonthChange(m);
@@ -324,6 +321,9 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   const [menuCellKey, setMenuCellKey] = useState<string | null>(null);
   const [emailedMessageKeys, setEmailedMessageKeys] = useState<Set<string>>(() => new Set());
   const [emailSendingKey, setEmailSendingKey] = useState<string | null>(null);
+  const [overviewMailRecipientIds, setOverviewMailRecipientIds] = useState<Set<number>>(
+    () => new Set(),
+  );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -349,11 +349,19 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
         is_available: r.is_available,
       }));
 
+      const allUsersData = (usersRes.data || []) as AdminUserInfo[];
+      const emailByUserId = new Map(
+        allUsersData.map((u) => [u.user_id, (u.email || '').trim() || null] as const),
+      );
+
       const refereesData = refereesList
-        .map((u) => ({ user_id: u.user_id, username: u.username }))
+        .map((u) => ({
+          user_id: u.user_id,
+          username: u.username,
+          email: emailByUserId.get(u.user_id) ?? null,
+        }))
         .sort((a, b) => a.username.localeCompare(b.username));
 
-      const allUsersData = (usersRes.data || []) as AdminUserInfo[];
       const monthAssignments: AssignmentData[] = assignmentRows.map((a) => ({
         id: a.id,
         match_id: a.match_id,
@@ -385,14 +393,20 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
           };
         })
         .sort((a, b) => {
-          const dc = a.date.localeCompare(b.date);
-          if (dc !== 0) return dc;
+          // Dag → locatie (Harelbeke vóór Bavikhove) → uur → match_id
+          const day = a.dateOnly.localeCompare(b.dateOnly);
+          if (day !== 0) return day;
           const loc = getLocationOrder(a.location) - getLocationOrder(b.location);
           if (loc !== 0) return loc;
+          const time = a.date.localeCompare(b.date);
+          if (time !== 0) return time;
           return a.matches[0].match_id - b.matches[0].match_id;
         });
 
       setReferees(refereesData);
+      setOverviewMailRecipientIds(
+        new Set(refereesData.filter((r) => r.email).map((r) => r.user_id)),
+      );
       setSessions(sortedSessions);
       setAvailability(availData);
       setAssignments(monthAssignments);
@@ -1034,10 +1048,11 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
   const allSessionsCopyMessage = useMemo(() => {
     const sortedSessions = [...sessions].sort((a, b) => {
-      const da = new Date(a.date).getTime();
-      const db = new Date(b.date).getTime();
-      if (da !== db) return da - db;
-      return formatSessionLocation(a.location).localeCompare(formatSessionLocation(b.location));
+      const day = a.dateOnly.localeCompare(b.dateOnly);
+      if (day !== 0) return day;
+      const loc = getLocationOrder(a.location) - getLocationOrder(b.location);
+      if (loc !== 0) return loc;
+      return a.date.localeCompare(b.date);
     });
 
     const lines = sortedSessions.map((session) => formatSessionCopyLine(session));
@@ -1059,6 +1074,38 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
       ].join('\n'),
     };
   }, [sessions, selectedMonth]);
+
+  const overviewMailableReferees = useMemo(
+    () => referees.filter((r) => Boolean(r.email)),
+    [referees],
+  );
+
+  const overviewSelectedCount = useMemo(
+    () =>
+      overviewMailableReferees.filter((r) => overviewMailRecipientIds.has(r.user_id)).length,
+    [overviewMailableReferees, overviewMailRecipientIds],
+  );
+
+  const allOverviewRecipientsSelected =
+    overviewMailableReferees.length > 0 &&
+    overviewSelectedCount === overviewMailableReferees.length;
+
+  const toggleOverviewRecipient = (userId: number, checked: boolean) => {
+    setOverviewMailRecipientIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(userId);
+      else next.delete(userId);
+      return next;
+    });
+  };
+
+  const selectAllOverviewRecipients = () => {
+    setOverviewMailRecipientIds(new Set(overviewMailableReferees.map((r) => r.user_id)));
+  };
+
+  const clearOverviewRecipients = () => {
+    setOverviewMailRecipientIds(new Set());
+  };
 
   const autoAssignButton = sessions.length > 0 ? (
     <Button
@@ -1207,7 +1254,9 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
               </SelectTrigger>
               <SelectContent>
                 {getMonthOptions().map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="capitalize">{opt.label}</span>
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1648,7 +1697,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
               <span className="flex flex-col gap-0.5 min-w-0 text-left">
                 <span>Copy/paste &amp; mail berichten</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  Kopieer of mail de tekst per scheidsrechter. Een vinkje toont dat de mail verzonden is.
+                  Kies ontvangers voor het overzicht, of mail per scheidsrechter. Een vinkje toont dat de mail verzonden is.
                 </span>
               </span>
             }
@@ -1656,8 +1705,8 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
             onOpenChange={setCopyMessagesOpen}
             contentClassName="space-y-3"
           >
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-foreground">
                         Overzicht alle te spelen wedstrijden
@@ -1694,7 +1743,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                         className="h-8 min-h-8 gap-1.5 px-2 border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
                         disabled={
                           emailSendingKey === 'all' ||
-                          referees.length === 0 ||
+                          overviewSelectedCount === 0 ||
                           allSessionsCopyMessage.sessionCount === 0
                         }
                         onClick={() =>
@@ -1702,7 +1751,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                             key: 'all',
                             title: `Beschikbaarheid opvragen – ${monthEmailLabel}`,
                             message: allSessionsCopyMessage.text,
-                            targetUserIds: referees.map((ref) => ref.user_id),
+                            targetUserIds: [...overviewMailRecipientIds],
                           })
                         }
                       >
@@ -1715,6 +1764,85 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                       </Button>
                     </div>
                   </div>
+
+                  <div className="rounded-md border border-border/70 bg-background/80 p-3 space-y-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-medium text-foreground">
+                        Ontvangers ({overviewSelectedCount}/{overviewMailableReferees.length} met e-mail)
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 min-h-8 px-2"
+                          disabled={
+                            overviewMailableReferees.length === 0 || allOverviewRecipientsSelected
+                          }
+                          onClick={selectAllOverviewRecipients}
+                        >
+                          Allemaal
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 min-h-8 px-2"
+                          disabled={overviewSelectedCount === 0}
+                          onClick={clearOverviewRecipients}
+                        >
+                          Geen
+                        </Button>
+                      </div>
+                    </div>
+                    {referees.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Geen scheidsrechters gevonden.</p>
+                    ) : (
+                      <ul className="grid gap-1.5 sm:grid-cols-2" role="list">
+                        {referees.map((ref) => {
+                          const hasEmail = Boolean(ref.email);
+                          const checkboxId = `overview-mail-ref-${ref.user_id}`;
+                          return (
+                            <li key={ref.user_id}>
+                              <div
+                                className={`flex min-h-[44px] items-center gap-2 rounded-md px-2 py-1 ${
+                                  hasEmail ? 'hover:bg-muted/60' : 'opacity-60'
+                                }`}
+                              >
+                                <Checkbox
+                                  id={checkboxId}
+                                  checked={overviewMailRecipientIds.has(ref.user_id)}
+                                  disabled={!hasEmail}
+                                  onCheckedChange={(value) =>
+                                    toggleOverviewRecipient(ref.user_id, value === true)
+                                  }
+                                  aria-label={
+                                    hasEmail
+                                      ? `Selecteer ${ref.username} als ontvanger`
+                                      : `${ref.username} heeft geen e-mailadres`
+                                  }
+                                />
+                                <Label
+                                  htmlFor={checkboxId}
+                                  className={`min-w-0 flex-1 cursor-pointer text-sm font-normal leading-snug ${
+                                    !hasEmail ? 'cursor-not-allowed text-muted-foreground' : ''
+                                  }`}
+                                >
+                                  <span className="block truncate">{ref.username}</span>
+                                  {!hasEmail ? (
+                                    <span className="block truncate text-[11px] text-muted-foreground">
+                                      Geen e-mailadres
+                                    </span>
+                                  ) : null}
+                                </Label>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
                   <textarea
                     readOnly
                     value={allSessionsCopyMessage.text}

@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { SectionIcon } from '@/components/layout';
 import { AvailabilityPollCard } from '../components/AvailabilityPollCard';
+import { RefereeAvailabilityMatrix } from '../components/RefereeAvailabilityMatrix';
 import type { ScheduleCluster } from '@/services/scheidsrechter/monthScheduleService';
 import type { AvailabilityInput } from '@/services/scheidsrechter/types';
 import { cn } from '@/lib/utils';
@@ -15,14 +16,21 @@ import { cn } from '@/lib/utils';
 interface AvailabilityPollSectionProps {
   clusters: ScheduleCluster[];
   myAvailability: Map<string, boolean>;
-  onSubmitAvailability: (clusterKey: string, pollMonth: string, isAvailable: boolean) => Promise<void>;
+  onSubmitAvailability: (
+    clusterKey: string,
+    pollMonth: string,
+    isAvailable: boolean | null,
+  ) => Promise<void>;
   onBulkSubmitAvailability?: (pollMonth: string, availabilities: AvailabilityInput[]) => Promise<boolean>;
   onBulkSubmitByMonth?: (byMonth: Record<string, AvailabilityInput[]>) => Promise<boolean>;
   isLoading: boolean;
   isSubmitting?: boolean;
   /** Verberg sectiekop — bv. in profiel-accordion */
   embedded?: boolean;
-  layout?: 'checkbox' | 'quick';
+  layout?: 'checkbox' | 'quick' | 'matrix';
+  /** Alleen voor matrix-layout */
+  username?: string;
+  userId?: number;
 }
 
 function groupByMonth(clusters: ScheduleCluster[]) {
@@ -68,6 +76,8 @@ export function AvailabilityPollSection({
   isSubmitting = false,
   embedded = false,
   layout = 'quick',
+  username = 'Scheidsrechter',
+  userId = 0,
 }: AvailabilityPollSectionProps) {
   const [bulkPending, setBulkPending] = useState(false);
 
@@ -77,6 +87,7 @@ export function AvailabilityPollSection({
   const openCount = totalClusters - respondedCount;
   const canBulkRest = Boolean(onBulkSubmitByMonth) && openCount > 0;
   const busy = bulkPending || isSubmitting;
+  const isMatrix = layout === 'matrix';
 
   const handleFillRemaining = async (isAvailable: boolean) => {
     if (!onBulkSubmitByMonth || openCount === 0) return;
@@ -118,14 +129,36 @@ export function AvailabilityPollSection({
               <Clock className="h-7 w-7 text-muted-foreground" aria-hidden />
             </div>
             <h3 className="mt-3 text-base font-medium text-foreground">
-              Geen open speeldagen
+              {embedded ? "Geen speeldagen in deze maand" : "Geen open speeldagen"}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Er staan momenteel geen toekomstige wedstrijden in het schema. Zodra de
-              competitieleiding speeldagen publiceert, kun je hier je beschikbaarheid aangeven.
+              {embedded
+                ? "Voor deze maand staan er nog geen toekomstige wedstrijden in het schema. Kies een andere maand of vernieuw als er net speeldagen zijn toegevoegd."
+                : "Er staan momenteel geen toekomstige wedstrijden in het schema. Zodra de competitieleiding speeldagen publiceert, kun je hier je beschikbaarheid aangeven."}
             </p>
           </CardContent>
         </Card>
+      </section>
+    );
+  }
+
+  if (isMatrix) {
+    return (
+      <section className="space-y-3">
+        {!embedded ? (
+          <h2 className="text-lg font-semibold flex items-center gap-2 text-[var(--color-700)]">
+            <SectionIcon icon={CalendarDays} />
+            Beschikbaarheid doorgeven
+          </h2>
+        ) : null}
+        <RefereeAvailabilityMatrix
+          clusters={clusters}
+          myAvailability={myAvailability}
+          username={username}
+          userId={userId}
+          onSubmit={onSubmitAvailability}
+          isSubmitting={isSubmitting}
+        />
       </section>
     );
   }

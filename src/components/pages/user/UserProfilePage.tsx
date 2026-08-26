@@ -724,18 +724,30 @@ const NextMatchCard: React.FC<{
   // Determine match status (same logic as league page)
   const getMatchStatus = () => {
     if (match.is_submitted) {
-      return { label: "Gespeeld", color: "bg-green-500", icon: CheckCircle };
+      return {
+        label: "Gespeeld",
+        className: "bg-success text-success-foreground border border-success/30",
+        icon: CheckCircle,
+      };
     }
-    
+
     const isAutoLocked = shouldAutoLockMatch(date, time);
-    
+
     if (match.is_locked || isAutoLocked) {
-      return { label: "Gesloten", color: "bg-red-400", icon: Lock };
+      return {
+        label: "Gesloten",
+        className: "bg-destructive text-destructive-foreground border border-destructive/30",
+        icon: Lock,
+      };
     }
-    
-    return { label: "Open", color: "bg-muted", icon: Clock };
+
+    return {
+      label: "Open",
+      className: "bg-accent text-accent-foreground border border-primary/25",
+      icon: Clock,
+    };
   };
-  
+
   const status = getMatchStatus();
   const StatusIcon = status.icon;
   
@@ -783,11 +795,10 @@ const NextMatchCard: React.FC<{
           <span className="ml-auto flex items-center gap-2">
             <span
               className={cn(
-                `${status.color} text-white text-xs px-2 py-0.5 shadow-sm rounded flex items-center gap-1`,
-                status.label === "Open" && "bg-warning text-black",
+                `${status.className} text-xs font-semibold px-2 py-0.5 shadow-sm rounded flex items-center gap-1`,
               )}
             >
-              <StatusIcon className="h-3 w-3 mr-1" />
+              <StatusIcon className="h-3 w-3 shrink-0" aria-hidden />
               {status.label}
             </span>
           </span>

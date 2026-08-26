@@ -23,13 +23,29 @@ interface MatchCardProps {
 const getStatusBadge = (status: MatchCardStatus, nextMatch?: string) => {
   switch (status) {
     case "completed":
-      return { label: "Afgerond", color: "bg-success", icon: CheckCircle };
+      return {
+        label: "Afgerond",
+        className: "bg-success text-success-foreground border border-success/30",
+        icon: CheckCircle,
+      };
     case "upcoming":
-      return { label: nextMatch ? `→ ${nextMatch}` : "Aankomend", color: "bg-orange-400", icon: Clock };
+      return {
+        label: nextMatch ? `→ ${nextMatch}` : "Aankomend",
+        className: "bg-warning/25 text-foreground border border-warning/50",
+        icon: Clock,
+      };
     case "pending":
-      return { label: "In afwachting", color: "bg-muted", icon: Clock };
+      return {
+        label: "In afwachting",
+        className: "bg-accent text-accent-foreground border border-primary/25",
+        icon: Clock,
+      };
     default:
-      return { label: "Onbekend", color: "bg-muted", icon: Clock };
+      return {
+        label: "Onbekend",
+        className: "bg-muted text-muted-foreground border border-border",
+        icon: Clock,
+      };
   }
 };
 
@@ -52,8 +68,8 @@ const MatchCard: React.FC<MatchCardProps> = ({
     <div className="match-card">
       <div className="match-card-header flex items-center justify-end mb-2">
         {badgeSlot ? badgeSlot : (
-          <span className={`match-card-status-badge ${badge.color} text-white text-xs px-2 py-0.5 rounded font-semibold flex items-center gap-1`}>
-            <StatusIcon className="h-3 w-3" />
+          <span className={`match-card-status-badge ${badge.className} text-xs px-2 py-0.5 rounded font-semibold flex items-center gap-1`}>
+            <StatusIcon className="h-3 w-3 shrink-0" aria-hidden />
             {badge.label}
           </span>
         )}

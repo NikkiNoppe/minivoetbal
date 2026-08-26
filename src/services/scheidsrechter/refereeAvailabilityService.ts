@@ -91,7 +91,7 @@ export const refereeAvailabilityService = {
     matchId: number | null,
     pollGroupId: string,
     pollMonth: string,
-    isAvailable: boolean,
+    isAvailable: boolean | null,
     _notes?: string
   ): Promise<boolean> {
     try {

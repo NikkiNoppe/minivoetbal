@@ -1,4 +1,5 @@
 import { fetchScheidsScheduleForMonth } from "@/services/scheidsrechter/scheidsSessionFetch";
+import { buildSeasonMonthOptions } from "@/lib/refereeSeasonMonths";
 
 export interface ScheduleMatch {
   match_id: number;
@@ -154,13 +155,15 @@ export const monthScheduleService = {
     return clusterMatchesForMonth(month, rows);
   },
 
-  async getUpcomingClusters(monthsAhead = 4): Promise<ScheduleCluster[]> {
+  async getUpcomingClusters(_monthsAhead?: number): Promise<ScheduleCluster[]> {
     const now = new Date();
-    const months: string[] = [];
-    for (let i = 0; i < monthsAhead; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      months.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}`);
-    }
+    const currentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    // Hele seizoen (sep→jun), vanaf huidige maand — blijft meelopen met gepubliceerde speeldagen
+    const months = buildSeasonMonthOptions(now)
+      .map((o) => o.value)
+      .filter((m) => m >= currentMonth);
+
+    if (months.length === 0) return [];
 
     const allClusters = await Promise.all(
       months.map((m) => this.getClustersForMonth(m)),

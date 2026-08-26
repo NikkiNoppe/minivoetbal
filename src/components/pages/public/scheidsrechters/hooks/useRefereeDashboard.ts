@@ -23,7 +23,7 @@ export interface RefereeDashboardData {
   isSubmitting: boolean;
   userId: number;
   username: string;
-  submitAvailability: (clusterKey: string, pollMonth: string, isAvailable: boolean) => Promise<void>;
+  submitAvailability: (clusterKey: string, pollMonth: string, isAvailable: boolean | null) => Promise<void>;
   submitBulkAvailability: (pollMonth: string, availabilities: AvailabilityInput[]) => Promise<boolean>;
   submitBulkAvailabilityByMonth: (
     byMonth: Record<string, AvailabilityInput[]>,
@@ -50,7 +50,7 @@ export function useRefereeDashboard(): RefereeDashboardData {
     const showLoading = opts?.showLoading !== false;
     if (showLoading) setIsLoadingSchedule(true);
     try {
-      const upcoming = await monthScheduleService.getUpcomingClusters(4);
+      const upcoming = await monthScheduleService.getUpcomingClusters();
       const months = Array.from(new Set(upcoming.map((c) => c.poll_month)));
       const availabilityResults = await Promise.all(
         months.map((m) => fetchRefereeAvailabilityForSession(m)),
@@ -102,10 +102,15 @@ export function useRefereeDashboard(): RefereeDashboardData {
   }, [fetchAssignments]);
 
   const submitAvailability = useCallback(
-    async (clusterKey: string, pollMonth: string, isAvailable: boolean) => {
+    async (clusterKey: string, pollMonth: string, isAvailable: boolean | null) => {
       if (!userId) return;
 
-      setMyAvailability((prev) => new Map(prev).set(clusterKey, isAvailable));
+      setMyAvailability((prev) => {
+        const next = new Map(prev);
+        if (isAvailable === null) next.delete(clusterKey);
+        else next.set(clusterKey, isAvailable);
+        return next;
+      });
 
       try {
         const success = await refereeAvailabilityService.updateAvailability(

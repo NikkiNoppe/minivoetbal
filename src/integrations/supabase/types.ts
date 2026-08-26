@@ -1719,8 +1719,8 @@ export type Database = {
       }
       upsert_referee_availability_for_session: {
         Args: {
-          p_is_available: boolean
-          p_match_id: number
+          p_is_available: boolean | null
+          p_match_id: number | null
           p_poll_group_id: string
           p_poll_month: string
           p_session_token: string

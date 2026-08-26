@@ -3,14 +3,14 @@ import { Navigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ShieldAlert } from 'lucide-react';
-import { format } from 'date-fns';
 import { AssignmentWorkspace } from './components';
 import { useAuth } from '@/hooks/useAuth';
 import { ADMIN_ROUTES } from '@/config/routes';
+import { resolveDefaultSeasonMonth } from '@/lib/refereeSeasonMonths';
 
 const ScheidsrechtersPage = () => {
   const { user, loading } = useAuth();
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [selectedMonth, setSelectedMonth] = useState(() => resolveDefaultSeasonMonth());
 
   const userRole = user?.role || null;
 
