@@ -26,10 +26,8 @@ import {
   MIN_SAME_WEEK_DAY_GAP,
   type PackFailureSuggestion,
 } from "@/lib/competitionWeekPacking";
-import {
-  orderTeamsForByePins,
-  type CompetitionByePin,
-} from "@/lib/seasonSetup/competitionByePin";
+import { orderTeamsForByePins } from "@/lib/seasonSetup/competitionByePin";
+import type { CompetitionByePin } from "@/lib/seasonSetup/types";
 import { appendPeriodBoundedSlots, expandSlotsForDualWeekGap, isoWeekDayDistance } from "@/lib/competitionPreferredDayScope";
 import { isPeriodBoundedTimeslot } from "@/lib/timeslotAvailability";
 import { matchDateFromWeekMonday } from "@/lib/cupBracketPlan";
