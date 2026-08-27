@@ -1381,7 +1381,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                   <tr className="bg-card">
                     <th
                       aria-label="Sessie"
-                      className="sticky left-0 z-30 bg-white text-left px-2 py-2 font-semibold border-r border-b-2 border-[hsl(var(--color-200))] text-foreground align-middle shadow-[0_1px_0_hsl(var(--color-200))]"
+                      className="sticky left-0 z-30 !bg-white text-left px-2 py-2 font-semibold border-r border-b-2 border-[hsl(var(--color-200))] text-foreground align-middle shadow-[0_1px_0_hsl(var(--color-200))]"
                       style={{
                         width: sessionColumnWidth,
                         minWidth: sessionColumnWidth,
