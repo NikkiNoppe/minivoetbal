@@ -860,7 +860,9 @@ export async function buildUnifiedSeasonPreview(input: {
           if (poolPins.length === 0) continue;
           const validation = validateByePins(pool, poolPins);
           if (!validation.ok) {
-            warnings.push(`Competitie-bye: ${validation.reason}`);
+            warnings.push(
+              `Competitie-bye: ${"reason" in validation ? validation.reason : ""}`,
+            );
             byePinFailed = true;
             break;
           }
