@@ -1785,11 +1785,15 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                                   {ref.username}
                                 </span>
                                 {wasMailed ? (
-                                  <Check
-                                    className="h-3.5 w-3.5 shrink-0 text-success"
-                                    aria-hidden
-                                  />
+                                  <span
+                                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success text-white"
+                                    title="Mail al verstuurd"
+                                    aria-label="Mail al verstuurd"
+                                  >
+                                    <Check className="h-3 w-3" aria-hidden />
+                                  </span>
                                 ) : null}
+
                                 {!hasEmail ? (
                                   <span className="shrink-0 text-[10px] text-muted-foreground">
                                     geen mail
