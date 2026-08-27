@@ -1689,14 +1689,27 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
                   <div className="rounded-md border border-border/70 bg-background/80 p-2 space-y-1.5">
                     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs font-medium text-foreground">
-                        Ontvangers · geselecteerd {overviewSelectedCount}/{overviewMailableReferees.length}
-                        {overviewNotYetMailed.length > 0
-                          ? ` · nog niet ${overviewNotYetMailed.length}`
-                          : overviewMailableReferees.length > 0
-                            ? ' · allen verstuurd'
-                            : ''}
-                      </p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <p className="text-xs font-medium text-foreground">
+                          Ontvangers · geselecteerd {overviewSelectedCount}/{overviewMailableReferees.length}
+                        </p>
+                        {overviewMailedCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            <Check className="h-3 w-3" aria-hidden />
+                            {overviewMailedCount} verstuurd
+                          </span>
+                        ) : null}
+                        {overviewNotYetMailed.length > 0 ? (
+                          <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            {overviewNotYetMailed.length} nog niet
+                          </span>
+                        ) : overviewMailableReferees.length > 0 ? (
+                          <span className="inline-flex items-center rounded-full border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            allen verstuurd
+                          </span>
+                        ) : null}
+                      </div>
+
                       <div className="flex flex-wrap gap-1.5">
                         <Button
                           type="button"
