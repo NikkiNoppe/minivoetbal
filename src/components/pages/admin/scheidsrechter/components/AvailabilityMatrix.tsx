@@ -1381,7 +1381,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                   <tr className="bg-card">
                     <th
                       aria-label="Sessie"
-                      className="sticky left-0 z-30 bg-card text-left px-2 py-2 font-semibold border-r border-b-2 border-[hsl(var(--color-200))] text-foreground align-middle shadow-[0_1px_0_hsl(var(--color-200))]"
+                      className="sticky left-0 z-30 bg-white text-left px-2 py-2 font-semibold border-r border-b-2 border-[hsl(var(--color-200))] text-foreground align-middle shadow-[0_1px_0_hsl(var(--color-200))]"
                       style={{
                         width: sessionColumnWidth,
                         minWidth: sessionColumnWidth,
@@ -1415,7 +1415,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                       <tr className="bg-muted">
                         <th
                           scope="rowgroup"
-                          className="sticky left-0 z-10 border-r border-t-2 border-[hsl(var(--color-200))] bg-muted px-2 py-1.5 text-left align-middle font-semibold"
+                          className="sticky left-0 z-10 border-r border-t-2 border-[hsl(var(--color-200))] bg-white px-2 py-1.5 text-left align-middle font-semibold"
                           style={{
                             width: sessionColumnWidth,
                             minWidth: sessionColumnWidth,
@@ -1456,7 +1456,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                         style={{ height: SESSION_ROW_HEIGHT }}
                       >
                         <td
-                          className={`sticky left-0 z-10 ${rowBg} group-hover:bg-muted border-r border-t border-border p-0 align-middle`}
+                          className="sticky left-0 z-10 bg-white border-r border-t border-border p-0 align-middle"
                           style={{
                             width: sessionColumnWidth,
                             minWidth: sessionColumnWidth,
