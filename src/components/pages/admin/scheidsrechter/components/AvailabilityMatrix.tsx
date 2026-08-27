@@ -1081,7 +1081,8 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   const totalSessions = sessions.length;
   const assignedSessions = sessions.filter(s => getSessionAssignedReferee(s) !== null).length;
   const sessionsByDay = useMemo(() => groupSessionsByDay(sessions), [sessions]);
-  const matrixMinWidth = SESSION_COLUMN_WIDTH + referees.length * REFEREE_COLUMN_WIDTH;
+  const sessionColumnWidth = showDesktopMatrix ? SESSION_COLUMN_WIDTH : 148;
+  const matrixMinWidth = sessionColumnWidth + referees.length * REFEREE_COLUMN_WIDTH;
   const refereeCopyMessages = useMemo<RefereeCopyMessage[]>(() => {
     return referees.map((referee) => {
       const assignedSessionsForReferee = sessions.filter(
@@ -1363,7 +1364,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
         </Card>
       ) : (
         <>
-          {showDesktopMatrix ? (
+
           <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
             <div className="overflow-auto max-h-[70vh]">
               <table
@@ -1371,7 +1372,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                 style={{ minWidth: `${matrixMinWidth}px` }}
               >
                 <colgroup>
-                  <col style={{ width: SESSION_COLUMN_WIDTH }} />
+                  <col style={{ width: sessionColumnWidth }} />
                   {referees.map(ref => (
                     <col key={ref.user_id} style={{ width: REFEREE_COLUMN_WIDTH }} />
                   ))}
@@ -1382,8 +1383,8 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                       aria-label="Sessie"
                       className="sticky left-0 z-30 bg-card text-left px-2 py-2 font-semibold border-r border-b-2 border-[hsl(var(--color-200))] text-foreground align-middle shadow-[0_1px_0_hsl(var(--color-200))]"
                       style={{
-                        width: SESSION_COLUMN_WIDTH,
-                        minWidth: SESSION_COLUMN_WIDTH,
+                        width: sessionColumnWidth,
+                        minWidth: sessionColumnWidth,
                       }}
                     >
                       <MatrixStatusLegend variant="embedded" />
@@ -1416,8 +1417,8 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                           scope="rowgroup"
                           className="sticky left-0 z-10 border-r border-t-2 border-[hsl(var(--color-200))] bg-muted px-2 py-1.5 text-left align-middle font-semibold"
                           style={{
-                            width: SESSION_COLUMN_WIDTH,
-                            minWidth: SESSION_COLUMN_WIDTH,
+                            width: sessionColumnWidth,
+                            minWidth: sessionColumnWidth,
                             height: DAY_HEADER_HEIGHT,
                           }}
                         >
@@ -1457,8 +1458,8 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                         <td
                           className={`sticky left-0 z-10 ${rowBg} group-hover:bg-muted border-r border-t border-border p-0 align-middle`}
                           style={{
-                            width: SESSION_COLUMN_WIDTH,
-                            minWidth: SESSION_COLUMN_WIDTH,
+                            width: sessionColumnWidth,
+                            minWidth: sessionColumnWidth,
                             height: SESSION_ROW_HEIGHT,
                           }}
                         >
