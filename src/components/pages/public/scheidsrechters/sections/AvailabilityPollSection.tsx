@@ -10,6 +10,10 @@ import { SectionIcon } from '@/components/layout';
 import { AvailabilityPollCard } from '../components/AvailabilityPollCard';
 import { RefereeAvailabilityMatrix } from '../components/RefereeAvailabilityMatrix';
 import type { ScheduleCluster } from '@/services/scheidsrechter/monthScheduleService';
+import {
+  buildMatchPollGroupId,
+  matchAvailabilityKey,
+} from '@/services/scheidsrechter/monthScheduleService';
 import type { AvailabilityInput } from '@/services/scheidsrechter/types';
 import { cn } from '@/lib/utils';
 
@@ -17,7 +21,7 @@ interface AvailabilityPollSectionProps {
   clusters: ScheduleCluster[];
   myAvailability: Map<string, boolean>;
   onSubmitAvailability: (
-    clusterKey: string,
+    matchId: number,
     pollMonth: string,
     isAvailable: boolean | null,
   ) => Promise<void>;
@@ -43,6 +47,19 @@ function groupByMonth(clusters: ScheduleCluster[]) {
   return byMonth;
 }
 
+function hasMatchAvailability(
+  availability: Map<string, boolean>,
+  pollMonth: string,
+  matchId: number,
+  clusterKey: string,
+): boolean {
+  return (
+    availability.has(matchAvailabilityKey(matchId)) ||
+    availability.has(buildMatchPollGroupId(pollMonth, matchId)) ||
+    availability.has(clusterKey)
+  );
+}
+
 function unansweredByMonth(
   clusters: ScheduleCluster[],
   availability: Map<string, boolean>,
@@ -50,13 +67,25 @@ function unansweredByMonth(
 ): Record<string, AvailabilityInput[]> {
   const byMonth: Record<string, AvailabilityInput[]> = {};
   for (const cluster of clusters) {
-    if (availability.has(cluster.cluster_key)) continue;
-    const month = cluster.poll_month;
-    if (!byMonth[month]) byMonth[month] = [];
-    byMonth[month].push({
-      poll_group_id: cluster.cluster_key,
-      is_available: isAvailable,
-    });
+    for (const match of cluster.matches) {
+      if (
+        hasMatchAvailability(
+          availability,
+          cluster.poll_month,
+          match.match_id,
+          cluster.cluster_key,
+        )
+      ) {
+        continue;
+      }
+      const month = cluster.poll_month;
+      if (!byMonth[month]) byMonth[month] = [];
+      byMonth[month].push({
+        match_id: match.match_id,
+        poll_group_id: buildMatchPollGroupId(month, match.match_id),
+        is_available: isAvailable,
+      });
+    }
   }
   return byMonth;
 }
@@ -82,9 +111,23 @@ export function AvailabilityPollSection({
   const [bulkPending, setBulkPending] = useState(false);
 
   const byMonth = useMemo(() => groupByMonth(clusters), [clusters]);
-  const totalClusters = clusters.length;
-  const respondedCount = clusters.filter((c) => myAvailability.has(c.cluster_key)).length;
-  const openCount = totalClusters - respondedCount;
+  const totalMoments = useMemo(
+    () => clusters.reduce((sum, c) => sum + c.matches.length, 0),
+    [clusters],
+  );
+  const respondedCount = useMemo(
+    () =>
+      clusters.reduce(
+        (sum, c) =>
+          sum +
+          c.matches.filter((m) =>
+            hasMatchAvailability(myAvailability, c.poll_month, m.match_id, c.cluster_key),
+          ).length,
+        0,
+      ),
+    [clusters, myAvailability],
+  );
+  const openCount = totalMoments - respondedCount;
   const canBulkRest = Boolean(onBulkSubmitByMonth) && openCount > 0;
   const busy = bulkPending || isSubmitting;
   const isMatrix = layout === 'matrix';
@@ -224,8 +267,19 @@ export function AvailabilityPollSection({
 
       {Array.from(byMonth.entries()).map(([month, monthClusters]) => {
         const monthLabel = format(new Date(`${month}-01T00:00:00Z`), 'MMMM yyyy', { locale: nl });
-        const monthOpen = monthClusters.filter((c) => !myAvailability.has(c.cluster_key)).length;
-        const monthFilled = monthClusters.length - monthOpen;
+        const monthMoments = monthClusters.flatMap((c) =>
+          c.matches.map((m) => ({ cluster: c, match: m })),
+        );
+        const monthOpen = monthMoments.filter(
+          ({ cluster, match }) =>
+            !hasMatchAvailability(
+              myAvailability,
+              cluster.poll_month,
+              match.match_id,
+              cluster.cluster_key,
+            ),
+        ).length;
+        const monthFilled = monthMoments.length - monthOpen;
         const monthComplete = monthOpen === 0;
 
         return (
@@ -247,7 +301,7 @@ export function AvailabilityPollSection({
               </span>
               <span className="shrink-0 text-xs font-normal text-muted-foreground">
                 {monthComplete
-                  ? `${monthFilled}/${monthClusters.length} ingevuld`
+                  ? `${monthFilled}/${monthMoments.length} ingevuld`
                   : `${monthOpen} open`}
               </span>
             </CollapsibleTrigger>
@@ -256,9 +310,13 @@ export function AvailabilityPollSection({
                 layout={layout}
                 clusters={monthClusters}
                 myAvailability={myAvailability}
-                onSubmit={(clusterKey, isAvailable) =>
-                  onSubmitAvailability(clusterKey, month, isAvailable)
-                }
+                onSubmit={async (clusterKey, isAvailable) => {
+                  const cluster = monthClusters.find((c) => c.cluster_key === clusterKey);
+                  if (!cluster) return;
+                  for (const match of cluster.matches) {
+                    await onSubmitAvailability(match.match_id, month, isAvailable);
+                  }
+                }}
                 onBulkSubmit={
                   onBulkSubmitAvailability
                     ? (availabilities) => onBulkSubmitAvailability(month, availabilities)

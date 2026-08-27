@@ -5,6 +5,8 @@ import {
   refereeAvailabilityService,
   monthScheduleService,
   buildMyAvailabilityMap,
+  buildMatchPollGroupId,
+  matchAvailabilityKey,
 } from '@/services/scheidsrechter';
 import { fetchRefereeAvailabilityForSession } from '@/services/scheidsrechter/scheidsSessionFetch';
 import type {
@@ -23,7 +25,11 @@ export interface RefereeDashboardData {
   isSubmitting: boolean;
   userId: number;
   username: string;
-  submitAvailability: (clusterKey: string, pollMonth: string, isAvailable: boolean | null) => Promise<void>;
+  submitAvailability: (
+    matchId: number,
+    pollMonth: string,
+    isAvailable: boolean | null,
+  ) => Promise<void>;
   submitBulkAvailability: (pollMonth: string, availabilities: AvailabilityInput[]) => Promise<boolean>;
   submitBulkAvailabilityByMonth: (
     byMonth: Record<string, AvailabilityInput[]>,
@@ -102,28 +108,37 @@ export function useRefereeDashboard(): RefereeDashboardData {
   }, [fetchAssignments]);
 
   const submitAvailability = useCallback(
-    async (clusterKey: string, pollMonth: string, isAvailable: boolean | null) => {
+    async (matchId: number, pollMonth: string, isAvailable: boolean | null) => {
       if (!userId) return;
+
+      const matchKey = matchAvailabilityKey(matchId);
+      const pollGroupId = buildMatchPollGroupId(pollMonth, matchId);
 
       setMyAvailability((prev) => {
         const next = new Map(prev);
-        if (isAvailable === null) next.delete(clusterKey);
-        else next.set(clusterKey, isAvailable);
+        if (isAvailable === null) {
+          next.delete(matchKey);
+          next.delete(pollGroupId);
+        } else {
+          next.set(matchKey, isAvailable);
+          next.set(pollGroupId, isAvailable);
+        }
         return next;
       });
 
       try {
         const success = await refereeAvailabilityService.updateAvailability(
           userId,
-          null,
-          clusterKey,
+          matchId,
+          pollGroupId,
           pollMonth,
           isAvailable,
         );
         if (!success) {
           setMyAvailability((prev) => {
             const next = new Map(prev);
-            next.delete(clusterKey);
+            next.delete(matchKey);
+            next.delete(pollGroupId);
             return next;
           });
           toast.error('Kon beschikbaarheid niet opslaan');
@@ -174,7 +189,12 @@ export function useRefereeDashboard(): RefereeDashboardData {
         const next = new Map(prev);
         for (const [, items] of entries) {
           for (const item of items) {
-            if (item.poll_group_id) next.set(item.poll_group_id, item.is_available);
+            if (item.match_id != null) {
+              next.set(matchAvailabilityKey(item.match_id), item.is_available);
+              if (item.poll_group_id) next.set(item.poll_group_id, item.is_available);
+            } else if (item.poll_group_id) {
+              next.set(item.poll_group_id, item.is_available);
+            }
           }
         }
         return next;

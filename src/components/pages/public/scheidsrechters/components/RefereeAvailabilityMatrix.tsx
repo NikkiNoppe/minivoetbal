@@ -13,6 +13,10 @@ import type {
   ScheduleCluster,
   ScheduleMatch,
 } from "@/services/scheidsrechter/monthScheduleService";
+import {
+  buildMatchPollGroupId,
+  matchAvailabilityKey,
+} from "@/services/scheidsrechter/monthScheduleService";
 
 type CellStatus = "assigned" | "available" | "unavailable" | "none";
 type AvailValue = boolean | null; // null = geen reactie / unset in map
@@ -33,7 +37,7 @@ interface RefereeAvailabilityMatrixProps {
   username: string;
   userId: number;
   onSubmit: (
-    clusterKey: string,
+    matchId: number,
     pollMonth: string,
     isAvailable: boolean | null,
   ) => Promise<void>;
@@ -169,9 +173,16 @@ export function RefereeAvailabilityMatrix({
   const matrixMinWidth = SESSION_COLUMN_WIDTH + REFEREE_COLUMN_WIDTH;
 
   const getStatus = useCallback(
-    (clusterKey: string): AvailValue => {
-      if (!localAvailability.has(clusterKey)) return null;
-      return localAvailability.get(clusterKey) ?? false;
+    (row: MatrixRow): AvailValue => {
+      const matchKey = matchAvailabilityKey(row.match.match_id);
+      const monthKey = buildMatchPollGroupId(row.pollMonth, row.match.match_id);
+      if (localAvailability.has(matchKey)) return localAvailability.get(matchKey) ?? false;
+      if (localAvailability.has(monthKey)) return localAvailability.get(monthKey) ?? false;
+      // Legacy profiel-rijen: datum__locatie
+      if (localAvailability.has(row.clusterKey)) {
+        return localAvailability.get(row.clusterKey) ?? false;
+      }
+      return null;
     },
     [localAvailability],
   );
@@ -182,23 +193,31 @@ export function RefereeAvailabilityMatrix({
 
       const next: AvailValue =
         choice === "available" ? true : choice === "unavailable" ? false : null;
+      const matchKey = matchAvailabilityKey(row.match.match_id);
+      const monthKey = buildMatchPollGroupId(row.pollMonth, row.match.match_id);
+      const pendingKey = matchKey;
 
-      setPendingKeys((prev) => new Set(prev).add(row.clusterKey));
+      setPendingKeys((prev) => new Set(prev).add(pendingKey));
       setLocalAvailability((prev) => {
         const map = new Map(prev);
-        if (next === null) map.delete(row.clusterKey);
-        else map.set(row.clusterKey, next);
+        if (next === null) {
+          map.delete(matchKey);
+          map.delete(monthKey);
+        } else {
+          map.set(matchKey, next);
+          map.set(monthKey, next);
+        }
         return map;
       });
 
       try {
-        await onSubmit(row.clusterKey, row.pollMonth, next);
+        await onSubmit(row.match.match_id, row.pollMonth, next);
       } catch {
         setLocalAvailability(myAvailability);
       } finally {
         setPendingKeys((prev) => {
           const map = new Set(prev);
-          map.delete(row.clusterKey);
+          map.delete(pendingKey);
           return map;
         });
       }
@@ -286,12 +305,17 @@ export function RefereeAvailabilityMatrix({
                     />
                   </tr>
                   {day.rows.map((row, idx) => {
-                    const status = getStatus(row.clusterKey);
+                    const matchKey = matchAvailabilityKey(row.match.match_id);
+                    const monthKey = buildMatchPollGroupId(row.pollMonth, row.match.match_id);
+                    const status = getStatus(row);
                     const isAssigned = row.match.assigned_referee_id === userId;
-                    const hasResponded = localAvailability.has(row.clusterKey);
+                    const hasResponded =
+                      localAvailability.has(matchKey) ||
+                      localAvailability.has(monthKey) ||
+                      localAvailability.has(row.clusterKey);
                     const available = status === true;
                     const isPending =
-                      pendingKeys.has(row.clusterKey) || (isSubmitting && menuCellKey === row.key);
+                      pendingKeys.has(matchKey) || (isSubmitting && menuCellKey === row.key);
                     const rowBg = idx % 2 === 0 ? "bg-card" : "bg-muted/20";
                     const pairing = `${row.match.home_team_name} – ${row.match.away_team_name}`;
 

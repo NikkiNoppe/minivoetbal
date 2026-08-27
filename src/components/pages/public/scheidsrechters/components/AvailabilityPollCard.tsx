@@ -17,6 +17,10 @@ import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { SECTION_COLLAPSIBLE_NESTED_TRIGGER } from '@/components/layout';
 import type { ScheduleCluster } from '@/services/scheidsrechter/monthScheduleService';
+import {
+  buildMatchPollGroupId,
+  matchAvailabilityKey,
+} from '@/services/scheidsrechter/monthScheduleService';
 import type { AvailabilityInput } from '@/services/scheidsrechter/types';
 
 type AvailChoice = 'unset' | 'yes' | 'no';
@@ -31,9 +35,37 @@ interface AvailabilityPollCardProps {
   layout?: 'checkbox' | 'quick';
 }
 
-function getChoice(key: string, availability: Map<string, boolean>): AvailChoice {
-  if (!availability.has(key)) return 'unset';
-  return availability.get(key) ? 'yes' : 'no';
+function clusterHasResponse(
+  cluster: ScheduleCluster,
+  availability: Map<string, boolean>,
+): boolean {
+  if (availability.has(cluster.cluster_key)) return true;
+  return cluster.matches.some(
+    (m) =>
+      availability.has(matchAvailabilityKey(m.match_id)) ||
+      availability.has(buildMatchPollGroupId(cluster.poll_month, m.match_id)),
+  );
+}
+
+function clusterIsAvailable(
+  cluster: ScheduleCluster,
+  availability: Map<string, boolean>,
+): boolean {
+  if (availability.has(cluster.cluster_key)) {
+    return availability.get(cluster.cluster_key) === true;
+  }
+  return cluster.matches.some((m) => {
+    const matchKey = matchAvailabilityKey(m.match_id);
+    const monthKey = buildMatchPollGroupId(cluster.poll_month, m.match_id);
+    if (availability.has(matchKey)) return availability.get(matchKey) === true;
+    if (availability.has(monthKey)) return availability.get(monthKey) === true;
+    return false;
+  });
+}
+
+function getChoice(cluster: ScheduleCluster, availability: Map<string, boolean>): AvailChoice {
+  if (!clusterHasResponse(cluster, availability)) return 'unset';
+  return clusterIsAvailable(cluster, availability) ? 'yes' : 'no';
 }
 
 export function AvailabilityPollCard({
@@ -53,8 +85,8 @@ export function AvailabilityPollCard({
   }, [myAvailability]);
 
   const stats = useMemo(() => {
-    const responded = clusters.filter((c) => localAvailability.has(c.cluster_key)).length;
-    const available = clusters.filter((c) => localAvailability.get(c.cluster_key) === true).length;
+    const responded = clusters.filter((c) => clusterHasResponse(c, localAvailability)).length;
+    const available = clusters.filter((c) => clusterIsAvailable(c, localAvailability)).length;
     const unset = clusters.length - responded;
     return { responded, available, unset, total: clusters.length };
   }, [clusters, localAvailability]);
@@ -63,7 +95,7 @@ export function AvailabilityPollCard({
     const open: ScheduleCluster[] = [];
     const done: ScheduleCluster[] = [];
     for (const cluster of clusters) {
-      if (localAvailability.has(cluster.cluster_key)) done.push(cluster);
+      if (clusterHasResponse(cluster, localAvailability)) done.push(cluster);
       else open.push(cluster);
     }
     return { unanswered: open, answered: done };
@@ -102,7 +134,7 @@ export function AvailabilityPollCard({
     const isAvailable = mode.endsWith('yes');
     const onlyRest = mode.startsWith('rest');
     const targets = onlyRest
-      ? clusters.filter((c) => !localAvailability.has(c.cluster_key))
+      ? clusters.filter((c) => !clusterHasResponse(c, localAvailability))
       : clusters;
     if (targets.length === 0) return;
 
@@ -110,16 +142,25 @@ export function AvailabilityPollCard({
     setBulkPending(true);
 
     const optimistic = new Map(localAvailability);
-    targets.forEach((c) => optimistic.set(c.cluster_key, isAvailable));
+    const payload: AvailabilityInput[] = [];
+    for (const c of targets) {
+      optimistic.set(c.cluster_key, isAvailable);
+      for (const match of c.matches) {
+        const matchKey = matchAvailabilityKey(match.match_id);
+        const monthKey = buildMatchPollGroupId(c.poll_month, match.match_id);
+        optimistic.set(matchKey, isAvailable);
+        optimistic.set(monthKey, isAvailable);
+        payload.push({
+          match_id: match.match_id,
+          poll_group_id: monthKey,
+          is_available: isAvailable,
+        });
+      }
+    }
     setLocalAvailability(optimistic);
 
     try {
-      const ok = await onBulkSubmit(
-        targets.map((c) => ({
-          poll_group_id: c.cluster_key,
-          is_available: isAvailable,
-        })),
-      );
+      const ok = await onBulkSubmit(payload);
       if (!ok) {
         setLocalAvailability(myAvailability);
         setError('Kon bulk-update niet opslaan');
@@ -146,7 +187,7 @@ export function AvailabilityPollCard({
   const progressPct = stats.total > 0 ? Math.round((stats.responded / stats.total) * 100) : 0;
 
   const renderCluster = (cluster: ScheduleCluster) => {
-    const choice = getChoice(cluster.cluster_key, localAvailability);
+    const choice = getChoice(cluster, localAvailability);
     const isPending = pendingUpdates.has(cluster.cluster_key);
     const dayDate = new Date(`${cluster.match_date}T00:00:00Z`);
 

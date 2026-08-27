@@ -42,6 +42,12 @@ export const buildClusterKey = (matchDateIso: string, location: string | null): 
   return `${date}__${loc}`;
 };
 
+/** Zelfde sleutel als admin-matrix: `YYYY-MM_<matchId>`. */
+export const buildMatchPollGroupId = (pollMonth: string, matchId: number): string =>
+  `${pollMonth}_${matchId}`;
+
+export const matchAvailabilityKey = (matchId: number): string => `match:${matchId}`;
+
 export interface AvailabilityLookupRow {
   user_id: number;
   match_id: number | null;
@@ -57,52 +63,58 @@ export function isClusterFullyAssigned(cluster: ScheduleCluster): boolean {
 }
 
 /**
- * Koppelt poll-antwoorden aan speeldagen. De scheidsrechterspagina slaat
- * beschikbaarheid op per match (`2026-10_2312`) of zonder poll_group_id;
- * het profiel gebruikt `datum__locatie`. Toewijzingen tellen als bevestigd.
+ * Koppelt poll-antwoorden aan speelmomenten (per match).
+ * Ondersteunt: `maand_matchId` (admin + nieuw profiel), `match_id`,
+ * en legacy `datum__locatie` (oud profiel). Geen data wissen — alleen lezen.
  */
 export function buildMyAvailabilityMap(
   clusters: ScheduleCluster[],
   rows: AvailabilityLookupRow[],
   userId: number,
 ): Map<string, boolean> {
-  const map = new Map<string, boolean>();
+  const raw = new Map<string, boolean>();
 
   for (const row of rows) {
     if (row.user_id !== userId) continue;
-    if (row.poll_group_id) map.set(row.poll_group_id, row.is_available);
-    if (row.match_id != null) map.set(`match:${row.match_id}`, row.is_available);
+    if (row.poll_group_id) raw.set(row.poll_group_id, row.is_available);
+    if (row.match_id != null) raw.set(matchAvailabilityKey(row.match_id), row.is_available);
   }
 
+  const map = new Map<string, boolean>();
+
   for (const cluster of clusters) {
-    if (map.has(cluster.cluster_key)) continue;
+    let clusterValue: boolean | undefined;
+    let clusterFullyKnown = cluster.matches.length > 0;
+    const hasPerMatchRows = cluster.matches.some((m) => {
+      const monthKey = buildMatchPollGroupId(cluster.poll_month, m.match_id);
+      return raw.has(monthKey) || raw.has(matchAvailabilityKey(m.match_id));
+    });
 
-    let fromMatch: boolean | undefined;
     for (const match of cluster.matches) {
-      const monthKey = `${cluster.poll_month}_${match.match_id}`;
-      if (map.has(monthKey)) {
-        fromMatch = map.get(monthKey);
-        if (fromMatch) break;
+      const monthKey = buildMatchPollGroupId(cluster.poll_month, match.match_id);
+      const matchKey = matchAvailabilityKey(match.match_id);
+
+      let value: boolean | undefined;
+      if (raw.has(monthKey)) value = raw.get(monthKey);
+      else if (raw.has(matchKey)) value = raw.get(matchKey);
+      else if (raw.has(cluster.cluster_key)) value = raw.get(cluster.cluster_key);
+      else if (match.assigned_referee_id === userId) value = true;
+
+      if (value === undefined) {
+        clusterFullyKnown = false;
+        continue;
       }
-      const matchKey = `match:${match.match_id}`;
-      if (map.has(matchKey)) {
-        fromMatch = map.get(matchKey);
-        if (fromMatch) break;
-      }
-    }
-    if (fromMatch !== undefined) {
-      map.set(cluster.cluster_key, fromMatch);
-      continue;
+
+      map.set(matchKey, value);
+      map.set(monthKey, value);
+      if (clusterValue === undefined) clusterValue = value;
+      else if (clusterValue !== value) clusterFullyKnown = false;
     }
 
-    const assignedToMe = cluster.matches.some((match) => match.assigned_referee_id === userId);
-    if (assignedToMe) {
-      map.set(cluster.cluster_key, true);
-      continue;
-    }
-
-    if (isClusterFullyAssigned(cluster)) {
-      map.set(cluster.cluster_key, false);
+    if (!hasPerMatchRows && raw.has(cluster.cluster_key)) {
+      map.set(cluster.cluster_key, raw.get(cluster.cluster_key)!);
+    } else if (clusterFullyKnown && clusterValue !== undefined) {
+      map.set(cluster.cluster_key, clusterValue);
     }
   }
 

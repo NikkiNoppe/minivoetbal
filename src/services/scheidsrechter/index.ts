@@ -27,6 +27,8 @@ export {
 export {
   monthScheduleService,
   buildClusterKey,
+  buildMatchPollGroupId,
+  matchAvailabilityKey,
   buildMyAvailabilityMap,
   isClusterFullyAssigned,
   type ScheduleCluster,
