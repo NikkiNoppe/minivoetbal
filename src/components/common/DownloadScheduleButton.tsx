@@ -52,9 +52,9 @@ const matchToICalEvent = (match: ScheduleMatch, competitionType: string): ICalEv
   time: match.time || "19:00",
   location: match.location || "Harelbekese Minivoetbal",
   description: match.matchday
-    ? `${match.matchday} - ${competitionType === "playoff" ? "Play-Off" : "Competitie"}${match.uniqueNumber ? ` (${match.uniqueNumber})` : ""}`
+    ? `${match.matchday} - ${competitionType === "playoff" ? "Play-Off" : "Competitie"}`
     : undefined,
-  duration: 90,
+  duration: 60,
 });
 
 const DownloadScheduleButton = memo(({

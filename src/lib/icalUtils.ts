@@ -249,7 +249,7 @@ const escapeCSVField = (field: string): string => {
 
 /**
  * Generates CSV content from events
- * Columns: Onderwerp, Begin datum, Begin tijd, Eind datum, Eind tijd, Locatie, Beschrijving
+ * Columns: Onderwerp, Begin datum, Begin tijd, Locatie, Beschrijving
  */
 export const generateCSVFile = (events: ICalEvent[]): string => {
   // Filter valid events only
@@ -262,20 +262,15 @@ export const generateCSVFile = (events: ICalEvent[]): string => {
     return '';
   }
 
-  // CSV Header (compatible with Outlook and Google Calendar import)
-  const header = 'Onderwerp,Begin datum,Begin tijd,Eind datum,Eind tijd,Locatie,Beschrijving';
+  const header = 'Onderwerp,Begin datum,Begin tijd,Locatie,Beschrijving';
   
   const rows = validEvents.map(event => {
-    const duration = event.duration || 60;
-    const endTime = calculateEndTime(event.time, duration);
     const formattedDate = formatDateForCSV(event.date);
     
     return [
       escapeCSVField(event.title),
       formattedDate,
       event.time,
-      formattedDate,
-      endTime,
       escapeCSVField(event.location || ''),
       escapeCSVField(event.description || ''),
     ].join(',');
