@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -1510,11 +1510,11 @@ export type Database = {
       }
       manage_cost_settings_for_session: {
         Args: {
-          p_amount?: number | null
-          p_cascade_amount?: boolean | null
-          p_category?: string | null
-          p_id?: number | null
-          p_name?: string | null
+          p_amount?: number
+          p_cascade_amount?: boolean
+          p_category?: string
+          p_id?: number
+          p_name?: string
           p_operation: string
           p_session_token: string
         }
@@ -1719,8 +1719,8 @@ export type Database = {
       }
       upsert_referee_availability_for_session: {
         Args: {
-          p_is_available: boolean | null
-          p_match_id: number | null
+          p_is_available: boolean
+          p_match_id: number
           p_poll_group_id: string
           p_poll_month: string
           p_session_token: string

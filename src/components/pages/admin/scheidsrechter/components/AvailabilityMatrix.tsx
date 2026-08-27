@@ -1081,7 +1081,8 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
   const totalSessions = sessions.length;
   const assignedSessions = sessions.filter(s => getSessionAssignedReferee(s) !== null).length;
   const sessionsByDay = useMemo(() => groupSessionsByDay(sessions), [sessions]);
-  const matrixMinWidth = SESSION_COLUMN_WIDTH + referees.length * REFEREE_COLUMN_WIDTH;
+  const sessionColumnWidth = showDesktopMatrix ? SESSION_COLUMN_WIDTH : 148;
+  const matrixMinWidth = sessionColumnWidth + referees.length * REFEREE_COLUMN_WIDTH;
   const refereeCopyMessages = useMemo<RefereeCopyMessage[]>(() => {
     return referees.map((referee) => {
       const assignedSessionsForReferee = sessions.filter(
@@ -1363,7 +1364,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
         </Card>
       ) : (
         <>
-          {showDesktopMatrix ? (
+
           <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
             <div className="overflow-auto max-h-[70vh]">
               <table
@@ -1371,7 +1372,7 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                 style={{ minWidth: `${matrixMinWidth}px` }}
               >
                 <colgroup>
-                  <col style={{ width: SESSION_COLUMN_WIDTH }} />
+                  <col style={{ width: sessionColumnWidth }} />
                   {referees.map(ref => (
                     <col key={ref.user_id} style={{ width: REFEREE_COLUMN_WIDTH }} />
                   ))}
@@ -1380,10 +1381,10 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                   <tr className="bg-card">
                     <th
                       aria-label="Sessie"
-                      className="sticky left-0 z-30 bg-card text-left px-2 py-2 font-semibold border-r border-b-2 border-[hsl(var(--color-200))] text-foreground align-middle shadow-[0_1px_0_hsl(var(--color-200))]"
+                      className="sticky left-0 z-30 !bg-white text-left px-2 py-2 font-semibold border-r border-b-2 border-[hsl(var(--color-200))] text-foreground align-middle shadow-[0_1px_0_hsl(var(--color-200))]"
                       style={{
-                        width: SESSION_COLUMN_WIDTH,
-                        minWidth: SESSION_COLUMN_WIDTH,
+                        width: sessionColumnWidth,
+                        minWidth: sessionColumnWidth,
                       }}
                     >
                       <MatrixStatusLegend variant="embedded" />
@@ -1414,10 +1415,10 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                       <tr className="bg-muted">
                         <th
                           scope="rowgroup"
-                          className="sticky left-0 z-10 border-r border-t-2 border-[hsl(var(--color-200))] bg-muted px-2 py-1.5 text-left align-middle font-semibold"
+                          className="sticky left-0 z-10 border-r border-t-2 border-[hsl(var(--color-200))] bg-white px-2 py-1.5 text-left align-middle font-semibold"
                           style={{
-                            width: SESSION_COLUMN_WIDTH,
-                            minWidth: SESSION_COLUMN_WIDTH,
+                            width: sessionColumnWidth,
+                            minWidth: sessionColumnWidth,
                             height: DAY_HEADER_HEIGHT,
                           }}
                         >
@@ -1455,10 +1456,10 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                         style={{ height: SESSION_ROW_HEIGHT }}
                       >
                         <td
-                          className={`sticky left-0 z-10 ${rowBg} group-hover:bg-muted border-r border-t border-border p-0 align-middle`}
+                          className="sticky left-0 z-10 bg-white border-r border-t border-border p-0 align-middle"
                           style={{
-                            width: SESSION_COLUMN_WIDTH,
-                            minWidth: SESSION_COLUMN_WIDTH,
+                            width: sessionColumnWidth,
+                            minWidth: sessionColumnWidth,
                             height: SESSION_ROW_HEIGHT,
                           }}
                         >
@@ -1466,17 +1467,19 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                             <span className="w-11 shrink-0 tabular-nums text-xs font-semibold text-foreground">
                               {formatTimeForDisplay(session.date)}
                             </span>
-                            {!day.sharedLocation ? (
+                            {!day.sharedLocation || !showDesktopMatrix ? (
                               <span className="max-w-[5.5rem] shrink-0 truncate text-[10px] text-muted-foreground">
                                 {formatSessionLocation(session.location)}
                               </span>
                             ) : null}
-                            <span
-                              className="min-w-0 truncate text-xs font-medium text-foreground"
-                              title={formatSessionMatchPairing(session)}
-                            >
-                              {formatSessionMatchPairing(session)}
-                            </span>
+                            {showDesktopMatrix ? (
+                              <span
+                                className="min-w-0 truncate text-xs font-medium text-foreground"
+                                title={formatSessionMatchPairing(session)}
+                              >
+                                {formatSessionMatchPairing(session)}
+                              </span>
+                            ) : null}
                           </div>
                         </td>
                         {referees.map(ref => {
@@ -1608,156 +1611,6 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
               </table>
             </div>
           </div>
-          ) : (
-          <div className="space-y-5">
-            {sessionsByDay.map((day) => (
-              <section key={day.dateOnly} className="space-y-2" aria-label={formatDateWithDay(day.date)}>
-                <h3 className="flex min-h-[32px] items-baseline gap-2 px-0.5 text-sm font-semibold">
-                  <span>{formatDateWithDay(day.date)}</span>
-                  {day.sharedLocation ? (
-                    <span className="min-w-0 truncate text-xs font-normal text-muted-foreground">
-                      {day.sharedLocation}
-                    </span>
-                  ) : null}
-                </h3>
-                <div className="space-y-2">
-            {day.sessions.map((session) => {
-              const assignedRefId = getSessionAssignedReferee(session);
-              const assignedRef = assignedRefId
-                ? referees.find((ref) => ref.user_id === assignedRefId)
-                : undefined;
-              const sortedRefs = sortRefereesForSession(
-                referees,
-                session,
-                assignedRefId,
-                isRefereeAvailable,
-                hasRefereeResponded,
-              );
-
-              return (
-                <Card key={session.key} className="border-border/80 shadow-sm">
-                  <CardContent className="space-y-3 p-3 sm:p-4">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="shrink-0 tabular-nums text-sm font-semibold">
-                        {formatTimeForDisplay(session.date)}
-                      </span>
-                      {!day.sharedLocation ? (
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatSessionLocation(session.location)}
-                        </span>
-                      ) : null}
-                      <p className="min-w-0 truncate text-sm font-medium leading-snug">
-                        {formatSessionMatchPairing(session)}
-                      </p>
-                    </div>
-
-                    {assignedRef ? (
-                      <div className="flex min-h-[44px] items-center gap-2 rounded-lg border border-success/40 bg-success/15 px-3 py-2">
-                        <Star className="h-4 w-4 shrink-0 fill-success text-success" aria-hidden />
-                        <span className="min-w-0 truncate text-sm font-medium">{assignedRef.username}</span>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">Toegewezen</span>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                        Nog geen scheidsrechter toegewezen
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {sortedRefs.map((ref) => {
-                        const available = isRefereeAvailable(session, ref.user_id);
-                        const hasResponded = hasRefereeResponded(session, ref.user_id);
-                        const assignment = getSessionAssignment(session, ref.user_id);
-                        const isAssigned = !!assignment;
-                        const isOtherAssigned = assignedRefId !== null && assignedRefId !== ref.user_id;
-                        const cellKey = `${session.matches[0]?.match_id}-${ref.user_id}`;
-                        const isLoadingCell = assigning === cellKey;
-
-                        // Pill-stijl op basis van status
-                        let pillClass = 'bg-card border border-border/60 text-muted-foreground'; // geen reactie
-                        if (isAssigned) pillClass = 'pill-success-strong shadow-sm';
-                        else if (available) pillClass = 'bg-success/15 border border-success/40 text-foreground';
-                        else if (hasResponded) pillClass = 'bg-destructive/5 border border-destructive/30 text-foreground';
-
-                        const statusLabel = isAssigned
-                          ? 'toegewezen'
-                          : !hasResponded
-                            ? 'geen reactie'
-                            : available
-                              ? 'beschikbaar'
-                              : 'niet beschikbaar';
-
-                        const mobileCellContext = {
-                          available,
-                          isAssigned,
-                          isOtherAssigned,
-                          assignment,
-                          hasResponded,
-                        };
-
-                        return (
-                          <DropdownMenu
-                            key={ref.user_id}
-                            open={menuCellKey === cellKey}
-                            onOpenChange={(open) => {
-                              if (open) openCellMenu(cellKey);
-                              else closeCellMenu();
-                            }}
-                          >
-                            <DropdownMenuTrigger
-                              asChild
-                              disabled={isLoadingCell && menuCellKey !== cellKey}
-                            >
-                              <button
-                                type="button"
-                                title={`${ref.username} – ${statusLabel}`}
-                                aria-label={`${ref.username} – ${statusLabel}`}
-                                aria-haspopup="menu"
-                                className={`
-                                  inline-flex min-h-[44px] w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium
-                                  transition-all focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
-                                  ${pillClass}
-                                  ${isOtherAssigned && !isAssigned ? 'opacity-70' : ''}
-                                  disabled:cursor-not-allowed
-                                `}
-                              >
-                                {isLoadingCell ? (
-                                  <RefreshCw className="h-4 w-4 shrink-0 animate-spin" />
-                                ) : isAssigned ? (
-                                  <Star className="h-4 w-4 shrink-0 fill-white" />
-                                ) : !hasResponded ? (
-                                  <Minus className="h-4 w-4 shrink-0 opacity-60" />
-                                ) : !available ? (
-                                  <X className="h-4 w-4 shrink-0 opacity-60" />
-                                ) : (
-                                  <Check className="h-4 w-4 shrink-0 text-success" />
-                                )}
-                                <span className="truncate">{ref.username}</span>
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              side="bottom"
-                              align="start"
-                              sideOffset={4}
-                              collisionPadding={12}
-                              onCloseAutoFocus={(event) => event.preventDefault()}
-                              className="z-[80] w-48 border border-[hsl(var(--color-200))] shadow-sm"
-                            >
-                              {renderRefereeCellMenuContent(session, ref.user_id, mobileCellContext)}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-                </div>
-              </section>
-            ))}
-          </div>
-          )}
 
           <SectionCollapsibleCard
             title={
@@ -1836,14 +1689,27 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
 
                   <div className="rounded-md border border-border/70 bg-background/80 p-2 space-y-1.5">
                     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs font-medium text-foreground">
-                        Ontvangers · geselecteerd {overviewSelectedCount}/{overviewMailableReferees.length}
-                        {overviewNotYetMailed.length > 0
-                          ? ` · nog niet ${overviewNotYetMailed.length}`
-                          : overviewMailableReferees.length > 0
-                            ? ' · allen verstuurd'
-                            : ''}
-                      </p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <p className="text-xs font-medium text-foreground">
+                          Ontvangers · geselecteerd {overviewSelectedCount}/{overviewMailableReferees.length}
+                        </p>
+                        {overviewMailedCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            <Check className="h-3 w-3" aria-hidden />
+                            {overviewMailedCount} verstuurd
+                          </span>
+                        ) : null}
+                        {overviewNotYetMailed.length > 0 ? (
+                          <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            {overviewNotYetMailed.length} nog niet
+                          </span>
+                        ) : overviewMailableReferees.length > 0 ? (
+                          <span className="inline-flex items-center rounded-full border border-success/40 bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                            allen verstuurd
+                          </span>
+                        ) : null}
+                      </div>
+
                       <div className="flex flex-wrap gap-1.5">
                         <Button
                           type="button"
@@ -1919,11 +1785,15 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                                   {ref.username}
                                 </span>
                                 {wasMailed ? (
-                                  <Check
-                                    className="h-3.5 w-3.5 shrink-0 text-success"
-                                    aria-hidden
-                                  />
+                                  <span
+                                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-success text-white"
+                                    title="Mail al verstuurd"
+                                    aria-label="Mail al verstuurd"
+                                  >
+                                    <Check className="h-3 w-3" aria-hidden />
+                                  </span>
                                 ) : null}
+
                                 {!hasEmail ? (
                                   <span className="shrink-0 text-[10px] text-muted-foreground">
                                     geen mail
