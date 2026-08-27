@@ -1466,17 +1466,19 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                             <span className="w-11 shrink-0 tabular-nums text-xs font-semibold text-foreground">
                               {formatTimeForDisplay(session.date)}
                             </span>
-                            {!day.sharedLocation ? (
+                            {!day.sharedLocation || !showDesktopMatrix ? (
                               <span className="max-w-[5.5rem] shrink-0 truncate text-[10px] text-muted-foreground">
                                 {formatSessionLocation(session.location)}
                               </span>
                             ) : null}
-                            <span
-                              className="min-w-0 truncate text-xs font-medium text-foreground"
-                              title={formatSessionMatchPairing(session)}
-                            >
-                              {formatSessionMatchPairing(session)}
-                            </span>
+                            {showDesktopMatrix ? (
+                              <span
+                                className="min-w-0 truncate text-xs font-medium text-foreground"
+                                title={formatSessionMatchPairing(session)}
+                              >
+                                {formatSessionMatchPairing(session)}
+                              </span>
+                            ) : null}
                           </div>
                         </td>
                         {referees.map(ref => {
