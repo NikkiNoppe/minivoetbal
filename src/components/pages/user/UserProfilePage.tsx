@@ -1170,14 +1170,14 @@ const DUTCH_MONTH_NAMES = [
   "December",
 ] as const;
 
-/** Seizoen sep–jun. Vanaf augustus: nieuw seizoen (sep dit jaar → jun volgend jaar). */
+/** Seizoen aug–jun. Vanaf augustus: nieuw seizoen (aug–sep dit jaar → jun volgend jaar). */
 function getRefereeFormSeason(now: Date) {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
   const seasonStartYear = currentMonth >= 8 ? currentYear : currentYear - 1;
 
   const months: { month: number; year: number; label: string }[] = [];
-  for (let month = 9; month <= 12; month += 1) {
+  for (let month = 8; month <= 12; month += 1) {
     months.push({
       month,
       year: seasonStartYear,

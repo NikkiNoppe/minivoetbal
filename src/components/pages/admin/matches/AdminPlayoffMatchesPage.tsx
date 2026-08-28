@@ -47,7 +47,10 @@ const AdminPlayoffMatchesPage: React.FC = () => {
     } catch (_) {}
   }, []);
   const { user, authContextReady } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.isSuperAdmin === true;
   const isReferee = user?.role === "referee";
   const teamId = user?.teamId || 0;
 
@@ -66,16 +69,9 @@ const AdminPlayoffMatchesPage: React.FC = () => {
   const [selectedMatch, setSelectedMatch] = useState<MatchFormData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Referee filter for match forms - referees see only their assigned matches
-  const refereeFilter = useMemo(() => {
-    if (isReferee && user?.id && user?.username) {
-      return { userId: user.id, username: user.username };
-    }
-    return undefined;
-  }, [isReferee, user?.id, user?.username]);
-
-  // Fetch playoff matches data with referee filter
-  const hasElevatedPermissions = isAdmin || isReferee;
+  // Admin wedstrijdformulieren: alle wedstrijden (profiel filtert op eigen scheids).
+  const hasElevatedPermissions =
+    isAdmin || isReferee || user?.role === "superadmin" || user?.isSuperAdmin === true;
   const queriesEnabled =
     authContextReady &&
     !!getSessionToken() &&
@@ -85,7 +81,7 @@ const AdminPlayoffMatchesPage: React.FC = () => {
   const matchFormsData = useMatchFormsData(
     teamId, 
     hasElevatedPermissions,
-    isReferee ? refereeFilter : undefined,
+    undefined,
     {
       enabled: queriesEnabled,
       loadTabs: ['playoff'],

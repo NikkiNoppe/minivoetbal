@@ -248,8 +248,17 @@ const MatchFormTab: React.FC<MatchFormTabProps> = ({ teamId, teamName, initialTa
     hideCompletedMatches: false
   });
 
-  const hasElevatedPermissions = user?.role === "admin" || user?.role === "referee";
-  const isAdmin = user?.role === "admin";
+  // Admin wedstrijdformulieren: alle wedstrijden (geen scheids-filter).
+  // Profiel gebruikt useRefereeMatches — daar enkel eigen toewijzingen.
+  const hasElevatedPermissions =
+    user?.role === "admin" ||
+    user?.role === "referee" ||
+    user?.role === "superadmin" ||
+    user?.isSuperAdmin === true;
+  const isAdmin =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.isSuperAdmin === true;
   const isReferee = user?.role === "referee";
   
   // Get teamId from multiple sources: prop, user.teamId, or profileData
@@ -296,14 +305,6 @@ const MatchFormTab: React.FC<MatchFormTabProps> = ({ teamId, teamName, initialTa
     }
   }, [profileData?.teams, user]);
 
-  // Referee filter for match forms - referees see only their assigned matches
-  const refereeFilter = useMemo(() => {
-    if (isReferee && user?.id && user?.username) {
-      return { userId: user.id, username: user.username };
-    }
-    return undefined;
-  }, [isReferee, user?.id, user?.username]);
-
   const queriesEnabled =
     authContextReady &&
     !!getSessionToken() &&
@@ -313,11 +314,11 @@ const MatchFormTab: React.FC<MatchFormTabProps> = ({ teamId, teamName, initialTa
   const {
     getTabData,
     refreshInstantly,
-    refetchAll
+    refetchAll,
   } = useMatchFormsData(
     effectiveTeamId,
     hasElevatedPermissions,
-    isReferee ? refereeFilter : undefined,
+    undefined,
     { enabled: queriesEnabled, loadTabs: [competitionTab] }
   );
 
