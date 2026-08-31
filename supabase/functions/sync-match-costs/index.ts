@@ -63,11 +63,12 @@ function costNameIsAdminMatchCost(name: string | null | undefined): boolean {
   return n.includes('administratie') || n.includes('admin');
 }
 
-async function deleteNonAdminMatchCostsForMatch(matchId: number): Promise<void> {
+async function deleteNonAdminMatchCostsForMatch(matchId: number, organizationId: number): Promise<void> {
   const { data: mcRows, error: mcErr } = await supabaseServiceRole
     .from('costs')
     .select('id, name')
-    .eq('category', 'match_cost');
+    .eq('category', 'match_cost')
+    .eq('organization_id', organizationId);
   if (mcErr) throw new Error(mcErr.message);
   const ids = (mcRows || [])
     .filter((c: { name?: string | null }) => !costNameIsAdminMatchCost(c.name))
@@ -100,6 +101,17 @@ Deno.serve(async (req) => {
 
     console.log('Syncing match costs for match:', { matchId, homeTeamId, awayTeamId, isSubmitted, referee });
 
+    const { data: matchRow, error: matchRowErr } = await supabaseServiceRole
+      .from('matches')
+      .select('organization_id, skip_auto_match_costs, assigned_referee_id, referee')
+      .eq('match_id', matchId)
+      .maybeSingle();
+    if (matchRowErr) throw new Error(`Failed to load match: ${matchRowErr.message}`);
+    const organizationId = matchRow?.organization_id;
+    if (organizationId == null) {
+      throw new Error(`Match ${matchId} heeft geen organization_id`);
+    }
+
     if (!isSubmitted) {
       console.log('Match not submitted, skipping cost sync');
       return new Response(
@@ -109,12 +121,13 @@ Deno.serve(async (req) => {
     }
 
     if (await matchHasForfaitPenalty(matchId)) {
-      await deleteNonAdminMatchCostsForMatch(matchId);
+      await deleteNonAdminMatchCostsForMatch(matchId, organizationId);
 
       const { data: matchCosts, error: costErr } = await supabaseServiceRole
         .from('costs')
         .select('id, name, amount')
-        .eq('category', 'match_cost');
+        .eq('category', 'match_cost')
+        .eq('organization_id', organizationId);
       if (costErr) throw new Error(`Failed to load cost settings: ${costErr.message}`);
 
       const costSettings = matchCosts || [];
@@ -145,6 +158,7 @@ Deno.serve(async (req) => {
         if (existErr) throw new Error(`Failed to check existing ${costType} costs: ${existErr.message}`);
         if ((existingRows || []).length === 0) {
           const { error: insertErr } = await supabaseServiceRole.from('team_costs').insert({
+            organization_id: organizationId,
             team_id: teamId,
             cost_setting_id: costSetting.id,
             amount: desired,
@@ -172,12 +186,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: skipRow, error: skipErr } = await supabaseServiceRole
-      .from('matches')
-      .select('skip_auto_match_costs, assigned_referee_id, referee')
-      .eq('match_id', matchId)
-      .maybeSingle();
-    if (!skipErr && skipRow?.skip_auto_match_costs === true) {
+    if (matchRow?.skip_auto_match_costs === true) {
       console.log('skip_auto_match_costs: skipping automatic match cost sync');
       return new Response(
         JSON.stringify({
@@ -195,7 +204,8 @@ Deno.serve(async (req) => {
     const { data: matchCosts, error: costErr } = await supabaseServiceRole
       .from('costs')
       .select('id, name, amount')
-      .eq('category', 'match_cost');
+      .eq('category', 'match_cost')
+      .eq('organization_id', organizationId);
 
     if (costErr) throw new Error(`Failed to load cost settings: ${costErr.message}`);
 
@@ -246,6 +256,7 @@ Deno.serve(async (req) => {
         const { error: insertErr } = await supabaseServiceRole
           .from('team_costs')
           .insert({
+            organization_id: organizationId,
             team_id: teamId,
             cost_setting_id: costSetting.id,
             amount: desired,
@@ -299,10 +310,10 @@ Deno.serve(async (req) => {
     await ensureCostExists(awayTeamId, fieldCostSetting, 'field');
 
     // Scheidskosten alleen bij toegewezen scheids; anders opruimen
-    const dbRefereeText = typeof skipRow?.referee === 'string' ? skipRow.referee : null;
+    const dbRefereeText = typeof matchRow?.referee === 'string' ? matchRow.referee : null;
     const requestRefereeText = typeof referee === 'string' ? referee : null;
     const hasReferee =
-      skipRow?.assigned_referee_id != null ||
+      matchRow?.assigned_referee_id != null ||
       (requestRefereeText != null && requestRefereeText.trim() !== '') ||
       (dbRefereeText != null && dbRefereeText.trim() !== '');
 
