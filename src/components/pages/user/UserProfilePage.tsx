@@ -20,6 +20,8 @@ import {
 import { PageHeader, PublicPage, PublicSectionHeading, PUBLIC_CARD_CLASS, SectionCollapsibleCard, ProfileSectionsAccordion, SECTION_COLLAPSIBLE_NESTED_TRIGGER, useProfileAccordionItem } from "@/components/layout";
 import { FilterSelect } from "@/components/ui/filter-select";
 import { useOrganizationContent } from "@/hooks/useOrganizationContent";
+import { useOrganization } from "@/hooks/useOrganization";
+import { getOrganizationFeatures } from "@/config/organizationFeatures";
 import { useMinLoadingGate } from "@/hooks/useMinLoadingGate";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useAuth } from "@/hooks/useAuth";
@@ -1496,6 +1498,8 @@ ProfileRefereeMatchFormsCard.displayName = 'ProfileRefereeMatchFormsCard';
 // Main profile page component
 const UserProfilePage: React.FC = () => {
   const { user: authUser } = useAuth();
+  const { organizationSlug } = useOrganization();
+  const { profileFinancial: showProfileFinancial } = getOrganizationFeatures(organizationSlug);
   const { profileData, isLoading, error } = useUserProfile();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1630,7 +1634,7 @@ const UserProfilePage: React.FC = () => {
             />
           )}
 
-          {user.role === 'player_manager' && firstTeam && (
+          {user.role === 'player_manager' && firstTeam && showProfileFinancial && (
             <SectionCollapsibleCard
               title="Financieel"
               icon={Wallet}

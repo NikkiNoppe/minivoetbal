@@ -1,24 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { teamService } from "@/services/core/teamService";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMinLoadingGate } from "@/hooks/useMinLoadingGate";
 import { useTeamOperations } from "./useTeamOperations";
-import { useOrgQueryScope } from "@/hooks/useOrganization";
-
-interface Team {
-  team_id: number;
-  team_name: string;
-  player_manager_id?: number | null;
-  contact_person?: string;
-  contact_phone?: string;
-  contact_email?: string;
-  club_colors?: string;
-  preferred_play_moments?: {
-    days?: string[];
-    timeslots?: string[];
-    venues?: string[]; // Changed from number[] to string[]
-    notes?: string;
-  };
-}
+import { adminTeamQueryKeys, useAdminTeamsQuery, type AdminTeam } from "./useTeamsQuery";
 
 interface TeamFormData {
   name: string;
@@ -29,21 +13,40 @@ interface TeamFormData {
   preferred_play_moments: {
     days: string[];
     timeslots: string[];
-    venues: string[]; // Changed from number[] to string[]
+    venues: string[];
     notes: string;
   };
-  balance: string; // Add balance property to match the interface from useTeamOperations
+  balance: string;
 }
 
 export function useTeamsEnhanced() {
-  const { toast } = useToast();
-  const { organizationId, orgQueryEnabled } = useOrgQueryScope();
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const teamsQuery = useAdminTeamsQuery();
+
+  const teams = teamsQuery.data ?? [];
+  const hasTeams = teamsQuery.data !== undefined;
+  const waitingForTeams = !hasTeams && teamsQuery.isFetching;
+  const teamsGate = useMinLoadingGate(waitingForTeams);
+
+  const loading =
+    !teamsGate.timedOut &&
+    !hasTeams &&
+    (waitingForTeams || !teamsGate.minReady);
+
+  const error = teamsGate.timedOut
+    ? "Het laden van teams duurt te lang (>5 seconden)."
+    : teamsQuery.error instanceof Error
+      ? teamsQuery.error.message
+      : teamsQuery.error
+        ? String(teamsQuery.error)
+        : null;
+
+  const showError = !!error && !hasTeams && !loading;
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
-  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [teamToDelete, setTeamToDelete] = useState<AdminTeam | null>(null);
+  const [editingTeam, setEditingTeam] = useState<AdminTeam | null>(null);
   const [formData, setFormData] = useState<TeamFormData>({
     name: "",
     contact_person: "",
@@ -54,53 +57,28 @@ export function useTeamsEnhanced() {
       days: [],
       timeslots: [],
       venues: [],
-      notes: ""
+      notes: "",
     },
-    balance: "0"
+    balance: "0",
   });
-  
-  // Use ref to track latest formData value for save operations
+
   const formDataRef = useRef(formData);
-  
-  // Keep ref in sync with formData
+
   useEffect(() => {
     formDataRef.current = formData;
   }, [formData]);
 
-  const refreshData = () => {
-    fetchTeams();
-  };
+  const refreshData = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminTeamQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: ["teams"] }),
+    ]);
+  }, [queryClient]);
 
-  const { loading: operationsLoading, createTeam, updateTeam, deleteTeam } = useTeamOperations(refreshData);
+  const { loading: operationsLoading, createTeam, updateTeam, deleteTeam } =
+    useTeamOperations(refreshData);
 
-  const fetchTeams = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      const data = await teamService.getAllTeams();
-      setTeams(data.map((team) => ({
-        ...team,
-        preferred_play_moments: team.preferred_play_moments as unknown as Team["preferred_play_moments"],
-      })));
-    } catch (error: any) {
-      console.error('Error fetching teams:', error);
-      toast({
-        title: "Fout bij laden",
-        description: error?.message || "Er is een fout opgetreden bij het laden van de teams.",
-        variant: "destructive",
-      });
-      setTeams([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-  
-  useEffect(() => {
-    if (!orgQueryEnabled) return;
-    void fetchTeams();
-  }, [organizationId, orgQueryEnabled, fetchTeams]);
-
-  const handleEditTeam = (team: Team) => {
+  const handleEditTeam = (team: AdminTeam) => {
     setEditingTeam(team);
     setFormData({
       name: team.team_name,
@@ -112,9 +90,9 @@ export function useTeamsEnhanced() {
         days: team.preferred_play_moments?.days || [],
         timeslots: team.preferred_play_moments?.timeslots || [],
         venues: team.preferred_play_moments?.venues || [],
-        notes: team.preferred_play_moments?.notes || ""
+        notes: team.preferred_play_moments?.notes || "",
       },
-      balance: "0" // Default balance value
+      balance: "0",
     });
     setDialogOpen(true);
   };
@@ -131,17 +109,16 @@ export function useTeamsEnhanced() {
         days: [],
         timeslots: [],
         venues: [],
-        notes: ""
+        notes: "",
       },
-      balance: "0"
+      balance: "0",
     });
     setDialogOpen(true);
   };
 
-  const handleFormChange = (field: keyof TeamFormData, value: any) => {
-    if (field === 'preferred_play_moments') {
-      // Use a more stable approach to prevent infinite loops
-      setFormData(prevData => {
+  const handleFormChange = (field: keyof TeamFormData, value: unknown) => {
+    if (field === "preferred_play_moments") {
+      setFormData((prevData) => {
         const updated = {
           ...prevData,
           preferred_play_moments: {
@@ -149,40 +126,36 @@ export function useTeamsEnhanced() {
             timeslots: prevData.preferred_play_moments?.timeslots || [],
             venues: prevData.preferred_play_moments?.venues || [],
             notes: prevData.preferred_play_moments?.notes || "",
-            ...value
-          }
+            ...(value as TeamFormData["preferred_play_moments"]),
+          },
         };
-        formDataRef.current = updated; // Update ref immediately
+        formDataRef.current = updated;
         return updated;
       });
     } else {
-      setFormData(prevData => {
-        const updated = {...prevData, [field]: value};
-        formDataRef.current = updated; // Update ref immediately
+      setFormData((prevData) => {
+        const updated = { ...prevData, [field]: value };
+        formDataRef.current = updated;
         return updated;
       });
     }
   };
 
   const handleSaveTeam = async () => {
-    // Use ref to get the latest formData value, as state updates might be batched
-    // Also wait a tiny bit to ensure any pending state updates are processed
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
     const currentFormData = formDataRef.current;
-    
+
     if (editingTeam) {
       const updatedTeam = await updateTeam(editingTeam.team_id, currentFormData);
       if (updatedTeam) {
         setDialogOpen(false);
-        // Refresh teams list to show updated data
-        fetchTeams();
+        await refreshData();
       }
     } else {
       const newTeam = await createTeam(currentFormData);
       if (newTeam) {
         setDialogOpen(false);
-        // Refresh teams list to show new team
-        fetchTeams();
+        await refreshData();
       }
     }
   };
@@ -195,7 +168,7 @@ export function useTeamsEnhanced() {
     }
   };
 
-  const confirmDelete = (team: Team) => {
+  const confirmDelete = (team: AdminTeam) => {
     setTeamToDelete(team);
     setConfirmDeleteOpen(true);
   };
@@ -203,6 +176,7 @@ export function useTeamsEnhanced() {
   return {
     teams,
     loading,
+    error: showError ? error : null,
     saving: operationsLoading,
     deleting: operationsLoading,
     dialogOpen,
@@ -218,6 +192,6 @@ export function useTeamsEnhanced() {
     handleSaveTeam,
     handleDeleteTeam,
     confirmDelete,
-    fetchTeams: refreshData
+    refreshData,
   };
-} 
+}

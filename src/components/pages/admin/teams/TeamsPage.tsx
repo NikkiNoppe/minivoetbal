@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Shield} from "lucide-react";
+import { Plus, Shield, AlertCircle, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTeamsEnhanced } from "./hooks/useTeamsEnhanced";
 import TeamsList from "./components/TeamsList";
 import { TeamModal, ConfirmDeleteModal } from "@/components/modals";
@@ -14,6 +15,7 @@ const AdminTeamPage: React.FC = () => {
   const {
     teams,
     loading,
+    error,
     saving,
     deleting,
     dialogOpen,
@@ -29,6 +31,7 @@ const AdminTeamPage: React.FC = () => {
     handleSaveTeam,
     handleDeleteTeam,
     confirmDelete,
+    refreshData,
   } = useTeamsEnhanced();
 
   return (
@@ -38,6 +41,19 @@ const AdminTeamPage: React.FC = () => {
         icon={Shield}
         subtitle={`Beheer alle teams in de competitie (${teams.length} team${teams.length === 1 ? "" : "s"})`}
       />
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={() => void refreshData()} className="ml-4">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Opnieuw proberen
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <TeamsList
         teams={teams}

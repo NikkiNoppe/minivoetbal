@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchAllMatchesForSession } from '@/services/core/matchesSessionFetch';
+import { fetchTeamScheduleForSuspensions } from '@/services/core/matchesSessionFetch';
+import { useOrgQueryScope } from '@/hooks/useOrganization';
+import { withOrgQueryKey } from '@/lib/orgQueryKey';
 
 export interface UpcomingMatch {
   match_id: number;
@@ -23,21 +25,41 @@ export interface UpcomingMatch {
   referee_notes?: string;
 }
 
+function isUpcomingTeamMatch(
+  match: {
+    match_date: string;
+    home_score: number | null;
+    away_score: number | null;
+    is_submitted?: boolean | null;
+  },
+  nowMs: number,
+): boolean {
+  if (match.home_score != null && match.away_score != null) {
+    return false;
+  }
+  const matchMs = new Date(match.match_date).getTime();
+  if (!Number.isNaN(matchMs)) {
+    return matchMs >= nowMs;
+  }
+  return match.home_score == null && match.away_score == null;
+}
+
 export const useUpcomingMatches = (teamId: number | null, limit: number = 5) => {
+  const { organizationId, orgQueryEnabled } = useOrgQueryScope();
+
   return useQuery({
-    queryKey: ['upcomingMatches', teamId, limit],
+    queryKey: withOrgQueryKey(['upcomingMatches', teamId, limit], organizationId),
     queryFn: async () => {
       if (!teamId) return [];
 
-      const now = new Date().toISOString();
-      const matches = await fetchAllMatchesForSession();
+      const nowMs = Date.now();
+      const matches = await fetchTeamScheduleForSuspensions([teamId]);
 
       const data = matches
         .filter(
           (match) =>
             (match.home_team_id === teamId || match.away_team_id === teamId) &&
-            (match.match_date >= now ||
-              (match.home_score == null && match.away_score == null)),
+            isUpcomingTeamMatch(match, nowMs),
         )
         .sort((a, b) => a.match_date.localeCompare(b.match_date))
         .slice(0, limit);
@@ -69,7 +91,7 @@ export const useUpcomingMatches = (teamId: number | null, limit: number = 5) => 
         } satisfies UpcomingMatch;
       });
     },
-    enabled: !!teamId,
+    enabled: !!teamId && orgQueryEnabled,
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnReconnect: true,
