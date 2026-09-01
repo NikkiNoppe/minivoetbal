@@ -66,21 +66,7 @@ export const fetchUpcomingMatches = async (
       }
 
       const processedRefereeNotes = row.referee_notes || "";
-      
-      if (row.match_id && row.referee_notes) {
-        console.log('📥 [matchesFormService] fetchUpcomingMatches - Loading referee notes:', {
-          matchId: row.match_id,
-          referee_notes: row.referee_notes,
-          referee_notesType: typeof row.referee_notes,
-          referee_notesLength: row.referee_notes?.length || 0,
-          isNull: row.referee_notes === null,
-          isEmpty: row.referee_notes === "",
-          processed: processedRefereeNotes,
-          processedType: typeof processedRefereeNotes,
-          processedLength: processedRefereeNotes?.length || 0
-        });
-      }
-      
+
       return {
         matchId: row.match_id,
         uniqueNumber: row.unique_number || "",

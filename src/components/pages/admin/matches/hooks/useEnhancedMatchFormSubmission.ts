@@ -5,6 +5,7 @@ import { MatchFormData } from "../types";
 import { useToast } from "@/hooks/use-toast";
 import { type MatchFormSettings } from "@/hooks/useMatchFormSettings";
 import { supabase } from "@/integrations/supabase/client";
+import { adminRefereeNotesQueryKey } from "@/hooks/useAdminRefereeNotes";
 
 export const useEnhancedMatchFormSubmission = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,6 +134,7 @@ export const useEnhancedMatchFormSubmission = () => {
         // IMMEDIATE: Invalidate queries so fresh data is available when reopening
         await queryClient.invalidateQueries({ queryKey: ['teamMatches'] });
         await queryClient.invalidateQueries({ queryKey: ['match', matchData.matchId] });
+        await queryClient.invalidateQueries({ queryKey: adminRefereeNotesQueryKey });
         console.log('🔄 [useEnhancedMatchFormSubmission] Query invalidation complete');
 
         // Trigger auto-suspension notification email (fire-and-forget)

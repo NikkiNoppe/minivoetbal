@@ -10,10 +10,63 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
+      admin_referee_note_acknowledgements: {
+        Row: {
+          acknowledged_at: string
+          match_id: number
+          note_fingerprint: string
+          organization_id: number
+          user_id: number
+        }
+        Insert: {
+          acknowledged_at?: string
+          match_id: number
+          note_fingerprint: string
+          organization_id: number
+          user_id: number
+        }
+        Update: {
+          acknowledged_at?: string
+          match_id?: number
+          note_fingerprint?: string
+          organization_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_referee_note_acknowledgements_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "admin_referee_note_acknowledgements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_referee_note_acknowledgements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "admin_referee_note_acknowledgements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       application_settings: {
         Row: {
           id: number
@@ -1023,6 +1076,14 @@ export type Database = {
         Args: { p_session_token: string }
         Returns: Json
       }
+      get_admin_referee_note_acks: {
+        Args: { p_session_token: string }
+        Returns: {
+          acknowledged_at: string
+          match_id: number
+          note_fingerprint: string
+        }[]
+      }
       get_all_users_for_admin: {
         Args: { p_session_token: string }
         Returns: {
@@ -1612,6 +1673,14 @@ export type Database = {
       restore_user_session: {
         Args: { p_session_token: string }
         Returns: boolean
+      }
+      set_admin_referee_note_ack: {
+        Args: {
+          p_acknowledged?: boolean
+          p_match_id: number
+          p_session_token: string
+        }
+        Returns: Json
       }
       set_config: {
         Args: { parameter: string; value: string }

@@ -1,38 +1,12 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronRight, MessageSquare } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { SectionCollapsibleCard, SECTION_COLLAPSIBLE_NESTED_TRIGGER } from "@/components/layout";
-
-const STORAGE_KEY = "admin_read_referee_notes";
-
-const getReadNotes = (): number[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-};
-
-const setReadNotes = (ids: number[]) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-};
-
-interface RefereeNote {
-  match_id: number;
-  match_date: string;
-  referee_notes: string;
-  referee: string | null;
-  speeldag: string | null;
-  home_team_name: string;
-  away_team_name: string;
-}
+import { useAdminRefereeNotes, type AdminRefereeNoteView } from "@/hooks/useAdminRefereeNotes";
 
 const formatDate = (dateStr: string): string => {
   const d = new Date(dateStr);
@@ -44,23 +18,29 @@ const formatDate = (dateStr: string): string => {
 };
 
 const NoteItem: React.FC<{
-  note: RefereeNote;
-  isRead: boolean;
-  onToggle: (matchId: number) => void;
-}> = ({ note, isRead, onToggle }) => (
+  note: AdminRefereeNoteView;
+  isAcknowledged: boolean;
+  onToggle: (matchId: number, acknowledged: boolean) => void;
+  disabled?: boolean;
+}> = ({ note, isAcknowledged, onToggle, disabled }) => (
   <div
     className={cn(
       "flex gap-3 p-3 rounded-lg border transition-colors",
-      isRead
+      isAcknowledged
         ? "bg-muted/30 border-border/50 opacity-70"
-        : "bg-card border-border hover:border-primary/30"
+        : "bg-card border-border hover:border-primary/30",
     )}
   >
     <Checkbox
-      checked={isRead}
-      onCheckedChange={() => onToggle(note.match_id)}
+      checked={isAcknowledged}
+      disabled={disabled}
+      onCheckedChange={(checked) => onToggle(note.match_id, checked === true)}
       className="mt-0.5 flex-shrink-0"
-      aria-label={`Markeer notitie als ${isRead ? "ongelezen" : "gelezen"}`}
+      aria-label={
+        isAcknowledged
+          ? "Markeer als niet afgehandeld"
+          : "Markeer als afgehandeld"
+      }
     />
     <div className="flex-1 min-w-0 space-y-1">
       <div className="flex items-center gap-2 flex-wrap">
@@ -83,7 +63,7 @@ const NoteItem: React.FC<{
         )}
       </div>
       <p className="text-sm text-foreground/80 italic leading-relaxed">
-        "{note.referee_notes}"
+        &ldquo;{note.referee_notes}&rdquo;
       </p>
     </div>
   </div>
@@ -92,77 +72,27 @@ const NoteItem: React.FC<{
 const RefereeNotesCard: React.FC<{ accordionValue?: string }> = ({
   accordionValue = "referee-notes",
 }) => {
-  const { user: authUser } = useAuth();
-  const [readIds, setReadIds] = useState<number[]>(getReadNotes);
-  const [readOpen, setReadOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const {
+    unread,
+    acknowledged,
+    isLoading,
+    error,
+    toggleAcknowledged,
+    isToggling,
+    refetch,
+  } = useAdminRefereeNotes();
 
-  const { data: notes = [], isLoading } = useQuery({
-    queryKey: ["adminRefereeNotes"],
-    queryFn: async () => {
-      const { fetchAllMatchesForSession } = await import("@/services/core/matchesSessionFetch");
-      const allMatches = await fetchAllMatchesForSession();
-      const result = (allMatches || [])
-            .filter(
-              (m) =>
-                m.is_submitted &&
-                m.referee_notes &&
-                String(m.referee_notes).trim() !== "",
-            )
-            .sort((a, b) => b.match_date.localeCompare(a.match_date))
-            .map((m) => ({
-              match_id: m.match_id,
-              match_date: m.match_date,
-              referee_notes: m.referee_notes,
-              referee: m.referee,
-              speeldag: m.speeldag,
-              home_team: { team_name: m.home_team_name },
-              away_team: { team_name: m.away_team_name },
-            }));
-      return result
-            .map((m: any) => {
-              const cleanedNotes = (m.referee_notes || "")
-                .split("\n")
-                .filter((line: string) => !line.trim().startsWith("⚠️ BOETE:"))
-                .join("\n")
-                .trim();
-              return {
-                match_id: m.match_id,
-                match_date: m.match_date,
-                referee_notes: cleanedNotes,
-                referee: m.referee,
-                speeldag: m.speeldag,
-                home_team_name: m.home_team?.team_name || "?",
-                away_team_name: m.away_team?.team_name || "?",
-              };
-            })
-            .filter((n: RefereeNote) => n.referee_notes.length > 0) as RefereeNote[];
-    },
-    enabled: !!authUser?.id && authUser?.role === "admin",
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const toggleRead = useCallback((matchId: number) => {
-    setReadIds((prev) => {
-      const next = prev.includes(matchId)
-        ? prev.filter((id) => id !== matchId)
-        : [...prev, matchId];
-      setReadNotes(next);
-      return next;
-    });
-  }, []);
-
-  const { unread, read } = useMemo(() => {
-    const unreadNotes: RefereeNote[] = [];
-    const readNotesList: RefereeNote[] = [];
-    for (const n of notes) {
-      if (readIds.includes(n.match_id)) {
-        readNotesList.push(n);
-      } else {
-        unreadNotes.push(n);
+  const handleToggle = useCallback(
+    async (matchId: number, acknowledgedNext: boolean) => {
+      try {
+        await toggleAcknowledged(matchId, acknowledgedNext);
+      } catch (err) {
+        console.error("Kon afhandeling niet opslaan:", err);
       }
-    }
-    return { unread: unreadNotes, read: readNotesList };
-  }, [notes, readIds]);
+    },
+    [toggleAcknowledged],
+  );
 
   if (isLoading) {
     return (
@@ -178,7 +108,29 @@ const RefereeNotesCard: React.FC<{ accordionValue?: string }> = ({
     );
   }
 
-  if (notes.length === 0) return null;
+  if (error) {
+    return (
+      <SectionCollapsibleCard
+        title="Scheidsrechter notities"
+        icon={MessageSquare}
+        accordionValue={accordionValue}
+        contentClassName="space-y-3"
+      >
+        <p className="text-sm text-destructive">
+          Kon notities niet laden.{" "}
+          <button
+            type="button"
+            className="underline underline-offset-2"
+            onClick={() => void refetch()}
+          >
+            Opnieuw proberen
+          </button>
+        </p>
+      </SectionCollapsibleCard>
+    );
+  }
+
+  if (unread.length === 0 && acknowledged.length === 0) return null;
 
   return (
     <SectionCollapsibleCard
@@ -188,7 +140,7 @@ const RefereeNotesCard: React.FC<{ accordionValue?: string }> = ({
       badge={
         unread.length > 0 ? (
           <Badge variant="default" className="text-xs">
-            {unread.length} nieuw
+            {unread.length} open
           </Badge>
         ) : undefined
       }
@@ -200,35 +152,37 @@ const RefereeNotesCard: React.FC<{ accordionValue?: string }> = ({
             <NoteItem
               key={note.match_id}
               note={note}
-              isRead={false}
-              onToggle={toggleRead}
+              isAcknowledged={false}
+              onToggle={handleToggle}
+              disabled={isToggling}
             />
           ))}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground py-2">
-          Alle notities zijn gelezen
+          Alle notities zijn afgehandeld
         </p>
       )}
 
-      {read.length > 0 && (
-        <Collapsible open={readOpen} onOpenChange={setReadOpen}>
+      {acknowledged.length > 0 && (
+        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
           <CollapsibleTrigger className={SECTION_COLLAPSIBLE_NESTED_TRIGGER}>
             <ChevronRight
               className={cn(
                 "h-4 w-4 transition-transform",
-                readOpen && "rotate-90"
+                historyOpen && "rotate-90",
               )}
             />
-            <span>Gelezen notities ({read.length})</span>
+            <span>Geschiedenis ({acknowledged.length})</span>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 pt-2">
-            {read.map((note) => (
+            {acknowledged.map((note) => (
               <NoteItem
                 key={note.match_id}
                 note={note}
-                isRead={true}
-                onToggle={toggleRead}
+                isAcknowledged={true}
+                onToggle={handleToggle}
+                disabled={isToggling}
               />
             ))}
           </CollapsibleContent>
