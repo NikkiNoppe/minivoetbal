@@ -6,9 +6,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTr
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { useAuth } from "@/hooks/useAuth";
-import { User, LogOut, ChevronRight } from "lucide-react";
+import { User, LogOut, ChevronRight, Zap } from "lucide-react";
 import HamburgerIcon from "@/components/ui/hamburger-icon";
 import Logo from "./Logo";
+import { AdminQuickSheet } from "@/components/navigation";
 import { useTabVisibility } from "@/context/TabVisibilityContext";
 import { ADMIN_ROUTES, getPathFromTab } from "@/config/routes";
 import {
@@ -128,6 +129,7 @@ const Header: React.FC<HeaderProps> = ({
   hasSidebar = false,
 }) => {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [adminQuickOpen, setAdminQuickOpen] = useState(false);
   const navigate = useOrgAwareNavigate();
   const {
     user: authUser,
@@ -150,6 +152,10 @@ const Header: React.FC<HeaderProps> = ({
 
   const normalizedRole = normalizeRole(user?.role || "");
   const isAdmin = normalizedRole === "admin";
+  const isTeamManager = normalizedRole === "player_manager";
+  const isReferee = normalizedRole === "referee";
+  const showAdminQuick =
+    isAuthenticated && (isAdmin || isTeamManager || isReferee || isSuperAdmin);
   const roleLabel = getRoleLabel(normalizedRole, isAdmin, isSuperAdmin);
 
   const visiblePublicItems = getOrderedPublicNavItems(isTabVisible, isSuperAdmin);
@@ -402,6 +408,22 @@ const Header: React.FC<HeaderProps> = ({
             <Logo onClick={handleLogoClick} />
           </div>
 
+          <div className="flex shrink-0 items-center gap-2">
+            {showAdminQuick ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="min-h-[44px] min-w-[44px] p-2 text-white bg-brand-200 hover:bg-brand-300 transition-colors lg:hidden"
+                  aria-label="Snelle admin-acties"
+                  onClick={() => setAdminQuickOpen(true)}
+                >
+                  <Zap className="h-5 w-5 text-brand-900" aria-hidden />
+                </Button>
+                <AdminQuickSheet open={adminQuickOpen} onOpenChange={setAdminQuickOpen} />
+              </>
+            ) : null}
+
           <Sheet
             open={isSheetOpen}
             onOpenChange={setIsSheetOpen}
@@ -410,8 +432,7 @@ const Header: React.FC<HeaderProps> = ({
             <SheetTrigger asChild>
               <Button
                 variant="ghost"
-                size="sm"
-                className="p-2 text-white bg-brand-200 hover:bg-brand-300 transition-all duration-200 motion-safe:hover:scale-105"
+                className="min-h-[44px] min-w-[44px] p-2 text-white bg-brand-200 hover:bg-brand-300 transition-all duration-200 motion-safe:hover:scale-105"
                 aria-label="Open navigatiemenu"
               >
                 <HamburgerIcon className="transition-transform duration-200 text-brand-900" />
@@ -536,6 +557,7 @@ const Header: React.FC<HeaderProps> = ({
               </footer>
             </SheetContent>
           </Sheet>
+          </div>
         </div>
       </div>
     </header>

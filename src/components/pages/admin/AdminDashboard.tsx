@@ -3,7 +3,7 @@ import React, { useMemo, lazy, Suspense, type ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+import { AdminTabSkeleton } from "@/components/common/RoutePageSkeleton";
 import { useAuth } from "@/hooks/useAuth";
 import PlayerPage from "@/components/pages/admin/players/PlayerPage.tsx";
 import FinancialPage from "@/components/pages/admin/financial/FinancialPage";
@@ -62,11 +62,7 @@ const LazyTabContent = ({
   <TabsContent value={value} className="mt-0">
     {activeTab === value ? (
       <Suspense
-        fallback={
-          <div className="flex min-h-[40vh] items-center justify-center py-12">
-            <LoadingSpinner />
-          </div>
-        }
+        fallback={<AdminTabSkeleton />}
       >
         {children}
       </Suspense>

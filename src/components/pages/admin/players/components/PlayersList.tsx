@@ -220,6 +220,69 @@ const PlayersList: React.FC<PlayersListProps> = ({
   const rosterFull = isTeamRosterFull(players.length);
   const spotsRemaining = Math.max(0, MAX_TEAM_PLAYERS - players.length);
 
+  const MobilePlayerSkeleton = () => (
+    <ul className="divide-y divide-border/60 md:hidden" aria-busy="true" aria-label="Spelers laden">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <li key={`player-mobile-skeleton-${index}`} className="flex items-center gap-3 px-3 py-3">
+          <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          {editMode ? (
+            <div className="flex gap-1">
+              <Skeleton className="h-11 w-11 rounded-md" />
+              <Skeleton className="h-11 w-11 rounded-md" />
+            </div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+
+  const PlayerMobileCard = ({ player }: { player: Player }) => {
+    const displayName = getFullName(player);
+    return (
+      <div className="flex items-start gap-3 px-3 py-3 min-h-[44px]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <User className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="truncate text-sm font-semibold text-brand-dark">{displayName}</p>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {formatDate(player.birth_date)}
+          </p>
+          <Badge variant="outline" className="bg-brand-50 text-xs">
+            Actief
+          </Badge>
+        </div>
+        {editMode ? (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              type="button"
+              onClick={() => onEditPlayer(player.player_id)}
+              variant="unstyled"
+              className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
+              aria-label={`Bewerk ${displayName}`}
+            >
+              <Edit className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              onClick={() => handleDeleteClick(player)}
+              variant="unstyled"
+              className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
+              aria-label={`Verwijder ${displayName}`}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -251,112 +314,132 @@ const PlayersList: React.FC<PlayersListProps> = ({
         </Card>
       </div>
 
-      <div className="w-full overflow-x-auto">
-        <div className="w-full min-w-0">
-          <Table className="table w-full">
-            <TableHeader>
-              <TableRow className="table-header-row">
-                <TableHead className="min-w-[220px]">Naam</TableHead>
-                <TableHead className="hidden min-w-[140px] sm:table-cell">Geboortedatum</TableHead>
-                <TableHead className="hidden min-w-[120px] md:table-cell">Status</TableHead>
-                {editMode && <TableHead className="text-center min-w-[104px]">Acties</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, index) => (
-                  <TableRow key={`skeleton-${index}`}>
-                    <TableCell className="table-skeleton-cell">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-4 w-4 rounded-full" />
-                        <Skeleton className="h-4 w-32" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="table-skeleton-cell hidden sm:table-cell">
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell className="table-skeleton-cell hidden md:table-cell">
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    {editMode && (
-                      <TableCell className="text-center table-skeleton-cell">
-                        <div className="flex justify-center gap-1">
-                          <Skeleton className="h-8 w-8 rounded-md" />
-                          <Skeleton className="h-8 w-8 rounded-md" />
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              ) : players.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={editMode ? 4 : 3} className="py-12">
-                    <EmptyState />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                players.map((player) => {
-                  const displayName = getFullName(player);
-                  return (
-                    <TableRow key={player.player_id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                            <User className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0">
-                            <span className="block truncate max-w-[140px] sm:max-w-[220px] text-brand-dark">
-                              {displayName}
-                            </span>
-                            <span className="block truncate text-xs text-muted-foreground sm:hidden">
-                              {formatDate(player.birth_date)}
-                            </span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                          {formatDate(player.birth_date)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline" className="bg-brand-50">
-                          Actief
-                        </Badge>
-                      </TableCell>
-                      {editMode && (
-                        <TableCell className="text-center">
-                          <div className="flex items-center gap-1.5 justify-center">
-                            <Button
-                              type="button"
-                              onClick={() => onEditPlayer(player.player_id)}
-                              variant="unstyled"
-                              className="btn btn--icon btn--edit"
-                              aria-label={`Bewerk ${displayName}`}
-                            >
-                              <Edit className="h-4 w-4" aria-hidden />
-                            </Button>
-                            <Button
-                              type="button"
-                              onClick={() => handleDeleteClick(player)}
-                              variant="unstyled"
-                              className="btn btn--icon btn--danger"
-                              aria-label={`Verwijder ${displayName}`}
-                            >
-                              <Trash2 className="h-4 w-4" aria-hidden />
-                            </Button>
+      <Card className={cn(PUBLIC_CARD_CLASS, "shadow-lg min-w-0")}>
+        <CardContent className="min-w-0 p-0">
+          {loading ? (
+            <>
+              <MobilePlayerSkeleton />
+              <div className="hidden w-full min-w-0 md:block overflow-x-auto">
+                <Table className="table w-full">
+                  <TableHeader>
+                    <TableRow className="table-header-row">
+                      <TableHead className="min-w-[220px]">Naam</TableHead>
+                      <TableHead className="hidden min-w-[140px] sm:table-cell">Geboortedatum</TableHead>
+                      <TableHead className="hidden min-w-[120px] md:table-cell">Status</TableHead>
+                      {editMode && <TableHead className="text-center min-w-[104px]">Acties</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={`skeleton-${index}`}>
+                        <TableCell className="table-skeleton-cell">
+                          <div className="flex items-center gap-2">
+                            <Skeleton className="h-4 w-4 rounded-full" />
+                            <Skeleton className="h-4 w-32" />
                           </div>
                         </TableCell>
-                      )}
+                        <TableCell className="table-skeleton-cell hidden sm:table-cell">
+                          <Skeleton className="h-4 w-24" />
+                        </TableCell>
+                        <TableCell className="table-skeleton-cell hidden md:table-cell">
+                          <Skeleton className="h-4 w-16" />
+                        </TableCell>
+                        {editMode && (
+                          <TableCell className="text-center table-skeleton-cell">
+                            <div className="flex justify-center gap-1">
+                              <Skeleton className="h-8 w-8 rounded-md" />
+                              <Skeleton className="h-8 w-8 rounded-md" />
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          ) : players.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <>
+              <ul className="divide-y divide-border/60 md:hidden" aria-label="Spelerslijst">
+                {players.map((player) => (
+                  <li key={player.player_id}>
+                    <PlayerMobileCard player={player} />
+                  </li>
+                ))}
+              </ul>
+
+              <div className="hidden w-full min-w-0 md:block overflow-x-auto">
+                <Table className="table w-full">
+                  <TableHeader>
+                    <TableRow className="table-header-row">
+                      <TableHead className="min-w-[220px]">Naam</TableHead>
+                      <TableHead className="hidden min-w-[140px] sm:table-cell">Geboortedatum</TableHead>
+                      <TableHead className="hidden min-w-[120px] md:table-cell">Status</TableHead>
+                      {editMode && <TableHead className="text-center min-w-[104px]">Acties</TableHead>}
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+                  </TableHeader>
+                  <TableBody>
+                    {players.map((player) => {
+                      const displayName = getFullName(player);
+                      return (
+                        <TableRow key={player.player_id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                <User className="h-4 w-4" />
+                              </span>
+                              <span className="block truncate max-w-[220px] text-brand-dark">
+                                {displayName}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              {formatDate(player.birth_date)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <Badge variant="outline" className="bg-brand-50">
+                              Actief
+                            </Badge>
+                          </TableCell>
+                          {editMode && (
+                            <TableCell className="text-center">
+                              <div className="flex items-center gap-1.5 justify-center">
+                                <Button
+                                  type="button"
+                                  onClick={() => onEditPlayer(player.player_id)}
+                                  variant="unstyled"
+                                  className="btn btn--icon btn--edit"
+                                  aria-label={`Bewerk ${displayName}`}
+                                >
+                                  <Edit className="h-4 w-4" aria-hidden />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  onClick={() => handleDeleteClick(player)}
+                                  variant="unstyled"
+                                  className="btn btn--icon btn--danger"
+                                  aria-label={`Verwijder ${displayName}`}
+                                >
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <AppAlertModal
         open={deleteDialogOpen}

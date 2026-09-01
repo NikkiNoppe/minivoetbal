@@ -103,7 +103,7 @@ const AdminQuickSheet: React.FC<AdminQuickSheetProps> = ({ open, onOpenChange })
                     key={action.key}
                     onClick={() => handleNavigate(action.path)}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-lg text-left",
+                      "flex items-center gap-3 p-3 rounded-lg text-left min-h-[44px]",
                       "bg-primary/10 hover:bg-primary/20 transition-colors",
                       "text-foreground font-medium"
                     )}
@@ -129,7 +129,7 @@ const AdminQuickSheet: React.FC<AdminQuickSheetProps> = ({ open, onOpenChange })
                     key={action.key}
                     onClick={() => handleNavigate(action.path)}
                     className={cn(
-                      "flex items-center gap-2 p-3 rounded-lg text-left",
+                      "flex items-center gap-2 p-3 rounded-lg text-left min-h-[44px]",
                       "bg-muted hover:bg-muted/80 transition-colors",
                       "text-foreground text-sm"
                     )}
@@ -155,7 +155,7 @@ const AdminQuickSheet: React.FC<AdminQuickSheetProps> = ({ open, onOpenChange })
                     key={action.key}
                     onClick={() => handleNavigate(action.path)}
                     className={cn(
-                      "flex items-center gap-2 p-3 rounded-lg text-left",
+                      "flex items-center gap-2 p-3 rounded-lg text-left min-h-[44px]",
                       "bg-muted hover:bg-muted/80 transition-colors",
                       "text-foreground text-sm"
                     )}
@@ -181,7 +181,7 @@ const AdminQuickSheet: React.FC<AdminQuickSheetProps> = ({ open, onOpenChange })
                     key={action.key}
                     onClick={() => handleNavigate(action.path)}
                     className={cn(
-                      "flex items-center gap-2 p-3 rounded-lg text-left",
+                      "flex items-center gap-2 p-3 rounded-lg text-left min-h-[44px]",
                       "bg-muted hover:bg-muted/80 transition-colors",
                       "text-foreground text-sm"
                     )}

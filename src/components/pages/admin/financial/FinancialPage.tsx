@@ -38,7 +38,7 @@ const FinancialListSkeleton = memo(() => (
           <Skeleton className="h-5 w-40" />
           <Skeleton className="h-5 w-20" />
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[...Array(4)].map((_, j) => (
             <Skeleton key={j} className="h-8 w-full" />
           ))}
@@ -65,7 +65,7 @@ const TeamFinancialAmounts = memo(
   }) => {
     if (isAmountsLoading || !finances) {
       return (
-        <div className="grid grid-cols-4 gap-y-1 text-xs w-full">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs sm:grid-cols-4 sm:text-xs w-full">
           {["Veld", "Scheids", "Admin", "Boetes"].map((label) => (
             <div key={label} className="flex flex-col items-center">
               <span className="text-muted-foreground">{label}</span>
@@ -78,7 +78,7 @@ const TeamFinancialAmounts = memo(
 
     const amountColor = "var(--color-500)";
     return (
-      <div className="grid grid-cols-4 gap-y-1 text-xs w-full">
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs sm:grid-cols-4 w-full">
         <div className="flex flex-col items-center">
           <span className="text-muted-foreground">Veld</span>
           <span className="font-semibold" style={{ color: amountColor }}>
