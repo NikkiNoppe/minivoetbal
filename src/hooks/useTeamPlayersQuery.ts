@@ -100,8 +100,8 @@ export const useTeamPlayersQuery = (teamId: number | null) => {
       return result;
     },
     enabled: shouldFetch,
-    staleTime: 2 * 60 * 1000, // 2 minutes cache
-    gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
     retry: 4,
     retryDelay: (attemptIndex) => {
       // Exponential backoff with jitter: 1.5s, 3s, 6s, 10s (max)
@@ -109,11 +109,12 @@ export const useTeamPlayersQuery = (teamId: number | null) => {
       const jitter = Math.random() * 500;
       return baseDelay + jitter;
     },
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     refetchInterval: false,
     placeholderData: (previousData) => previousData,
-    networkMode: 'offlineFirst',
+    networkMode: "online",
   });
 };
 

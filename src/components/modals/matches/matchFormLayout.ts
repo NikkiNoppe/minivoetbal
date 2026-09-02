@@ -130,18 +130,18 @@ export function getDefaultSectionOpenState(
 
   if (role === "referee") {
     return {
-      homeTeamOpen: false,
-      awayTeamOpen: false,
+      homeTeamOpen: true,
+      awayTeamOpen: true,
       isKaartenOpen: true,
-      isGegevensOpen: false,
+      isGegevensOpen: true,
       isNotitiesOpen: false,
       isFinancieelOpen: false,
     };
   }
 
   return {
-    homeTeamOpen: false,
-    awayTeamOpen: false,
+    homeTeamOpen: true,
+    awayTeamOpen: true,
     isKaartenOpen: false,
     isGegevensOpen: false,
     isNotitiesOpen: false,

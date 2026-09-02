@@ -226,8 +226,11 @@ interface MatchFormWedstrijdinfoSectionProps {
   matchday: string;
   onFieldChange: (field: "date" | "time" | "location" | "matchday", value: string) => void;
   isAdmin: boolean;
+  isReferee?: boolean;
   isTeamManager: boolean;
   canEdit: boolean;
+  /** Toon hint alleen als andere scheids (niet toegewezen) wijzigingen wil doen */
+  showRefereeClaimHint?: boolean;
   refereeSelectValue: string;
   selectedReferee: string;
   onRefereeChange: (value: string) => void;
@@ -247,8 +250,11 @@ export function MatchFormWedstrijdinfoSection({
   matchday,
   onFieldChange,
   isAdmin,
+  isReferee = false,
   isTeamManager,
   canEdit,
+  canEditReferee,
+  showRefereeClaimHint = false,
   refereeSelectValue,
   selectedReferee,
   onRefereeChange,
@@ -258,11 +264,12 @@ export function MatchFormWedstrijdinfoSection({
   onRefetchReferees,
   selectedRefereeExists,
 }: MatchFormWedstrijdinfoSectionProps) {
+  const refereeEditable = canEditReferee ?? (isAdmin || isReferee || canEdit);
   const refereeSelectProps: MatchFormRefereeSelectProps = {
     refereeSelectValue,
     selectedReferee,
     onRefereeChange,
-    canEdit,
+    canEdit: refereeEditable,
     loadingReferees,
     referees,
     refereesError,
@@ -347,6 +354,12 @@ export function MatchFormWedstrijdinfoSection({
             matchday={matchday}
           />
           <MatchFormRefereeSelect {...refereeSelectProps} />
+          {showRefereeClaimHint && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-950" role="status">
+              Je bent niet de toegewezen scheidsrechter. Wijzig eerst de scheidsrechter
+              naar jezelf voordat je spelers of andere wijzigingen kunt doorvoeren.
+            </p>
+          )}
         </div>
       )}
     </MatchFormSectionCard>

@@ -80,12 +80,17 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
   teamId: teamIdProp,
   onComplete,
 }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isSuperAdmin } = useAuth();
   useRegisterDevMatchFormModal(open);
 
   const normalizedRole = normalizeRole(user?.role ?? "");
   const isAdmin =
-    isAuthenticated && (normalizedRole === "admin" || user?.id === -1);
+    isAuthenticated &&
+    (normalizedRole === "admin" ||
+      normalizedRole === "superadmin" ||
+      normalizedRole === "super_admin" ||
+      isSuperAdmin ||
+      user?.id === -1);
   const isReferee = isAuthenticated && normalizedRole === "referee";
   const isTeamManager = isAuthenticated && normalizedRole === "player_manager";
   const teamId = useMemo(() => {
@@ -888,19 +893,51 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
 
 
   const userRole = useMemo(() => (isAdmin ? "admin" : isReferee ? "referee" : "player_manager"), [isAdmin, isReferee]);
-  const canEditScore = useMemo(() => isAdmin || isReferee, [isAdmin, isReferee]);
+
+  const isMatchAssignedToMe = useMemo(() => {
+    if (!isReferee || !user) return false;
+    if (match.assignedRefereeId != null && match.assignedRefereeId === user.id) return true;
+    if (match.referee && user.username && match.referee === user.username) return true;
+    return false;
+  }, [isReferee, user, match.assignedRefereeId, match.referee]);
+
+  const hasClaimedRefereeInForm = useMemo(() => {
+    if (!isReferee || !user?.username) return false;
+    return selectedReferee === user.username;
+  }, [isReferee, user?.username, selectedReferee]);
+
+  /** Andere scheids op iemand anders’ wedstrijd: eerst jezelf toewijzen */
+  const showRefereeClaimHint = useMemo(
+    () => isReferee && !isMatchAssignedToMe && !hasClaimedRefereeInForm,
+    [isReferee, isMatchAssignedToMe, hasClaimedRefereeInForm],
+  );
+
+  const canRefereeEditMatchContent = useMemo(() => {
+    if (isAdmin) return true;
+    if (!isReferee) return true; // team managers: geen claim-gate
+    return isMatchAssignedToMe || hasClaimedRefereeInForm;
+  }, [isAdmin, isReferee, isMatchAssignedToMe, hasClaimedRefereeInForm]);
+
+  const canEditScore = useMemo(
+    () => isAdmin || (isReferee && canRefereeEditMatchContent),
+    [isAdmin, isReferee, canRefereeEditMatchContent],
+  );
   const canEdit = useMemo(() => canEditMatch(match.isLocked, match.date, match.time, isAdmin, isReferee, matchFormSettings?.lock_minutes_before, matchFormSettings?.allow_late_submission), [match.isLocked, match.date, match.time, isAdmin, isReferee, matchFormSettings]);
+  /** Inhoud (spelers/score/kaarten/…) — scheids die niet toegewezen is moet eerst claimen */
+  const canEditFormContent = useMemo(
+    () => canEdit && canRefereeEditMatchContent,
+    [canEdit, canRefereeEditMatchContent],
+  );
   const showRefereeFields = useMemo(() => isReferee || isAdmin, [isReferee, isAdmin]);
 
   const isAddPenaltyButtonDisabled = useMemo(() => {
-    return !canEdit || isLoadingPenalties;
-  }, [canEdit, isLoadingPenalties]);
+    return !canEditFormContent || isLoadingPenalties;
+  }, [canEditFormContent, isLoadingPenalties]);
 
   const isSavePenaltyButtonDisabled = useMemo(() => {
-    // Button is enabled if there's at least one valid penalty (with both teamId and costSettingId)
     const hasValidPenalty = penalties.some(p => p.teamId && p.costSettingId);
-    return !hasValidPenalty || isLoadingPenalties || !canEdit;
-  }, [penalties, isLoadingPenalties, canEdit]);
+    return !hasValidPenalty || isLoadingPenalties || !canEditFormContent;
+  }, [penalties, isLoadingPenalties, canEditFormContent]);
   const hideInlineCardSelectors = useMemo(() => isReferee || isAdmin, [isReferee, isAdmin]);
   const isCupMatch = useMemo(() => match.matchday?.includes('🏆'), [match.matchday]);
   const canTeamManagerEditMatch = useMemo(() => 
@@ -1316,11 +1353,10 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
 
   // Keyboard shortcut handler - referees and admins can always edit, team managers need to check their team
   const canActuallyEdit = useMemo(() => {
-    if (isAdmin || isReferee) {
-      return canEdit;
-    }
+    if (isAdmin) return true;
+    if (isReferee) return canEditFormContent;
     return isTeamManager ? canTeamManagerEditMatch : canEdit;
-  }, [isAdmin, isReferee, isTeamManager, canTeamManagerEditMatch, canEdit]);
+  }, [isAdmin, isReferee, canEditFormContent, isTeamManager, canTeamManagerEditMatch, canEdit]);
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1427,28 +1463,22 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
     getSelectedPlayerIds(awayTeamSelections), [awayTeamSelections, getSelectedPlayerIds]);
 
   const canEditHome = useMemo(() => {
-    // Admins and referees can always edit both teams (like scores)
-    if (isAdmin || isReferee) {
-      return canEdit;
-    }
-    // Team managers can only edit their own team
+    if (isAdmin) return true;
+    if (isReferee) return canRefereeEditMatchContent;
     if (isTeamManager) {
       return canTeamManagerEdit(match.isLocked, match.date, match.time, match.homeTeamId, match.awayTeamId, teamId, matchFormSettings?.lock_minutes_before, matchFormSettings?.allow_late_submission) && match.homeTeamId === teamId;
     }
     return canTeamManagerEditMatch;
-  }, [isAdmin, isReferee, isTeamManager, match.isLocked, match.date, match.time, match.homeTeamId, match.awayTeamId, teamId, canEdit, canTeamManagerEditMatch]);
+  }, [isAdmin, isReferee, canRefereeEditMatchContent, isTeamManager, match.isLocked, match.date, match.time, match.homeTeamId, match.awayTeamId, teamId, matchFormSettings, canTeamManagerEditMatch]);
   
   const canEditAway = useMemo(() => {
-    // Admins and referees can always edit both teams (like scores)
-    if (isAdmin || isReferee) {
-      return canEdit;
-    }
-    // Team managers can only edit their own team
+    if (isAdmin) return true;
+    if (isReferee) return canRefereeEditMatchContent;
     if (isTeamManager) {
       return canTeamManagerEdit(match.isLocked, match.date, match.time, match.homeTeamId, match.awayTeamId, teamId) && match.awayTeamId === teamId;
     }
     return canTeamManagerEditMatch;
-  }, [isAdmin, isReferee, isTeamManager, match.isLocked, match.date, match.time, match.homeTeamId, match.awayTeamId, teamId, canEdit, canTeamManagerEditMatch]);
+  }, [isAdmin, isReferee, canRefereeEditMatchContent, isTeamManager, match.isLocked, match.date, match.time, match.homeTeamId, match.awayTeamId, teamId, canTeamManagerEditMatch]);
 
   const handleCaptainChange = useCallback((captainPlayerId: string, isHomeTeam: boolean) => {
     const selections = isHomeTeam ? homeTeamSelections : awayTeamSelections;
@@ -1459,8 +1489,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
   }, [homeTeamSelections, awayTeamSelections, handlePlayerSelection]);
 
   const handleSavePlayerSelection = useCallback(async () => {
-    // Referees and admins can always save (if canEdit is true), team managers can only save their own team
-    if (!canEdit) return;
+    if (!isAdmin && !isReferee && !canEdit) return;
     if (isTeamManager && !canTeamManagerEditMatch) return;
     
     // Only include player data that was actually modified (dirty tracking)
@@ -1654,7 +1683,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
       primaryAction={{
         label: isSubmitting ? "Bezig..." : "Opslaan",
         onClick: handleSubmit,
-        disabled: isSubmitting || (!canActuallyEdit && !isAdmin),
+        disabled: isSubmitting || (!canActuallyEdit && !isAdmin && !isReferee),
         loading: isSubmitting,
         variant: "primary"
       }}
@@ -1824,8 +1853,11 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
             matchday={matchData.matchday || ""}
             onFieldChange={handleMatchDataChange}
             isAdmin={isAdmin}
+            isReferee={isReferee}
             isTeamManager={isTeamManager}
             canEdit={canEdit}
+            canEditReferee={isAdmin || isReferee}
+            showRefereeClaimHint={showRefereeClaimHint}
             refereeSelectValue={refereeSelectValue}
             selectedReferee={selectedReferee}
             onRefereeChange={setSelectedReferee}
@@ -1853,7 +1885,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
               homeTeamName={match.homeTeamName}
               awayTeamName={match.awayTeamName}
               showRefereeFields={showRefereeFields}
-              canEdit={canEdit}
+              canEdit={canEditFormContent}
               isLoadingCards={isLoadingCards}
               cardItems={cardItems}
               savedCards={savedCards}
@@ -1871,7 +1903,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
                 open={isFinancieelOpen}
                 onOpenChange={setIsFinancieelOpen}
                 isAdmin={isAdmin}
-                canEdit={canEdit}
+                canEdit={canEditFormContent}
                 matchIsCompleted={match.isCompleted}
                 matchAppearsPlayed={matchAppearsPlayed}
                 penalties={penalties}
@@ -1910,7 +1942,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
               open={isNotitiesOpen}
               onOpenChange={setIsNotitiesOpen}
               showRefereeFields={showRefereeFields}
-              canEdit={canEdit}
+              canEdit={canEditFormContent}
               refereeNotes={refereeNotes}
               onRefereeNotesChange={setRefereeNotes}
             />

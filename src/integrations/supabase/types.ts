@@ -1003,6 +1003,10 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      cost_name_is_admin_match_cost: {
+        Args: { p_name: string }
+        Returns: boolean
+      }
       cost_name_is_forfait_verwittigd: {
         Args: { p_name: string }
         Returns: boolean
