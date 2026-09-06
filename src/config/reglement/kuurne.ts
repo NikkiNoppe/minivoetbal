@@ -2,6 +2,11 @@ import type { ReglementBlock, ReglementCopy, ReglementSection } from "./types";
 
 const heading = (text: string): ReglementBlock => ({ type: "heading", text });
 const para = (text: string): ReglementBlock => ({ type: "paragraph", text });
+const download = (href: string, label: string): ReglementBlock => ({
+  type: "download",
+  href,
+  label,
+});
 const art = (number: number, text: string): ReglementBlock => ({
   type: "article",
   number: String(number),
@@ -19,7 +24,7 @@ function section(id: string, title: string, blocks: ReglementBlock[]): Reglement
 export const KUURNE_REGLEMENT: ReglementCopy = {
   pageTitle: "Algemeen reglement",
   metaDescription:
-    "Algemeen reglement van Minivoetbal Vereniging Kuurne (versie 07.01.2025): organisatie, spelregels, beker, sancties en inschrijving.",
+    "Algemeen reglement van Minivoetbal Vereniging Kuurne (versie 07.01.2025): organisatie, spelregels, beker, sancties, inschrijving en procedure bij ongeval.",
   versionLabel: "Versie 07.01.2025",
   playerHighlights: {
     maxPlayers: "Elk team mag maximaal 20 spelers hebben per seizoen, coach inbegrepen.",
@@ -698,6 +703,38 @@ export const KUURNE_REGLEMENT: ReglementCopy = {
       art(
         186,
         "De deelname — op welke wijze ook — aan de competities en werking van MVV Kuurne houdt ook in dat men ermee akkoord gaat dat de gegevens van de ploegen en personen worden bijgehouden en verwerkt door het bestuur van de vereniging.\nBepaalde gegevens worden gepubliceerd op de website, nl. het klassement, de gele en rode kaarten, de ploegverantwoordelijken, lijsten met namen van spelers en bestuursleden, alsook de scheidsrechters.\n\nIeder kan inzage vragen bij het bestuur aangaande de opgeslagen gegevens wat betreft zijn eigen persoon.\nMen kan vragen dat deze worden aangepast als ze verkeerd werden opgenomen.\nDe ploegverantwoordelijken kunnen inzage vragen inzake de opgeslagen gegevens wat betreft hun ploeg en deze indien nodig laten aanpassen als ze verkeerd werden opgenomen.",
+      ),
+    ]),
+
+    section("7", "VII. Procedure bij ongeval / kwetsuur", [
+      para(
+        "De tijdens het minivoetbal gekwetste spelers van ploegen die niet verzekerd zijn via de Minivoetbal Vereniging Kuurne, dienen zich tot hun ploegverantwoordelijke te wenden voor de verdere afhandeling met hun eigen verzekeringsmaatschappij.",
+      ),
+      para(
+        "De tijdens het minivoetbal gekwetste spelers van ploegen die wel verzekerd zijn via de Minivoetbal Vereniging Kuurne (met name de maatschappij Ethias) dienen volgende procedure te volgen.",
+      ),
+      heading("1. Aangifteformulier bekomen"),
+      para(
+        "Het bekomen van een “Aangifteformulier verzekering tegen lichamelijke ongevallen” kan op één van deze manieren:",
+      ),
+      para(
+        "a. Een formulier kan bekomen worden in het scheidsrechterslokaal van de sporthal uit de “Infomap” — vragen aan de scheidsrechter.\n\nb. Een formulier kan hieronder gedownload worden.\n\nc. Een formulier kan door de secretaris doorgemaild worden aan de gekwetste speler, waarna deze het formulier kan uitprinten.",
+      ),
+      download(
+        "/documents/kuurne/aangifteformulier-lichamelijk-ongeval.pdf",
+        "Aangifteformulier lichamelijk ongeval (PDF)",
+      ),
+      heading("2. Invullen van het formulier"),
+      para(
+        "a. Blad “A” (blz. 1 & 2): door de speler zelf worden volgende rubrieken ingevuld: rubriek 2, 3, 4, 5 en 6. Er wordt niets ingevuld door de ploegverantwoordelijke, enkel door de speler.\n\nb. Alle andere rubrieken (1 en 7), evenals onderaan de handtekening, worden later aangevuld door de secretaris als verantwoordelijke voor onze vereniging.\n\nc. Blad “B” (= blz. 3): daar kleeft de gekwetste speler een kleefbriefje van zijn ziekenfonds, vult de plaats en datum in en ondertekent.\n\nd. Blad “C” (= blz. 4): wordt ingevuld door de behandelende dokter.",
+      ),
+      heading("3. Terugbezorgen van de aangifte"),
+      para(
+        "Nadat de aangifte volledig en correct is ingevuld wordt deze bezorgd aan de secretaris van de Minivoetbal Vereniging Kuurne, die de aangifte verder aanvult en tekent in naam van de vereniging.\n\nAdres secretariaat: Schaapsdreef 62, 8500 Kortrijk.\n\nDeze documenten mogen ook ingescand worden en gestuurd naar guy@mvvkuurne.be. Geen foto’s, omdat het document nog aangevuld moet worden.\n\nAlles wordt administratief bijgehouden: naam speler, zijn ploeg, tijdstip kwetsuur en de datum wanneer de ongevalsaangifte wordt verstuurd aan Ethias. Binnen de twee weken na het ongeval moet de aangifte opgestuurd zijn.",
+      ),
+      heading("4. Verdere afhandeling door Ethias"),
+      para(
+        "Enige weken nadat de ongevalsaangifte werd ontvangen door Ethias, sturen zij een dossiernummer naar het adres van de gekwetste speler.\n\nDe speler wacht tot hij volledig hersteld is van zijn kwetsuren en verzamelt ondertussen alle bewijsstukken van het ziekenfonds, facturen ziekenhuis, betalingsbewijzen apotheker, enzovoort.\n\nSamen met het dossiernummer stuurt de speler dan alle bewijzen op naar Ethias, waarna deze verzekeringsmaatschappij zal overgaan tot afhandeling van het dossier (betaling).\n\nDe verzekering geldt enkel voor lichamelijke letsels, dus niet voor schade aan kledij, bril, noch voor verloren inkomsten uit arbeid.",
       ),
     ]),
   ],

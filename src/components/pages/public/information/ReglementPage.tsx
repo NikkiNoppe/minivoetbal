@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen } from "lucide-react";
+import { BookOpen, FileDown } from "lucide-react";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { PageHeader, PublicPage } from "@/components/layout";
 import {
@@ -25,6 +25,26 @@ function ReglementBlockView({ block }: { block: ReglementBlock }) {
 
   if (block.type === "paragraph") {
     return <p className="pl-[14px] text-justify whitespace-pre-line">{block.text}</p>;
+  }
+
+  if (block.type === "download") {
+    return (
+      <div className="pl-[14px]">
+        <a
+          href={block.href}
+          download
+          className="flex min-h-[52px] w-full items-center gap-3 rounded-lg bg-primary px-3 py-2.5 text-left no-underline shadow-md transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:max-w-md"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-background text-primary">
+            <FileDown className="h-5 w-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-primary-foreground">{block.label}</span>
+            <span className="block text-xs font-medium text-primary-foreground/80">PDF downloaden</span>
+          </span>
+        </a>
+      </div>
+    );
   }
 
   return (

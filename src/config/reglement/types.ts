@@ -1,7 +1,8 @@
 export type ReglementBlock =
   | { type: "heading"; number?: string; text: string }
   | { type: "article"; number: string; text: string }
-  | { type: "paragraph"; text: string };
+  | { type: "paragraph"; text: string }
+  | { type: "download"; href: string; label: string };
 
 export interface ReglementSection {
   id: string;
