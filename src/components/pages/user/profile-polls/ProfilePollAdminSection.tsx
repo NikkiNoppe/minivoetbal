@@ -1,7 +1,7 @@
-import React, { useState, useCallback, forwardRef, useImperativeHandle } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClipboardList, RefreshCw, AlertCircle } from "lucide-react";
+import { ClipboardList, Plus, RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useProfilePolls } from "@/hooks/useProfilePolls";
@@ -11,12 +11,7 @@ import { CreateProfilePollModal } from "./CreateProfilePollModal";
 import { ProfilePollResultsCard } from "./ProfilePollResultsCard";
 import { AppAlertModal, DestructiveConfirmDescription } from "@/components/modals";
 
-export interface ProfilePollAdminSectionHandle {
-  openCreateModal: () => void;
-}
-
-export const ProfilePollAdminSection = forwardRef<ProfilePollAdminSectionHandle>(
-  function ProfilePollAdminSection(_props, ref) {
+export function ProfilePollAdminSection() {
     const { toast } = useToast();
     const { organizationId } = useOrganization();
     const {
@@ -33,10 +28,6 @@ export const ProfilePollAdminSection = forwardRef<ProfilePollAdminSectionHandle>
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [closingId, setClosingId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
-
-    useImperativeHandle(ref, () => ({
-      openCreateModal: () => setModalOpen(true),
-    }));
 
     const handleCreate = useCallback(
       async (payload: Parameters<typeof profilePollService.createPoll>[1]) => {
@@ -138,6 +129,20 @@ export const ProfilePollAdminSection = forwardRef<ProfilePollAdminSectionHandle>
                 Nog geen profielpolls. Maak een poll aan voor teamverantwoordelijken of
                 scheidsrechters.
               </p>
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(
+                  "h-11 min-h-[44px] w-full shrink-0 rounded-lg sm:w-auto",
+                  "border-primary/30 bg-card text-[var(--color-600)] font-medium shadow-sm",
+                  "hover:border-primary/50 hover:bg-muted hover:text-primary",
+                  "active:bg-primary/10",
+                )}
+                onClick={() => setModalOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2 shrink-0" />
+                Nieuwe poll
+              </Button>
             </div>
           ) : (
             <div className="space-y-5 min-w-0">
@@ -227,5 +232,4 @@ export const ProfilePollAdminSection = forwardRef<ProfilePollAdminSectionHandle>
         />
       </>
     );
-  },
-);
+}

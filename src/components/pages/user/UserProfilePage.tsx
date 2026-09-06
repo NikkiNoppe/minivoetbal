@@ -248,7 +248,7 @@ const UserTeamInfoCard: React.FC<{
   } | null;
   onTeamUpdate?: () => void;
 }> = memo(({ user, team, onTeamUpdate }) => {
-  const { user: authUser } = useAuth();
+  const { isSuperAdmin } = useAuth();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDownloadingBackup, setIsDownloadingBackup] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -453,24 +453,24 @@ const UserTeamInfoCard: React.FC<{
   return (
     <>
       <Card className={cn(PUBLIC_CARD_CLASS, "bg-gradient-to-br from-primary/5 to-primary/10")}>
-        <CardHeader className="pb-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3 sm:gap-4 flex-1">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <User className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <CardTitle className="text-xl sm:text-2xl font-bold mb-1 sm:mb-2 truncate">
-                  {user.username}
-                </CardTitle>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <RoleBadge role={user.role} />
-                </div>
-              </div>
+        <CardHeader className="min-w-0 pb-4">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 sm:h-14 sm:w-14">
+              <User className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
             </div>
-            <div className="flex items-center gap-1.5">
-              {/* DB backup button - Admin only */}
-              {authUser?.role === 'admin' && (
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1">
+              <CardTitle
+                className="col-span-2 mb-0 break-words text-lg font-bold leading-tight [overflow-wrap:anywhere] sm:col-span-1 sm:text-2xl"
+                title={user.username}
+              >
+                {user.username}
+              </CardTitle>
+              <div className="col-start-1 row-start-2 min-w-0">
+                <RoleBadge role={user.role} />
+              </div>
+              <div className="col-start-2 row-start-2 flex shrink-0 items-center gap-1.5 self-center sm:row-start-1 sm:self-start">
+              {/* DB backup button — alleen SuperAdmin */}
+              {isSuperAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -522,6 +522,7 @@ const UserTeamInfoCard: React.FC<{
                   <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", detailsOpen && "rotate-180")} aria-hidden />
                 </Button>
               )}
+              </div>
             </div>
           </div>
         </CardHeader>

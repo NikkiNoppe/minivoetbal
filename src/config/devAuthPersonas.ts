@@ -45,9 +45,9 @@ export const DEV_PERSONA_CREDENTIALS: Record<
     player_manager: { username: 'TruukCity', password: 'a9K2t7cB' },
   },
   kuurne: {
-    admin: { username: 'admin', password: 'admin123' },
-    referee: { username: 'scheidsrechter', password: 'scheidsrechter123' },
-    player_manager: { username: 'KrooneUnited', password: 'krooneunited123' },
+    admin: { username: 'test.admin', password: 'admin1987' },
+    referee: { username: 'test.scheidsrechter', password: 'scheidsrechter123' },
+    player_manager: { username: 'test.teamverantwoordelijke', password: 'admin1987' },
   },
 };
 
