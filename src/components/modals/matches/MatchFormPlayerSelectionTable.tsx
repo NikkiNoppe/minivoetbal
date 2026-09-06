@@ -210,7 +210,18 @@ export function MatchFormPlayerSelectionTable({
                   )}
                   style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}
                 >
-                  {fullName}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate">{fullName}</span>
+                    {suspended ? (
+                      <>
+                        <span
+                          className="inline-block h-3 w-2 shrink-0 rounded-[2px] bg-destructive/80"
+                          aria-hidden
+                        />
+                        <span className="sr-only">geschorst</span>
+                      </>
+                    ) : null}
+                  </span>
                 </SelectItem>
               );
             })}
