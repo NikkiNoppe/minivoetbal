@@ -75,8 +75,16 @@ export function MatchFormCardsSection({
 }: MatchFormCardsSectionProps) {
   if (!showRefereeFields) return null;
 
+  const isEmpty =
+    !isLoadingCards && cardItems.length === 0 && savedCards.length === 0 && !canEdit;
+
   return (
-    <MatchFormSectionCard open={open} onOpenChange={onOpenChange} title="Kaarten">
+    <MatchFormSectionCard
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Kaarten"
+    >
+      {isEmpty ? null : (
       <CardContent className="pt-3">
         <div className="space-y-3">
           {isLoadingCards ? (
@@ -351,6 +359,7 @@ export function MatchFormCardsSection({
           )}
         </div>
       </CardContent>
+      )}
     </MatchFormSectionCard>
   );
 }

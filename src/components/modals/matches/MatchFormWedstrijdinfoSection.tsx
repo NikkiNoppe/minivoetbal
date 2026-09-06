@@ -41,12 +41,17 @@ function MatchInfoReadOnlyField({
   className,
 }: MatchInfoReadOnlyFieldProps) {
   return (
-    <div className={cn("min-w-0 space-y-1", className)}>
-      <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <div
+      className={cn(
+        "min-w-0 rounded-lg border border-primary/10 bg-brand-50/30 px-3 py-2.5",
+        className,
+      )}
+    >
+      <dt className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <Icon className="h-3.5 w-3.5 shrink-0 text-primary/80" aria-hidden />
         {label}
       </dt>
-      <dd className="break-words text-sm font-semibold leading-snug text-[var(--color-700)]">
+      <dd className="mt-1 break-words text-sm font-semibold leading-snug text-brand-dark">
         {value}
       </dd>
     </div>
@@ -69,7 +74,7 @@ function MatchFormWedstrijdinfoReadOnly({
   selectedReferee,
 }: MatchFormWedstrijdinfoReadOnlyProps) {
   return (
-    <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+    <dl className="grid grid-cols-2 gap-2 sm:gap-3">
       <MatchInfoReadOnlyField
         icon={CalendarDays}
         label="Datum"
@@ -84,19 +89,21 @@ function MatchFormWedstrijdinfoReadOnly({
         icon={Hash}
         label="Speeldag"
         value={formatDisplayValue(matchday)}
+        className="col-span-2"
       />
       {selectedReferee !== undefined && (
         <MatchInfoReadOnlyField
           icon={UserCheck}
           label="Scheidsrechter"
           value={formatDisplayValue(selectedReferee, "Nog niet toegewezen")}
+          className="col-span-2"
         />
       )}
       <MatchInfoReadOnlyField
         icon={MapPin}
         label="Locatie"
         value={formatDisplayValue(location)}
-        className="sm:col-span-2"
+        className="col-span-2"
       />
     </dl>
   );
@@ -278,7 +285,13 @@ export function MatchFormWedstrijdinfoSection({
   };
 
   return (
-    <MatchFormSectionCard open={open} onOpenChange={onOpenChange} title="Wedstrijdinfo" compact>
+    <MatchFormSectionCard
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Wedstrijdinfo"
+      compact
+      contentClassName="px-3 py-3 sm:px-5 sm:py-4"
+    >
       {isTeamManager ? (
         <MatchFormWedstrijdinfoReadOnly
           date={date}
@@ -346,7 +359,7 @@ export function MatchFormWedstrijdinfoSection({
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <MatchFormWedstrijdinfoReadOnly
             date={date}
             time={time}

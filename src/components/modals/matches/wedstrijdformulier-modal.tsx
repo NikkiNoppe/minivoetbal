@@ -1706,6 +1706,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
         role={formRole}
         value={activeMobileTab}
         onValueChange={setMobileTab}
+        className="mb-3"
       />
       <div className="flex flex-col gap-6">
         <MatchFormSectionShell
@@ -1714,7 +1715,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
           mobileTab={activeMobileTab}
         >
         {/* Spelers */}
-        <h3 className="text-center text-xl font-semibold text-brand-dark">Spelers</h3>
+        <h3 className="mb-4 hidden text-center text-xl font-semibold text-brand-dark md:block">Spelers</h3>
         
         <div className="space-y-4">
           {/* Mobile-first: Stacked cards, collapsible on mobile */}
@@ -1877,8 +1878,9 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
         >
         {/* Kaarten, Boetes & Notities - Hidden for team managers */}
         {!isTeamManager && (
+          <>
+          <h3 className="mb-4 hidden text-center text-xl font-semibold text-brand-dark md:block">Wedstrijd</h3>
           <div className="space-y-3">
-            <h3 className="text-center text-xl font-semibold text-brand-dark">Wedstrijd</h3>
             <MatchFormCardsSection
               open={isKaartenOpen}
               onOpenChange={setIsKaartenOpen}
@@ -1948,6 +1950,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
             />
 
           </div>
+          </>
         )}
         </MatchFormSectionShell>
         

@@ -25,7 +25,7 @@ export function getMatchFormRole(isAdmin: boolean, isReferee: boolean): MatchFor
 /** Mobiele tabs per rol (P4) */
 export function getMatchFormMobileTabs(role: MatchFormRole): MatchFormMobileTab[] {
   if (role === "team_manager") {
-    return ["spelers", "score"];
+    return ["score", "spelers"];
   }
   return ["score", "spelers", "overig"];
 }
@@ -46,7 +46,7 @@ export function getMatchFormMobileTabLabel(tab: MatchFormMobileTab): string {
 
 /** Standaard actieve tab bij openen op mobiel */
 export function getDefaultMatchFormMobileTab(role: MatchFormRole): MatchFormMobileTab {
-  if (role === "team_manager") return "spelers";
+  if (role === "team_manager") return "score";
   return "score";
 }
 

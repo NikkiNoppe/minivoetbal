@@ -322,17 +322,18 @@ const getGridClassName = (groupKey: string) => {
         <SectionAccordionItem
           key={groupKey}
           value={groupKey}
+          triggerClassName="gap-2 px-3 py-2.5 text-sm sm:gap-4 sm:px-5 sm:py-4 sm:text-base"
           triggerContent={
-            <>
-              <span className="text-left flex-1 min-w-0">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left sm:flex-row sm:items-center sm:gap-4">
+              <span className="min-w-0 truncate sm:flex-1">
                 {groupedMatches.groupLabels?.[groupKey] ?? groupKey}
               </span>
               {groupedMatches.groupDates?.[groupKey] && (
-                <span className="text-xs font-normal text-muted-foreground shrink-0">
+                <span className="text-[11px] font-normal text-muted-foreground sm:shrink-0 sm:text-xs">
                   {groupedMatches.groupDates[groupKey]}
                 </span>
               )}
-            </>
+            </span>
           }
         >
             <div className={`grid gap-4 ${getGridClassName(groupKey)}`}>

@@ -83,7 +83,9 @@ function TeamScoreColumn({
           : `Contact voor ${teamName} — niet beschikbaar`
       }
     >
-      <span className="min-w-0 truncate text-center">{teamName}</span>
+      <span className="min-w-0 max-w-full text-center text-xs leading-tight break-words [overflow-wrap:anywhere] sm:text-sm">
+        {teamName}
+      </span>
       <ChevronDown
         className={cn("h-3.5 w-3.5 shrink-0 opacity-60 transition-transform", contactOpen && "rotate-180")}
         aria-hidden
@@ -94,11 +96,15 @@ function TeamScoreColumn({
       htmlFor={scoreInputId}
       className="flex min-h-[44px] w-full min-w-0 items-center justify-center text-center text-sm font-semibold text-[var(--color-700)]"
     >
-      <span className="truncate">{teamName}</span>
+      <span className="min-w-0 max-w-full text-center text-xs leading-tight break-words [overflow-wrap:anywhere] sm:text-sm">
+        {teamName}
+      </span>
     </Label>
   ) : (
     <p className="flex min-h-[44px] w-full min-w-0 items-center justify-center text-center text-sm font-semibold text-[var(--color-700)]">
-      <span className="truncate">{teamName}</span>
+      <span className="min-w-0 max-w-full text-center text-xs leading-tight break-words [overflow-wrap:anywhere] sm:text-sm">
+        {teamName}
+      </span>
     </p>
   );
 
@@ -171,12 +177,10 @@ export function MatchFormScoreSection({
   }, []);
 
   return (
-    <div className="space-y-4 rounded-xl border border-primary/20 p-4 pb-2 shadow-lg card-hover sm:p-5">
-      <div className="text-center">
-        <h3 className="py-2 text-xl font-bold text-[var(--color-700)]">Score</h3>
-      </div>
-
-      <div className="relative">
+    <>
+      <h3 className="mb-4 hidden text-center text-xl font-semibold text-brand-dark md:block">Score</h3>
+      <div className="space-y-4 rounded-xl border border-primary/20 p-4 pb-2 shadow-lg card-hover sm:p-5">
+        <div className="relative">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 md:gap-4">
           <TeamScoreColumn
             side="home"
@@ -222,7 +226,8 @@ export function MatchFormScoreSection({
             Score wordt ingevuld door de scheidsrechter.
           </p>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

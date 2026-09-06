@@ -99,12 +99,24 @@ export function MatchFormFinancialSection({
   onDeleteMatchCost,
   costNameImpliesMatchCostSuppression,
 }: MatchFormFinancialSectionProps) {
+  const hasPenaltyContent =
+    canEdit || penalties.length > 0 || savedPenalties.length > 0;
+  const isEmpty = !hasPenaltyContent && !isAdmin;
+
   return (
-    <MatchFormSectionCard open={open} onOpenChange={onOpenChange} title="Financieel">
+    <MatchFormSectionCard
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Financieel"
+    >
+      {isEmpty ? null : (
       <CardContent className="pt-3">
         <div className="space-y-4">
+          {hasPenaltyContent && (
           <div className="space-y-3">
+            {(penalties.length > 0 || savedPenalties.length > 0) && (
             <h4 className="border-b border-border pb-1 text-sm font-bold text-foreground">Boetes</h4>
+            )}
 
             {canEdit && (
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -150,25 +162,21 @@ export function MatchFormFinancialSection({
                       <div
                         key={`penalty-${index}`}
                         className={cn(
-                          "relative flex flex-col gap-1.5 rounded-lg border p-2.5 transition-all duration-200",
+                          "flex flex-col gap-1.5 rounded-lg border p-2.5 transition-all duration-200",
                           isValid
                             ? "border-primary/30 bg-primary/5 shadow-sm"
                             : "border-border bg-muted/50",
                         )}
                       >
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => onRemovePenaltyDraft(index)}
-                            className="absolute right-2 top-2 z-10 flex h-8 min-h-[44px] w-8 min-w-[44px] items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-all duration-150 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                            aria-label="Boete verwijderen"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
-
-                        <div className="grid grid-cols-1 gap-1.5 pr-10 md:grid-cols-2">
-                          <div className="space-y-0.5">
+                        <div
+                          className={cn(
+                            "grid items-end gap-1.5",
+                            canEdit
+                              ? "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                              : "grid-cols-1 md:grid-cols-2",
+                          )}
+                        >
+                          <div className="min-w-0 space-y-0.5">
                             <Label htmlFor={`penalty-team-${index}`} className="text-xs font-medium">
                               Team
                             </Label>
@@ -197,7 +205,12 @@ export function MatchFormFinancialSection({
                             </Select>
                           </div>
 
-                          <div className="space-y-0.5">
+                          <div
+                            className={cn(
+                              "min-w-0 space-y-0.5",
+                              canEdit && "col-span-2 md:col-span-1",
+                            )}
+                          >
                             <Label htmlFor={`penalty-cost-${index}`} className="text-xs font-medium">
                               Type Boete
                             </Label>
@@ -231,6 +244,17 @@ export function MatchFormFinancialSection({
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => onRemovePenaltyDraft(index)}
+                              className="row-start-1 col-start-2 flex h-8 min-h-[44px] w-8 min-w-[44px] shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-all duration-150 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive md:col-start-3"
+                              aria-label="Boete verwijderen"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -324,6 +348,7 @@ export function MatchFormFinancialSection({
               </div>
             )}
           </div>
+          )}
 
           {isAdmin && (
             <div className="space-y-3">
@@ -522,6 +547,7 @@ export function MatchFormFinancialSection({
           )}
         </div>
       </CardContent>
+      )}
     </MatchFormSectionCard>
   );
 }

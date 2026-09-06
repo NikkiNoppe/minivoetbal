@@ -51,11 +51,13 @@ export function MatchFormSectionCard({
             />
           </div>
         </CollapsibleTrigger>
+        {children != null && children !== false && (
         <CollapsibleContent id={contentId}>
           <div className={cn(SECTION_COLLAPSIBLE_CONTENT, contentClassName)}>
             {children}
           </div>
         </CollapsibleContent>
+        )}
       </div>
     </Collapsible>
   );
