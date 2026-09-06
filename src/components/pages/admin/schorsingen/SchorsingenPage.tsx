@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Shield, Trophy, Users, Plus } from "lucide-react";
+import { AlertCircle, Shield, Trophy, Plus } from "lucide-react";
 import { useSuspensionsData } from "@/domains/cards-suspensions";
 import { useAuth } from "@/hooks/useAuth";
 import { ADMIN_ROUTES } from "@/config/routes";
@@ -56,9 +56,21 @@ const AdminView: React.FC = memo(() => {
     });
   }, [suspensions, teamFilter, statusFilter, sourceFilter, searchTerm]);
 
+  const activelySuspendedPlayerIds = useMemo(() => {
+    return new Set(
+      (suspensions ?? [])
+        .filter((s) => s.status === "active")
+        .map((s) => s.playerId),
+    );
+  }, [suspensions]);
+
   const filteredPlayerCards = useMemo(() => {
     if (!playerCards) return [];
-    let filtered = playerCards.filter(c => c.yellowCards > 0 || c.redCards > 0);
+    let filtered = playerCards.filter(
+      (c) =>
+        (c.yellowCards > 0 || c.redCards > 0) &&
+        !activelySuspendedPlayerIds.has(c.playerId),
+    );
     if (teamFilter !== 'all') {
       filtered = filtered.filter(c => String(c.teamId) === teamFilter);
     }
@@ -70,7 +82,7 @@ const AdminView: React.FC = memo(() => {
       );
     }
     return filtered;
-  }, [playerCards, teamFilter, searchTerm]);
+  }, [playerCards, teamFilter, searchTerm, activelySuspendedPlayerIds]);
 
   const handleRefresh = () => {
     refetchPlayerCards();
@@ -169,15 +181,15 @@ const AdminView: React.FC = memo(() => {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="px-4 pb-4 pt-0 sm:px-5 sm:pb-5 bg-transparent">
+          <CardContent className="space-y-3 bg-transparent px-4 pb-4 pt-0 sm:px-5 sm:pb-5">
             {filteredSuspensions.length === 0 && !isLoading ? (
-              <div className="text-center py-12 px-4">
-                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Shield className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <div className="px-4 py-10 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+                  <Shield className="h-7 w-7 text-primary" aria-hidden />
                 </div>
-                <h3 className="text-lg font-semibold mb-2 text-foreground">Geen schorsingen gevonden</h3>
+                <h3 className="mb-1 text-base font-semibold text-brand-dark">Geen schorsingen</h3>
                 <p className="text-sm text-muted-foreground">
-                  Er zijn geen schorsingen die passen bij de huidige filters.
+                  Geen resultaten voor de huidige filters.
                 </p>
               </div>
             ) : (
@@ -193,33 +205,22 @@ const AdminView: React.FC = memo(() => {
         </Card>
       </section>
 
-      {/* Kaarten context */}
-      <section role="region" aria-labelledby="cards-heading">
-        <SectionCollapsibleCard
-          title="Kaarten context"
-          icon={Trophy}
-          open={showCardsOverview}
-          onOpenChange={setShowCardsOverview}
-          badge={
-            <span className="text-xs font-normal text-muted-foreground">
-              ({filteredPlayerCards.length})
-            </span>
-          }
-        >
-          <p className="text-sm text-muted-foreground mb-4" id="cards-heading">
-            Compact overzicht van kaarten uit alle ingediende competitie-, beker- en playoffwedstrijden
-          </p>
-          {filteredPlayerCards.length === 0 && !isLoading ? (
-            <div className="text-center py-12 px-4">
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2 text-foreground">Geen kaarten geregistreerd</h3>
-              <p className="text-sm text-muted-foreground">
-                Er zijn geen kaarten die passen bij de huidige filters.
-              </p>
-            </div>
-          ) : (
+      {!isLoading && filteredPlayerCards.length > 0 ? (
+        <section role="region" aria-labelledby="cards-heading">
+          <SectionCollapsibleCard
+            title="Overige kaarten"
+            icon={Trophy}
+            open={showCardsOverview}
+            onOpenChange={setShowCardsOverview}
+            badge={
+              <span className="text-xs font-normal text-muted-foreground">
+                ({filteredPlayerCards.length})
+              </span>
+            }
+          >
+            <p className="text-sm text-muted-foreground mb-4" id="cards-heading">
+              Kaarten zonder actieve schorsing (drempel nog niet bereikt of al uitgezeten)
+            </p>
             <PlayerCardsTable
               playerCards={filteredPlayerCards}
               suspensions={suspensions || []}
@@ -227,9 +228,9 @@ const AdminView: React.FC = memo(() => {
               isLoading={isLoading}
               compact
             />
-          )}
-        </SectionCollapsibleCard>
-      </section>
+          </SectionCollapsibleCard>
+        </section>
+      ) : null}
 
       <AddSuspensionModal open={showAddModal} onOpenChange={setShowAddModal} />
       <EditSuspensionModal

@@ -1669,6 +1669,10 @@ export type Database = {
         Args: { p_cutoff_date: string; p_session_token: string }
         Returns: Json
       }
+      recalculate_automatic_suspensions_for_session: {
+        Args: { p_session_token: string }
+        Returns: Json
+      }
       remove_referee_assignment: {
         Args: { p_assignment_id: number; p_session_token: string }
         Returns: Json

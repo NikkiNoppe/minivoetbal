@@ -134,12 +134,16 @@ export const SuspensionRulesSettings: React.FC = () => {
       setHasChanges(false);
       setSaveState("saved");
       queryClient.invalidateQueries({ queryKey: ["suspensions"] });
+      queryClient.invalidateQueries({ queryKey: ["playerCards"] });
     } catch (error) {
       console.error("Error saving suspension rules:", error);
       setSaveState("error");
       toast({
         title: "Fout",
-        description: "Kon schorsingsregels niet opslaan.",
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : "Kon schorsingsregels niet opslaan.",
         variant: "destructive",
       });
     }

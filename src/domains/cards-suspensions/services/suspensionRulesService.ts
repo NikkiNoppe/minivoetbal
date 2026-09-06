@@ -1,7 +1,10 @@
 // Cards & Suspensions Domain - Suspension Rules Service
 // Moved from src/services/suspensionRulesService.ts
 
+import { supabase } from "@/integrations/supabase/client";
+import { getRpcSessionArgs } from "@/lib/authSession";
 import {
+  insertApplicationSettingForSession,
   listApplicationSettingsForSession,
   updateApplicationSettingForSession,
 } from "@/services/core/applicationSettingsSessionFetch";
@@ -101,19 +104,34 @@ class SuspensionRulesService {
       const rows = await listApplicationSettingsForSession('suspension_rules');
       const existing = rows.find((r) => r.setting_name === 'default_rules');
 
-      if (!existing?.id) {
-        console.error('Failed to update suspension rules: row not found');
-        return false;
+      if (existing?.id) {
+        await updateApplicationSettingForSession(existing.id, {
+          setting_value: rules,
+          setting_category: 'suspension_rules',
+        });
+      } else {
+        await insertApplicationSettingForSession({
+          setting_category: 'suspension_rules',
+          setting_name: 'default_rules',
+          setting_value: rules,
+        });
       }
-
-      await updateApplicationSettingForSession(existing.id, {
-        setting_value: rules,
-        setting_category: 'suspension_rules',
-      });
 
       this.cachedRules = null;
       this.cacheTimestamp = 0;
-      
+
+      const { data, error } = await supabase.rpc(
+        "recalculate_automatic_suspensions_for_session",
+        getRpcSessionArgs(),
+      );
+      if (error) throw error;
+      const result = data as { success?: boolean; error?: string } | null;
+      if (result && result.success === false) {
+        throw new Error(result.error ?? "Herberekenen schorsingen mislukt");
+      }
+      const { suspensionService } = await import("./suspensionService");
+      suspensionService.clearEligibilityCache();
+
       return true;
     } catch (error) {
       console.error('Error updating suspension rules:', error);

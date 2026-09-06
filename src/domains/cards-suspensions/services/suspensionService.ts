@@ -1037,5 +1037,14 @@ export const suspensionService = {
       console.error('Error in refreshPlayerCards:', error);
       throw error;
     }
-  }
+  },
+
+  clearEligibilityCache(): void {
+    // @ts-expect-error runtime cache fields
+    suspensionService.__eligibilityCache?.clear();
+    // @ts-expect-error runtime cache fields
+    suspensionService.__batchEligibilityCache?.clear();
+    // @ts-expect-error runtime cache fields
+    suspensionService.__eligibilityInflight?.clear();
+  },
 };

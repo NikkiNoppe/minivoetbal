@@ -148,9 +148,6 @@ const SuspensionEpisodeRow = memo(({ suspension }: { suspension: Suspension }) =
         ? "Wachtend"
         : "Afgelopen";
 
-  const matchPrefix =
-    suspension.status === "active" ? "Geschorst" : "Was geschorst";
-
   return (
     <div
       className={cn(
@@ -179,9 +176,9 @@ const SuspensionEpisodeRow = memo(({ suspension }: { suspension: Suspension }) =
                 key={`${match.date}-${match.opponent}-${index}`}
                 className="text-xs text-muted-foreground leading-snug"
               >
-                {matchPrefix}{" "}
+                Geschorst op{" "}
                 <span className="text-foreground/80">
-                  {formatDateShort(match.date)} · {match.opponent}
+                  {formatDateShort(match.date)} - {match.opponent}
                 </span>
               </p>
             ))}
