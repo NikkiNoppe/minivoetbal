@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,7 @@ import {
   type PlayerListLockScheduleStatus,
   type PlayerListLockSettingValue,
 } from "@/lib/playerListLockUtils";
+import { PlayerListLockContext } from "@/context/PlayerListLockContext";
 import {
   insertApplicationSettingForSession,
   listApplicationSettingsForSession,
@@ -94,6 +95,7 @@ const PlayerListLockSettings: React.FC = () => {
   const lastSavedFingerprint = useRef("");
   const { toast } = useToast();
   const { orgQueryEnabled, getSeasonData } = useSeasonDataScope();
+  const lockContext = useContext(PlayerListLockContext);
 
   /** Aan als er minstens één periode met startdatum is. */
   const lockEnabled = hasFilledPeriod(periods);
@@ -215,6 +217,7 @@ const PlayerListLockSettings: React.FC = () => {
       lastSavedFingerprint.current = toFingerprint(nextEnabled, nextPeriods);
       setHasChanges(false);
       setSaveState("saved");
+      await lockContext?.refreshLockStatus();
     } catch (error) {
       console.error("Error saving player list lock settings:", error);
       setSaveState("error");
@@ -364,6 +367,24 @@ const PlayerListLockSettings: React.FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-3 pt-0">
+        {savedScheduleStatus === "scheduled" && (
+          <Alert className="border-primary/20 bg-primary/5">
+            <AlertCircle className="h-4 w-4 text-primary" aria-hidden />
+            <AlertDescription className="text-sm text-foreground">
+              Vergrendeling is gepland maar nog niet actief. Teammanagers kunnen spelers
+              nog wijzigen tot de startdatum van de eerstvolgende periode.
+            </AlertDescription>
+          </Alert>
+        )}
+        {savedScheduleStatus === "active" && (
+          <Alert className="border-destructive/20 bg-destructive/5">
+            <Lock className="h-4 w-4 text-destructive" aria-hidden />
+            <AlertDescription className="text-sm text-foreground">
+              Spelerslijst is nu vergrendeld. Teammanagers kunnen geen spelers meer
+              toevoegen, wijzigen of verwijderen. Admins blijven altijd bevoegd.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-brand-dark">

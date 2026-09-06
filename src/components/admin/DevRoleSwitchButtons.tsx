@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
+import { Globe, Flag, Users, Shield, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { isLoginError } from '@/lib/loginErrors';
 import { cn } from '@/lib/utils';
 import { isTenantDebugPanelEnabled } from '@/components/admin/TenantDebugPanel';
 import { useDevDebugContext } from '@/context/DevDebugContext';
+import { devMiniButtonClass } from '@/components/admin/devToolbarStyles';
 import {
   DEV_PERSONA_LABELS,
   DEV_PERSONA_ORDER,
@@ -30,6 +32,14 @@ function getActivePersona(
 function isLoginPersona(persona: DevPersonaId): persona is DevLoginPersonaId {
   return persona !== 'guest' && persona !== 'superadmin';
 }
+
+const PERSONA_ICONS: Record<DevPersonaId, typeof Globe> = {
+  guest: Globe,
+  referee: Flag,
+  player_manager: Users,
+  admin: Shield,
+  superadmin: ShieldCheck,
+};
 
 interface DevRoleSwitchButtonsProps {
   organizationSlug: string;
@@ -113,15 +123,16 @@ export const DevRoleSwitchButtons: React.FC<DevRoleSwitchButtonsProps> = ({
 
   return (
     <div
-      className={cn('flex flex-nowrap items-center justify-end gap-2', className)}
+      className={cn('flex flex-nowrap items-center gap-1.5', className)}
       role="group"
       aria-label="Wissel gebruikersrol (dev)"
     >
-      <span className="font-medium text-amber-900">Rol:</span>
       {visiblePersonas.map((persona) => {
         const isActive = activePersona === persona;
         const disabled = isPersonaDisabled(persona) || switching !== null;
-        const title = getDisabledTitle(persona);
+        const label = DEV_PERSONA_LABELS[persona];
+        const title = getDisabledTitle(persona) ?? label;
+        const Icon = PERSONA_ICONS[persona];
 
         return (
           <button
@@ -131,17 +142,17 @@ export const DevRoleSwitchButtons: React.FC<DevRoleSwitchButtonsProps> = ({
             title={title}
             onClick={() => void handleSwitch(persona)}
             aria-pressed={isActive}
+            aria-label={label}
             aria-busy={switching === persona}
-            className={cn(
-              'min-h-[44px] shrink-0 whitespace-nowrap rounded-md border px-2.5 py-2 text-xs font-semibold transition-colors sm:px-3',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-2',
-              'disabled:cursor-not-allowed disabled:opacity-45',
-              isActive
-                ? 'border-brand-600 bg-brand-600 text-white'
-                : 'border-amber-400 bg-white text-amber-950 hover:bg-amber-100',
-            )}
+            className={devMiniButtonClass(isActive)}
           >
-            {switching === persona ? '…' : DEV_PERSONA_LABELS[persona]}
+            {switching === persona ? (
+              <span className="text-xs" aria-hidden>
+                …
+              </span>
+            ) : (
+              <Icon className="h-4 w-4" aria-hidden />
+            )}
           </button>
         );
       })}

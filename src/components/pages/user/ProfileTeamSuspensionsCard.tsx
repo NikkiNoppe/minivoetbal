@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +34,11 @@ export function ProfileTeamSuspensionsCard({
     [suspensions, teamId],
   );
 
+  const didAutoOpenRef = useRef(false);
+
   useEffect(() => {
     if (location.hash === "#schorsingen") {
+      didAutoOpenRef.current = true;
       onRequestOpen?.();
       const timer = window.setTimeout(() => {
         document
@@ -47,9 +50,9 @@ export function ProfileTeamSuspensionsCard({
   }, [location.hash, onRequestOpen]);
 
   useEffect(() => {
-    if (activeCount > 0) {
-      onRequestOpen?.();
-    }
+    if (didAutoOpenRef.current || activeCount <= 0) return;
+    didAutoOpenRef.current = true;
+    onRequestOpen?.();
   }, [activeCount, onRequestOpen]);
 
   const headerBadge =

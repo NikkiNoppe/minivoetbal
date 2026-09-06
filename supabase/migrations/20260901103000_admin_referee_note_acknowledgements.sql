@@ -45,11 +45,18 @@ END;
 $function$;
 
 CREATE OR REPLACE FUNCTION private.referee_note_fingerprint(p_notes text)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path TO 'public', 'private', 'extensions'
 AS $function$
-  SELECT encode(digest(private.clean_referee_note_for_fingerprint(p_notes), 'sha256'), 'hex');
+  SELECT encode(
+    extensions.digest(
+      convert_to(private.clean_referee_note_for_fingerprint(p_notes), 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.get_admin_referee_note_acks(p_session_token uuid)

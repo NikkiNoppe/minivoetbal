@@ -486,27 +486,35 @@ export const suspensionService = {
 
   async getManualSuspensions(): Promise<ManualSuspension[]> {
     try {
-      const data = await listApplicationSettingsForSession('manual_suspensions');
+      const { data, error } = await supabase.rpc(
+        "get_manual_suspensions_for_session",
+        getRpcSessionArgs(),
+      );
+      if (error) throw error;
 
-      return [...data]
-        .sort((a, b) => b.id - a.id)
+      return ((data ?? []) as Array<{
+        id: number;
+        player_id: number;
+        setting_value: Record<string, unknown> | null;
+      }>)
+        .filter((row) => Number.isFinite(row.player_id) && row.player_id > 0)
         .map((suspension) => {
-          const settingValue = suspension.setting_value as any;
+          const settingValue = suspension.setting_value ?? {};
           return {
             id: suspension.id,
-            playerId: parseInt(suspension.setting_name),
-            reason: settingValue?.reason || '',
-            matches: settingValue?.matches || 0,
-            startDate: settingValue?.start_date || '',
-            endDate: settingValue?.end_date || '',
-            notes: settingValue?.notes || '',
-            type: settingValue?.type || 'manual',
+            playerId: suspension.player_id,
+            reason: String(settingValue.reason ?? ""),
+            matches: Number(settingValue.matches ?? 0) || 0,
+            startDate: String(settingValue.start_date ?? ""),
+            endDate: String(settingValue.end_date ?? ""),
+            notes: String(settingValue.notes ?? ""),
+            type: String(settingValue.type ?? "manual"),
             isActive: true,
-            createdAt: settingValue?.start_date || '',
+            createdAt: String(settingValue.start_date ?? ""),
           };
         });
     } catch (error) {
-      console.error('Error in getManualSuspensions:', error);
+      console.error("Error in getManualSuspensions:", error);
       return [];
     }
   },

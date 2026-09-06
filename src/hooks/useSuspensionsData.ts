@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { suspensionService, type PlayerCard, type Suspension } from "@/domains/cards-suspensions";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { suspensionService } from "@/domains/cards-suspensions";
 import { useToast } from "@/hooks/use-toast";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { withOrgQueryKey } from "@/lib/orgQueryKey";
@@ -17,81 +17,87 @@ export const useSuspensionsData = () => {
   const { organizationId, orgQueryEnabled } = useOrgQueryScope();
 
   const playerCardsQuery = useQuery({
-    queryKey: withOrgQueryKey(['playerCards'], organizationId),
+    queryKey: withOrgQueryKey(["playerCards"], organizationId),
     queryFn: suspensionService.getPlayerCards,
     enabled: orgQueryEnabled,
-    staleTime: 2 * 60 * 1000, // 2 minutes - player cards can change during matches
-    gcTime: 10 * 60 * 1000, // 10 minutes cache
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
     retry: 2,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
-    refetchOnReconnect: true
+    refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+    networkMode: "online",
   });
 
   const suspensionsQuery = useQuery({
     queryKey: withOrgQueryKey(
-      ['suspensions', playerCardsQuery.dataUpdatedAt],
+      ["suspensions", playerCardsQuery.dataUpdatedAt],
       organizationId,
     ),
     queryFn: () => suspensionService.getActiveSuspensions(playerCardsQuery.data || []),
     enabled: orgQueryEnabled && playerCardsQuery.isSuccess,
-    staleTime: 2 * 60 * 1000, // 2 minutes - suspensions can be updated
-    gcTime: 10 * 60 * 1000, // 10 minutes cache
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
     retry: 2,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
-    refetchOnReconnect: true
+    refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+    networkMode: "online",
   });
 
-  // Process player cards to get top players with most yellow cards
-  const topYellowCardPlayers = playerCardsQuery.data
-    ?.filter(player => player.yellowCards > 0)
-    ?.sort((a, b) => b.yellowCards - a.yellowCards)
-    ?.slice(0, 10) || [];
+  const topYellowCardPlayers =
+    playerCardsQuery.data
+      ?.filter((player) => player.yellowCards > 0)
+      ?.sort((a, b) => b.yellowCards - a.yellowCards)
+      ?.slice(0, 10) || [];
 
-  // Calculate suspension statistics
   const suspensionStats: SuspensionStats = {
     totalSuspensions: suspensionsQuery.data?.length || 0,
-    activeSuspensions: suspensionsQuery.data?.filter(s => s.status === 'active').length || 0,
-    pendingSuspensions: suspensionsQuery.data?.filter(s => s.status === 'pending').length || 0,
-    completedSuspensions: suspensionsQuery.data?.filter(s => s.status === 'completed').length || 0
+    activeSuspensions: suspensionsQuery.data?.filter((s) => s.status === "active").length || 0,
+    pendingSuspensions: suspensionsQuery.data?.filter((s) => s.status === "pending").length || 0,
+    completedSuspensions:
+      suspensionsQuery.data?.filter((s) => s.status === "completed").length || 0,
   };
 
   const handleRefresh = async () => {
     try {
       await suspensionService.refreshPlayerCards();
-      queryClient.invalidateQueries({ queryKey: ['playerCards'] });
-      queryClient.invalidateQueries({ queryKey: ['suspensions'] });
-      // Geen toast meer bij automatisch ophalen; enkel bij expliciete user-actie kun je hier alsnog een toast tonen
+      await queryClient.invalidateQueries({
+        queryKey: withOrgQueryKey(["playerCards"], organizationId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: withOrgQueryKey(["suspensions"], organizationId),
+      });
+      await Promise.all([playerCardsQuery.refetch(), suspensionsQuery.refetch()]);
     } catch (error) {
       toast({
         title: "Fout",
         description: "Er is een fout opgetreden bij het vernieuwen.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
 
   return {
-    // Player cards data
     playerCards: playerCardsQuery.data,
     playerCardsLoading: playerCardsQuery.isLoading,
     playerCardsError: playerCardsQuery.error,
-    
-    // Suspensions data
+
     suspensions: suspensionsQuery.data,
     suspensionsLoading: suspensionsQuery.isLoading,
     suspensionsError: suspensionsQuery.error,
-    
-    // Processed data
+
     topYellowCardPlayers,
     suspensionStats,
-    
-    // Combined states
+
     isLoading: playerCardsQuery.isLoading || suspensionsQuery.isLoading,
+    isFetching: playerCardsQuery.isFetching || suspensionsQuery.isFetching,
     hasError: !!playerCardsQuery.error || !!suspensionsQuery.error,
-    
-    // Actions
+
     handleRefresh,
     refetchPlayerCards: playerCardsQuery.refetch,
-    refetchSuspensions: suspensionsQuery.refetch
+    refetchSuspensions: suspensionsQuery.refetch,
   };
-}; 
+};

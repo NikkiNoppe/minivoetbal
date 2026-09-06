@@ -1,24 +1,12 @@
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  AlertCircle,
-  ChevronRight,
-  Lock,
-  Plus,
-  Shield,
-} from "lucide-react";
+import { AlertCircle, Lock, Plus } from "lucide-react";
 import { PlayerModal } from "@/components/modals";
 import {
   PROFILE_INSET_PANEL,
   PROFILE_INSET_SECTION,
   PROFILE_SECTION_LABEL,
-  SECTION_COLLAPSIBLE_NESTED_TRIGGER,
 } from "@/components/layout";
 import PlayersList from "./components/PlayersList";
 import { usePlayerDialogs } from "./hooks/usePlayerDialogs";
@@ -29,8 +17,6 @@ import { usePlayersQuery, useInvalidatePlayers } from "@/hooks/usePlayersQuery";
 import { useTeamPlayerStats } from "@/hooks/useTeamPlayerStats";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMinLoadingGate } from "@/hooks/useMinLoadingGate";
-import { useOrganizationContent } from "@/hooks/useOrganizationContent";
-import { cn } from "@/lib/utils";
 
 export interface TeamManagerSpelersPanelProps {
   teamId: number;
@@ -63,43 +49,6 @@ function ProfileSectionHeader({
   );
 }
 
-function PlayerRegulationsCollapsible() {
-  const [open, setOpen] = useState(false);
-  const { playerHighlights } = useOrganizationContent().reglement;
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen} className="px-4 py-3 sm:px-5">
-      <CollapsibleTrigger
-        className={cn(SECTION_COLLAPSIBLE_NESTED_TRIGGER, "group w-full rounded-md")}
-      >
-        <ChevronRight
-          className={cn(
-            "h-4 w-4 shrink-0 transition-transform",
-            open && "rotate-90",
-          )}
-          aria-hidden
-        />
-        <Shield className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-        <span>Spelersreglement</span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 text-xs text-muted-foreground space-y-2 leading-relaxed">
-        <p>
-          <strong className="text-foreground">Maximum spelers:</strong>{" "}
-          {playerHighlights.maxPlayers}
-        </p>
-        <p>
-          <strong className="text-foreground">Teamwijzigingen:</strong>{" "}
-          {playerHighlights.transfers}
-        </p>
-        <p>
-          <strong className="text-foreground">Inschrijving:</strong>{" "}
-          {playerHighlights.inscription}
-        </p>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 export const TeamManagerSpelersPanel = memo(function TeamManagerSpelersPanel({
   teamId,
   embedded = false,
@@ -108,7 +57,11 @@ export const TeamManagerSpelersPanel = memo(function TeamManagerSpelersPanel({
   const { invalidateTeam } = useInvalidatePlayers();
   const playersQuery = usePlayersQuery(teamId);
   const { data: playerStats } = useTeamPlayerStats(teamId);
-  const { isLocked, lockMessage, canEdit } = usePlayerListLock();
+  const { isLocked, lockMessage, canEdit, refreshLockStatus } = usePlayerListLock();
+
+  useEffect(() => {
+    void refreshLockStatus();
+  }, [refreshLockStatus, teamId]);
 
   const matchCountByPlayerId = useMemo(() => {
     const map = new Map<number, number>();
@@ -260,8 +213,6 @@ export const TeamManagerSpelersPanel = memo(function TeamManagerSpelersPanel({
             matchCountByPlayerId={matchCountByPlayerId}
           />
         </section>
-
-        <PlayerRegulationsCollapsible />
       </div>
 
       <PlayerModal

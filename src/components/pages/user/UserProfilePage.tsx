@@ -1502,6 +1502,7 @@ const UserProfilePage: React.FC = () => {
   const { profileFinancial: showProfileFinancial } = getOrganizationFeatures(organizationSlug);
   const { profileData, isLoading, error } = useUserProfile();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   
   // Modal state
@@ -1509,11 +1510,42 @@ const UserProfilePage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [profileSection, setProfileSection] = useState<string | undefined>();
 
+  const handleProfileSectionChange = useCallback((next: string | undefined) => {
+    setProfileSection(next);
+    const hashSection = location.hash.replace(/^#/, "");
+    if (hashSection && next !== hashSection) {
+      navigate(
+        { pathname: location.pathname, search: location.search, hash: "" },
+        { replace: true },
+      );
+    }
+  }, [location.hash, location.pathname, location.search, navigate]);
+
   const openProfileSection = useCallback((value: string) => {
     setProfileSection(value);
   }, []);
+  const openSpelersSection = useCallback(
+    () => openProfileSection("spelers"),
+    [openProfileSection],
+  );
+  const openSchorsingenSection = useCallback(
+    () => openProfileSection("schorsingen"),
+    [openProfileSection],
+  );
+  const openRefereeMatchFormsSection = useCallback(
+    () => openProfileSection("referee-match-forms"),
+    [openProfileSection],
+  );
+  const openRefereePlanningSection = useCallback(
+    () => openProfileSection("referee-planning"),
+    [openProfileSection],
+  );
 
-  const isAdmin = authUser?.role === "admin";
+  const isAdmin =
+    authUser?.role === "admin" ||
+    authUser?.role === "superadmin" ||
+    authUser?.isSuperAdmin === true ||
+    authUser?.id === -1;
   const isReferee = authUser?.role === "referee";
   const canRespondToPolls =
     authUser?.role === "player_manager" || authUser?.role === "referee";
@@ -1590,7 +1622,7 @@ const UserProfilePage: React.FC = () => {
 
         <ProfileSectionsAccordion
           value={profileSection}
-          onValueChange={setProfileSection}
+          onValueChange={handleProfileSectionChange}
         >
           {user.role === 'player_manager' && firstTeam && (
             <SectionCollapsibleCard
@@ -1622,7 +1654,7 @@ const UserProfilePage: React.FC = () => {
             <ProfileTeamPlayersCard
               teamId={firstTeam.team_id}
               teamName={firstTeam.team_name}
-              onRequestOpen={() => openProfileSection('spelers')}
+              onRequestOpen={openSpelersSection}
             />
           )}
 
@@ -1630,7 +1662,7 @@ const UserProfilePage: React.FC = () => {
             <ProfileTeamSuspensionsCard
               teamId={firstTeam.team_id}
               teamName={firstTeam.team_name}
-              onRequestOpen={() => openProfileSection('schorsingen')}
+              onRequestOpen={openSchorsingenSection}
             />
           )}
 
@@ -1648,7 +1680,7 @@ const UserProfilePage: React.FC = () => {
             <ProfileRefereeMatchFormsCard
               refereeUsername={authUser.username}
               onSelectMatch={handleSelectMatch}
-              onRequestOpen={() => openProfileSection('referee-match-forms')}
+              onRequestOpen={openRefereeMatchFormsSection}
             />
           )}
 
@@ -1667,7 +1699,7 @@ const UserProfilePage: React.FC = () => {
           {isAdmin && <ProfilePollAdminCollapsible accordionValue="admin-polls" />}
 
           {isReferee && (
-            <ProfileRefereePlanningCard onRequestOpen={() => openProfileSection('referee-planning')} />
+            <ProfileRefereePlanningCard onRequestOpen={openRefereePlanningSection} />
           )}
         </ProfileSectionsAccordion>
 

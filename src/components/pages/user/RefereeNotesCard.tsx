@@ -130,8 +130,6 @@ const RefereeNotesCard: React.FC<{ accordionValue?: string }> = ({
     );
   }
 
-  if (unread.length === 0 && acknowledged.length === 0) return null;
-
   return (
     <SectionCollapsibleCard
       title="Scheidsrechter notities"
@@ -146,7 +144,11 @@ const RefereeNotesCard: React.FC<{ accordionValue?: string }> = ({
       }
       contentClassName="space-y-3"
     >
-      {unread.length > 0 ? (
+      {unread.length === 0 && acknowledged.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-2">
+          Geen openstaande notities voor dit seizoen.
+        </p>
+      ) : unread.length > 0 ? (
         <div className="space-y-2">
           {unread.map((note) => (
             <NoteItem

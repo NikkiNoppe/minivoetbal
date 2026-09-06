@@ -357,8 +357,8 @@ export function nextEmptyLockPeriod(periods: PlayerListLockPeriod[]): PlayerList
 
 export const PLAYER_LIST_LOCK_STATUS_LABELS: Record<PlayerListLockScheduleStatus, string> = {
   inactive: "Uitgeschakeld",
-  scheduled: "Gepland",
-  active: "Actief",
+  scheduled: "Gepland (nog open)",
+  active: "Actief vergrendeld",
   expired: "Verlopen",
 };
 

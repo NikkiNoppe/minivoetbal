@@ -96,7 +96,7 @@ const NavLinkButton: React.FC<NavLinkButtonProps> = ({
           "btn-nav w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2",
         variant === "sheet" && isActive && "active",
         variant === "desktop" &&
-          "inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm text-white/90 hover:text-white hover:bg-brand-500/50 transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-600",
+          "inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-md text-sm text-white/90 hover:text-white hover:bg-brand-500/50 transition-colors min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-600",
         variant === "desktop" && isActive && "bg-brand-500/60 text-white font-medium"
       )}
     >
@@ -152,10 +152,7 @@ const Header: React.FC<HeaderProps> = ({
 
   const normalizedRole = normalizeRole(user?.role || "");
   const isAdmin = normalizedRole === "admin";
-  const isTeamManager = normalizedRole === "player_manager";
-  const isReferee = normalizedRole === "referee";
-  const showAdminQuick =
-    isAuthenticated && (isAdmin || isTeamManager || isReferee || isSuperAdmin);
+  const showAdminQuick = isAuthenticated && (isAdmin || isSuperAdmin);
   const roleLabel = getRoleLabel(normalizedRole, isAdmin, isSuperAdmin);
 
   const visiblePublicItems = getOrderedPublicNavItems(isTabVisible, isSuperAdmin);

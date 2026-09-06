@@ -32,7 +32,11 @@ export function useAdminRefereeNotes() {
   const { user } = useAuth();
   const { organizationId, orgQueryEnabled } = useOrgQueryScope();
   const queryClient = useQueryClient();
-  const isAdmin = user?.role === "admin";
+  const isAdmin =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.isSuperAdmin === true ||
+    user?.id === -1;
   const enabled = orgQueryEnabled && isAdmin && !!user?.id;
 
   const notesQuery = useQuery({

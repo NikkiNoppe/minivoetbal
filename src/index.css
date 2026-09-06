@@ -1924,40 +1924,41 @@ tbody tr:hover .sticky-column, tbody tr.bg-green-50 .sticky-column, tbody tr.bg-
   color: var(--color-destructive);
 }
 
-/* Dev tenant toolbar — ruimte onderaan zodat content niet verborgen wordt */
-body.has-tenant-debug-panel {
-  padding-bottom: 5.5rem;
+/* Dev viewport preview — app draait in iframe met echte breakpoints */
+html.dev-viewport-framed,
+html.dev-viewport-framed body {
+  background: #171717;
+  overflow: hidden;
 }
 
-body.has-tenant-debug-panel-collapsed {
+html.dev-viewport-framed .dev-viewport-stage {
+  bottom: 3.25rem;
+}
+
+@media (min-width: 1024px) {
+  html.dev-viewport-framed .dev-viewport-stage {
+    bottom: 3rem;
+  }
+}
+
+/* Dev tenant toolbar — ruimte onderaan zodat content niet verborgen wordt */
+body.has-tenant-debug-panel {
   padding-bottom: 3.25rem;
 }
 
 @media (min-width: 1024px) {
   body.has-tenant-debug-panel {
-    padding-bottom: 4rem;
-  }
-
-  body.has-tenant-debug-panel-collapsed {
     padding-bottom: 3rem;
   }
 }
 
 /* Modals: ruimte voor dev-toolbar onderaan */
 body.has-tenant-debug-panel [data-app-modal-overlay] {
-  padding-bottom: max(5.5rem, env(safe-area-inset-bottom, 0px)) !important;
-}
-
-body.has-tenant-debug-panel-collapsed [data-app-modal-overlay] {
   padding-bottom: max(3.25rem, env(safe-area-inset-bottom, 0px)) !important;
 }
 
 @media (min-width: 1024px) {
   body.has-tenant-debug-panel [data-app-modal-overlay] {
-    padding-bottom: max(4rem, env(safe-area-inset-bottom, 0px)) !important;
-  }
-
-  body.has-tenant-debug-panel-collapsed [data-app-modal-overlay] {
     padding-bottom: max(3rem, env(safe-area-inset-bottom, 0px)) !important;
   }
 }

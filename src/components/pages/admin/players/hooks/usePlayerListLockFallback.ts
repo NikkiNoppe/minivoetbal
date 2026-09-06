@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +10,6 @@ import { formatDateShort } from "@/lib/dateUtils";
 import {
   buildPlayerListLockMessage,
   isSettingsPlayerListLocked,
-  isWithinActiveSeason,
   resolveLockMessageDates,
   resolvePlayerListLockReason,
   type PlayerListLockSettingValue,
@@ -37,22 +35,24 @@ export const usePlayerListLockFallback = () => {
       return;
     }
 
+    const isAdminUser = user?.role === "admin" || user?.id === -1;
+
     try {
       let settingsLocked = false;
       let settingsLockDate: string | null = null;
-      let seasonLocked = false;
       let seasonEnd: string | null = null;
 
       const { data: rpcLocked, error } = await supabase.rpc("is_player_list_locked", {
         p_organization_id: organizationId,
       });
 
+      let rpcOk = false;
       if (error) {
         console.error("❌ Error calling is_player_list_locked function:", error);
-        throw error;
+      } else {
+        rpcOk = true;
+        settingsLocked = Boolean(rpcLocked);
       }
-
-      settingsLocked = Boolean(rpcLocked);
 
       const lockRows = await fetchPublicApplicationSettings(
         ["player_list_lock"],
@@ -62,15 +62,25 @@ export const usePlayerListLockFallback = () => {
 
       if (settings?.setting_value) {
         const settingValue = settings.setting_value as PlayerListLockSettingValue;
-        settingsLocked =
-          Boolean(rpcLocked) || isSettingsPlayerListLocked(settingValue);
+        if (!rpcOk) {
+          settingsLocked = isSettingsPlayerListLocked(settingValue);
+        }
         if (settingValue.lock_enabled !== false) {
           const dates = resolveLockMessageDates(settingValue);
-          settingsLockDate = dates.from;
-          setLockUntilDate(dates.until);
+          if (settingsLocked) {
+            settingsLockDate = dates.from;
+            setLockUntilDate(dates.until);
+          } else {
+            settingsLockDate = null;
+            setLockUntilDate(null);
+          }
         } else {
           setLockUntilDate(null);
         }
+      }
+
+      if (!rpcOk && !isAdminUser && !settingsLocked) {
+        settingsLocked = true;
       }
 
       const seasonRows = await fetchPublicApplicationSettings(
@@ -80,35 +90,35 @@ export const usePlayerListLockFallback = () => {
       const seasonConfig = findPublicSetting(seasonRows, "season_data", "main_config");
       if (seasonConfig?.setting_value) {
         const seasonValue = seasonConfig.setting_value as {
-          season_start_date?: string;
           season_end_date?: string;
         };
         seasonEnd = seasonValue.season_end_date ?? null;
-        seasonLocked = isWithinActiveSeason(
-          seasonValue.season_start_date,
-          seasonValue.season_end_date,
-        );
       }
 
       setIsSettingsLocked(settingsLocked);
-      setIsSeasonLocked(seasonLocked);
+      setIsSeasonLocked(false);
       setLockDate(settingsLockDate);
       setSeasonEndDate(seasonEnd);
     } catch (error) {
       console.error("❌ Error checking lock status:", error);
-      setIsSettingsLocked(false);
-      setIsSeasonLocked(false);
+      if (!isAdminUser) {
+        setIsSettingsLocked(true);
+        setIsSeasonLocked(false);
+      } else {
+        setIsSettingsLocked(false);
+        setIsSeasonLocked(false);
+      }
     } finally {
       setLoading(false);
     }
-  }, [organizationId]);
+  }, [organizationId, user?.role, user?.id]);
 
   useEffect(() => {
     checkLockStatus();
   }, [checkLockStatus]);
 
-  const isLocked = isSettingsLocked || isSeasonLocked;
-  const lockReason = resolvePlayerListLockReason(isSettingsLocked, isSeasonLocked);
+  const isLocked = isSettingsLocked;
+  const lockReason = resolvePlayerListLockReason(isSettingsLocked, false);
 
   const lockMessage = useMemo(
     () =>
@@ -123,8 +133,11 @@ export const usePlayerListLockFallback = () => {
   );
 
   const canEdit = useMemo(() => {
-    return user?.role === "admin" || !isLocked;
-  }, [user?.role, isLocked]);
+    const isAdminUser = user?.role === "admin" || user?.id === -1;
+    if (isAdminUser) return true;
+    if (loading) return false;
+    return !isLocked;
+  }, [user?.role, user?.id, isLocked, loading]);
 
   return {
     isLocked,

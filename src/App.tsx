@@ -23,6 +23,7 @@ import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 import { RoutePageSkeleton } from "@/components/common/RoutePageSkeleton";
 import { ScrollRestore } from "@/components/common/ScrollRestore";
 import TenantDebugPanel from "@/components/admin/TenantDebugPanel";
+import { DevViewportGate, DevViewportProvider } from "@/context/DevViewportContext";
 import { useThemeColorsInit } from "@/hooks/useThemeColors";
 import { useRouteMeta } from "@/hooks/useRouteMeta";
 
@@ -56,9 +57,10 @@ const App = () => (
     <AuthProvider>
       <DevDebugProvider>
       <ModalProvider>
-        <PlayerListLockProvider>
-          <BrowserRouter>
-            <OrganizationProvider>
+        <BrowserRouter>
+          <DevViewportProvider>
+          <OrganizationProvider>
+            <PlayerListLockProvider>
               <ThemeColorsInitializer>
                 <OrganizationGate>
                   <TabVisibilityProvider>
@@ -68,6 +70,7 @@ const App = () => (
                       <ErrorBoundary>
                         <RouteMeta />
                         <ScrollRestore />
+                        <DevViewportGate>
                         <Routes>
                     {/* Redirect root to algemeen */}
                     <Route path="/" element={<Navigate to={PUBLIC_ROUTES.algemeen} replace />} />
@@ -299,15 +302,17 @@ const App = () => (
                       </Suspense>
                     } />
                     </Routes>
+                        </DevViewportGate>
                     <TenantDebugPanel />
                       </ErrorBoundary>
                     </TooltipProvider>
                   </TabVisibilityProvider>
                 </OrganizationGate>
               </ThemeColorsInitializer>
-            </OrganizationProvider>
+            </PlayerListLockProvider>
+          </OrganizationProvider>
+          </DevViewportProvider>
           </BrowserRouter>
-        </PlayerListLockProvider>
       </ModalProvider>
       </DevDebugProvider>
     </AuthProvider>

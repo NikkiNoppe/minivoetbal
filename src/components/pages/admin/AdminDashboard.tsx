@@ -1,7 +1,6 @@
 
 import React, { useMemo, lazy, Suspense, type ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { AdminTabSkeleton } from "@/components/common/RoutePageSkeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,11 +19,8 @@ import BlogPage from "@/components/pages/admin/blog/BlogPage";
 import NotificationPage from "@/components/pages/admin/notifications/NotificationPage";
 import SchorsingenPage from "@/components/pages/admin/schorsingen/SchorsingenPage";
 import { ADMIN_ROUTES } from "@/config/routes";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useSuspensionsData } from "@/domains/cards-suspensions";
-import {
-  formatSuspensionMatchLines,
-} from "@/domains/cards-suspensions";
 import { Ban } from "lucide-react";
 
 const SettingsPanel = lazy(
@@ -87,48 +83,30 @@ const TeamManagerSuspensionNotice: React.FC = () => {
 
   if (isLoading || activeTeamSuspensions.length === 0) return null;
 
+  const count = activeTeamSuspensions.length;
+  const title = count === 1 ? "1 actieve schorsing" : `${count} actieve schorsingen`;
+
   return (
-    <Alert className="mb-4 border-destructive/30 bg-destructive/10">
-      <Ban className="h-4 w-4 text-destructive" />
-      <AlertTitle className="text-destructive">
-        Speler geschorst voor komende wedstrijd
-      </AlertTitle>
-      <AlertDescription className="space-y-3">
-        {activeTeamSuspensions.map((suspension) => {
-          const matchLines = formatSuspensionMatchLines(suspension);
-          return (
-          <div key={suspension.id} className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 space-y-1">
-              <p>
-                <span className="font-medium text-foreground">{suspension.playerName}</span>
-                <span className="text-muted-foreground"> · {suspension.reason}</span>
-              </p>
-              {matchLines.length > 0 ? (
-                <div className="space-y-0.5 text-sm text-muted-foreground">
-                  {matchLines.map((line, index) => (
-                    <p key={`${suspension.id}-match-${index}`}>
-                      Geschorst voor {line}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Komende wedstrijd(en) nog niet ingepland
-                </p>
-              )}
-              {suspension.notes && (
-                <p className="text-sm text-foreground/90 border-l-2 border-primary/30 pl-2">
-                  <span className="font-medium">Bericht: </span>
-                  {suspension.notes}
-                </p>
-              )}
-            </div>
-            <Badge variant="destructive" className="w-fit shrink-0">
-              Niet speelgerechtigd
-            </Badge>
-          </div>
-          );
-        })}
+    <Alert className="mb-4 border-destructive/30 bg-destructive/10 py-3">
+      <Ban className="h-4 w-4 text-destructive" aria-hidden />
+      <AlertTitle className="text-destructive">{title}</AlertTitle>
+      <AlertDescription>
+        <p className="text-sm text-muted-foreground">
+          {activeTeamSuspensions.map((suspension, index) => (
+            <React.Fragment key={suspension.id}>
+              {index > 0 ? " · " : null}
+              <span className="font-medium text-foreground">{suspension.playerName}</span>
+              {count === 1 && suspension.reason ? ` · ${suspension.reason}` : null}
+            </React.Fragment>
+          ))}
+          {" — details op "}
+          <Link
+            to={`${ADMIN_ROUTES.profile}#schorsingen`}
+            className="underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+          >
+            Mijn profiel
+          </Link>
+        </p>
       </AlertDescription>
     </Alert>
   );

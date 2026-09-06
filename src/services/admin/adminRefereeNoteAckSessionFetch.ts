@@ -1,10 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getRpcSessionArgs } from "@/lib/authSession";
-import { fetchAllMatchesForSession } from "@/services/core/matchesSessionFetch";
-import {
-  cleanRefereeNoteForFingerprint,
-  refereeNoteFingerprint,
-} from "@/lib/adminRefereeNoteFingerprint";
 
 export interface AdminRefereeNoteRow {
   match_id: number;
@@ -15,6 +10,7 @@ export interface AdminRefereeNoteRow {
   home_team_name: string;
   away_team_name: string;
   note_fingerprint: string;
+  season_label?: string | null;
 }
 
 export interface AdminRefereeNoteAckRow {
@@ -46,29 +42,31 @@ export async function setAdminRefereeNoteAck(
 }
 
 export async function fetchAdminRefereeNotes(): Promise<AdminRefereeNoteRow[]> {
-  const allMatches = await fetchAllMatchesForSession();
-  const candidates = (allMatches || [])
-    .filter(
-      (m) =>
-        m.is_submitted &&
-        m.referee_notes &&
-        cleanRefereeNoteForFingerprint(String(m.referee_notes)) !== "",
-    )
-    .sort((a, b) => b.match_date.localeCompare(a.match_date));
+  const { data, error } = await supabase.rpc(
+    "get_admin_referee_notes_for_session",
+    getRpcSessionArgs(),
+  );
+  if (error) throw error;
 
-  const rows: AdminRefereeNoteRow[] = [];
-  for (const m of candidates) {
-    const cleaned = cleanRefereeNoteForFingerprint(String(m.referee_notes));
-    rows.push({
-      match_id: m.match_id,
-      match_date: m.match_date,
-      referee_notes: cleaned,
-      referee: m.referee,
-      speeldag: m.speeldag,
-      home_team_name: m.home_team_name || "?",
-      away_team_name: m.away_team_name || "?",
-      note_fingerprint: await refereeNoteFingerprint(cleaned),
-    });
-  }
-  return rows;
+  return ((data ?? []) as Array<{
+    match_id: number;
+    match_date: string;
+    referee_notes: string;
+    referee: string | null;
+    speeldag: string | null;
+    home_team_name: string;
+    away_team_name: string;
+    note_fingerprint: string;
+    season_label: string | null;
+  }>).map((row) => ({
+    match_id: row.match_id,
+    match_date: row.match_date,
+    referee_notes: row.referee_notes,
+    referee: row.referee,
+    speeldag: row.speeldag,
+    home_team_name: row.home_team_name || "?",
+    away_team_name: row.away_team_name || "?",
+    note_fingerprint: row.note_fingerprint,
+    season_label: row.season_label,
+  }));
 }

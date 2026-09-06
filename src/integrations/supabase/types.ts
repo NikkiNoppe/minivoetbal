@@ -1088,6 +1088,20 @@ export type Database = {
           note_fingerprint: string
         }[]
       }
+      get_admin_referee_notes_for_session: {
+        Args: { p_session_token: string }
+        Returns: {
+          away_team_name: string
+          home_team_name: string
+          match_date: string
+          match_id: number
+          note_fingerprint: string
+          referee: string
+          referee_notes: string
+          season_label: string
+          speeldag: string
+        }[]
+      }
       get_all_users_for_admin: {
         Args: { p_session_token: string }
         Returns: {
@@ -1123,6 +1137,14 @@ export type Database = {
       get_latest_season_backup_for_session: {
         Args: { p_season_label?: string; p_session_token: string }
         Returns: Json
+      }
+      get_manual_suspensions_for_session: {
+        Args: { p_session_token: string }
+        Returns: {
+          id: number
+          player_id: number
+          setting_value: Json
+        }[]
       }
       get_match_card_events: {
         Args: { p_session_token: string }
