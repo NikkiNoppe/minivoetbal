@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { blogService } from "@/services";
+import { blogService } from "@/services/blogService";
 import { useMinLoadingGate } from "@/hooks/useMinLoadingGate";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { withOrgQueryKey } from "@/lib/orgQueryKey";

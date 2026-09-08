@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Shield, Trophy, Plus } from "lucide-react";
+import { AlertCircle, Shield, Trophy, Plus, Loader2 } from "lucide-react";
 import { useSuspensionsData } from "@/domains/cards-suspensions";
 import { useAuth } from "@/hooks/useAuth";
 import { ADMIN_ROUTES } from "@/config/routes";
@@ -33,7 +33,9 @@ const AdminView: React.FC = memo(() => {
   const { 
     suspensions, 
     playerCards, 
-    isLoading, 
+    suspensionsLoading,
+    playerCardsLoading,
+    isRefreshing,
     playerCardsError,
     suspensionsError,
     refetchPlayerCards,
@@ -170,7 +172,7 @@ const AdminView: React.FC = memo(() => {
 
       <section role="region" aria-labelledby="suspensions-heading">
         <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm")}>
-          <CardHeader className="space-y-0 p-4 sm:p-5 pb-4">
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-4 sm:p-5 pb-4">
             <div className="min-w-0 space-y-1.5">
               <CardTitle id="suspensions-heading" className="flex items-center gap-2">
                 <SectionIcon icon={AlertCircle} className="text-destructive" />
@@ -180,9 +182,15 @@ const AdminView: React.FC = memo(() => {
                 Eén overzicht van handmatige schorsingen en automatische kaartschorsingen
               </CardDescription>
             </div>
+            {isRefreshing ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0" aria-live="polite">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                Vernieuwen…
+              </span>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-3 bg-transparent px-4 pb-4 pt-0 sm:px-5 sm:pb-5">
-            {filteredSuspensions.length === 0 && !isLoading ? (
+            {filteredSuspensions.length === 0 && !suspensionsLoading ? (
               <div className="px-4 py-10 text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
                   <Shield className="h-7 w-7 text-primary" aria-hidden />
@@ -197,7 +205,7 @@ const AdminView: React.FC = memo(() => {
                 suspensions={filteredSuspensions}
                 showTeam={true}
                 showActions={true}
-                isLoading={isLoading}
+                isLoading={suspensionsLoading}
                 onEdit={setEditSuspension}
               />
             )}
@@ -205,7 +213,7 @@ const AdminView: React.FC = memo(() => {
         </Card>
       </section>
 
-      {!isLoading && filteredPlayerCards.length > 0 ? (
+      {!playerCardsLoading && filteredPlayerCards.length > 0 ? (
         <section role="region" aria-labelledby="cards-heading">
           <SectionCollapsibleCard
             title="Overige kaarten"
@@ -225,7 +233,7 @@ const AdminView: React.FC = memo(() => {
               playerCards={filteredPlayerCards}
               suspensions={suspensions || []}
               showTeam={true}
-              isLoading={isLoading}
+              isLoading={playerCardsLoading}
               compact
             />
           </SectionCollapsibleCard>

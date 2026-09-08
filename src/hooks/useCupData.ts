@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { cupService } from "@/services";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { bekerService as cupService } from "@/services/match/cupService";
 import { isoToLocalDateTime } from "@/lib/dateUtils";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { withOrgQueryKey } from "@/lib/orgQueryKey";
@@ -47,11 +47,14 @@ export const useCupData = () => {
     queryKey: withOrgQueryKey(['cupMatches'], organizationId),
     queryFn: () => cupService.getCupMatches(organizationId!),
     enabled: orgQueryEnabled,
-    staleTime: 3 * 60 * 1000, // 3 minutes - tournament data doesn't change often
-    gcTime: 15 * 60 * 1000, // 15 minutes cache
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
     retry: 2,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
-    refetchOnReconnect: true
+    refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+    networkMode: "online",
   });
 
   // Transform data to structured format

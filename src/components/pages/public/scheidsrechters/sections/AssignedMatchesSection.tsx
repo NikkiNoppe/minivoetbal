@@ -21,7 +21,7 @@ export function AssignedMatchesSection({ assignments, isLoading, embedded = fals
     ? "text-sm font-semibold flex items-center gap-2 text-foreground"
     : "text-lg font-semibold flex items-center gap-2 text-[var(--color-700)]";
 
-  if (isLoading) {
+  if (isLoading && assignments.length === 0) {
     return (
       <section className="space-y-4">
         <h2 className={headingClass}>

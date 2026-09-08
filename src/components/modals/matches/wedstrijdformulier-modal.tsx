@@ -1080,24 +1080,21 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
   // Load players for both teams
   const { 
     playersWithSuspensions: homePlayersWithSuspensions, 
-    loading: homeLoading, 
+    loading: homeIsLoading, 
+    isRefreshing: homeIsRefreshing,
     error: homeError, 
-    suspensionLoading: homeSuspensionLoading, 
     retryCount: homeRetryCount, 
     refetch: homeRefetch 
   } = useTeamPlayersWithSuspensions(match.homeTeamId, matchDate);
 
   const { 
     playersWithSuspensions: awayPlayersWithSuspensions, 
-    loading: awayLoading, 
+    loading: awayIsLoading, 
+    isRefreshing: awayIsRefreshing,
     error: awayError, 
-    suspensionLoading: awaySuspensionLoading, 
     retryCount: awayRetryCount, 
     refetch: awayRefetch 
   } = useTeamPlayersWithSuspensions(match.awayTeamId, matchDate);
-
-  const homeIsLoading = homeLoading || homeSuspensionLoading;
-  const awayIsLoading = awayLoading || awaySuspensionLoading;
 
   // Debug logging
   useEffect(() => {
@@ -1110,8 +1107,8 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
         awayLoading: awayIsLoading,
         homePlayersCount: homePlayersWithSuspensions?.length || 0,
         awayPlayersCount: awayPlayersWithSuspensions?.length || 0,
-        homeError: homeError?.message,
-        awayError: awayError?.message
+        homeError: homeError instanceof Error ? homeError.message : homeError,
+        awayError: awayError instanceof Error ? awayError.message : awayError,
       });
     }
   }, [match.homeTeamId, match.awayTeamId, matchDate, homeIsLoading, awayIsLoading, homePlayersWithSuspensions, awayPlayersWithSuspensions, homeError, awayError]);
@@ -1742,6 +1739,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
                       isHomeTeam
                       players={homePlayersWithSuspensions}
                       isLoading={homeIsLoading}
+                      isRefreshing={homeIsRefreshing}
                       error={homeError}
                       retryCount={homeRetryCount}
                       refetch={homeRefetch}
@@ -1782,6 +1780,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
                       isHomeTeam={false}
                       players={awayPlayersWithSuspensions}
                       isLoading={awayIsLoading}
+                      isRefreshing={awayIsRefreshing}
                       error={awayError}
                       retryCount={awayRetryCount}
                       refetch={awayRefetch}

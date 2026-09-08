@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -73,9 +73,17 @@ const AdminSuspensionsPage: React.FC = () => {
   
   // Kaarten uit wedstrijdformulieren (alle gele/rode kaarten)
   const { data: allCards, isLoading: isCardsLoading } = useQuery({
-    queryKey: withOrgQueryKey(['allCardsAdmin'], organizationId),
+    queryKey: withOrgQueryKey(['allCards'], organizationId),
     queryFn: fetchAllCards,
     enabled: orgQueryEnabled,
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    retry: 2,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+    networkMode: 'online',
   });
   
   // Groepeer kaarten per speler

@@ -16,6 +16,7 @@ import {
   OrgHubEmailSeoPanel,
   OrgHubOverviewPanel,
 } from './SuperAdminOrgFormPanels';
+import { CloseSeasonCard } from './CloseSeasonCard';
 
 const EDITOR_TABS = [
   { value: 'overview', label: 'Overzicht' },
@@ -23,7 +24,18 @@ const EDITOR_TABS = [
   { value: 'email', label: 'E-mail & SEO' },
   { value: 'content', label: 'Content' },
   { value: 'platform', label: 'Platform' },
+  { value: 'season', label: 'Seizoen' },
 ] as const;
+
+function InactiveTabHint({ isNew }: { isNew?: boolean }) {
+  return (
+    <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-primary/20 px-4 py-8 text-center">
+      {isNew
+        ? 'Sla de organisatie eerst op en maak hem actief om dit tabblad te gebruiken.'
+        : 'Selecteer deze organisatie in de lijst links om dit tabblad te bewerken.'}
+    </p>
+  );
+}
 
 export function SuperAdminOrgEditor({
   form,
@@ -103,14 +115,19 @@ export function SuperAdminOrgEditor({
             </TabsContent>
 
             <TabsContent value="platform" className="mt-0">
-              {isActive ? (
-                <SuperAdminOrgTenantSettings />
+              {isActive ? <SuperAdminOrgTenantSettings /> : <InactiveTabHint isNew={isNew} />}
+            </TabsContent>
+
+            <TabsContent value="season" className="mt-0">
+              {isActive && !isNew ? (
+                <CloseSeasonCard
+                  organizationId={form.organizationId}
+                  organizationName={displayName || form.displayName || 'Organisatie'}
+                  enabled
+                  embedded
+                />
               ) : (
-                <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-primary/20 px-4 py-8 text-center">
-                  {isNew
-                    ? 'Sla de organisatie eerst op en maak hem actief om platform-instellingen te bewerken.'
-                    : 'Selecteer deze organisatie in de lijst links om platform-instellingen te bewerken.'}
-                </p>
+                <InactiveTabHint isNew={isNew} />
               )}
             </TabsContent>
           </Tabs>

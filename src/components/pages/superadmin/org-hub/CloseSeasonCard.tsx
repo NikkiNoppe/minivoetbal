@@ -29,9 +29,16 @@ type Props = {
   organizationId: number;
   organizationName: string;
   enabled: boolean;
+  /** Binnen editor-tab: geen extra Card-wrapper. */
+  embedded?: boolean;
 };
 
-export function CloseSeasonCard({ organizationId, organizationName, enabled }: Props) {
+export function CloseSeasonCard({
+  organizationId,
+  organizationName,
+  enabled,
+  embedded = false,
+}: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -214,21 +221,19 @@ export function CloseSeasonCard({ organizationId, organizationName, enabled }: P
 
   if (!enabled) return null;
 
-  return (
+  const description = (
     <>
-      <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm border-amber-400/50")}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Archive className="h-5 w-5" aria-hidden />
-            Seizoen afsluiten
-          </CardTitle>
-          <CardDescription>
-            Soft-archive voor {organizationName}: wedstrijden en kosten vóór de cutoff krijgen
-            het seizoenlabel. Saldi blijven staan; categorieën starten opnieuw op €0. Geen hard
-            delete. Daarna kun je een nieuw seizoen aanmaken.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      Soft-archive voor {organizationName}: wedstrijden en kosten vóór de cutoff krijgen het
+      seizoenlabel. Saldi blijven staan; categorieën starten opnieuw op €0. Geen hard delete.
+      Daarna kun je een nieuw seizoen aanmaken.
+    </>
+  );
+
+  const fields = (
+    <div className="space-y-4">
+      {embedded ? (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="close-season-label">Seizoenlabel</Label>
@@ -362,8 +367,27 @@ export function CloseSeasonCard({ organizationId, organizationName, enabled }: P
               Seizoen {seasonLabel.trim() || "…"} afsluiten
             </Button>
           </div>
-        </CardContent>
-      </Card>
+    </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        <div className="rounded-lg border border-amber-400/50 bg-background p-4 sm:p-5">
+          {fields}
+        </div>
+      ) : (
+        <Card className={cn(PUBLIC_CARD_CLASS, "shadow-sm border-amber-400/50")}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Archive className="h-5 w-5" aria-hidden />
+              Seizoen afsluiten
+            </CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-0">{fields}</CardContent>
+        </Card>
+      )}
 
       <AppAlertModal
         open={confirmOpen}

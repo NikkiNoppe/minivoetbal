@@ -76,9 +76,13 @@ export function useRefereeDashboard(): RefereeDashboardData {
     }
   }, [userId]);
 
-  const fetchAssignments = useCallback(async () => {
-    if (!userId) return;
-    setIsLoadingAssignments(true);
+  const fetchAssignments = useCallback(async (opts?: { showLoading?: boolean }) => {
+    if (!userId) {
+      setIsLoadingAssignments(false);
+      return;
+    }
+    const showLoading = opts?.showLoading !== false;
+    if (showLoading) setIsLoadingAssignments(true);
     try {
       const data = await assignmentService.getAssignmentsForReferee(userId);
       const sorted = data.sort((a, b) => {
@@ -102,7 +106,7 @@ export function useRefereeDashboard(): RefereeDashboardData {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchAssignments();
+      fetchAssignments({ showLoading: false });
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [fetchAssignments]);
@@ -232,7 +236,7 @@ export function useRefereeDashboard(): RefereeDashboardData {
   const refreshData = useCallback(async () => {
     await Promise.all([
       fetchScheduleData({ showLoading: false }),
-      fetchAssignments(),
+      fetchAssignments({ showLoading: false }),
     ]);
   }, [fetchScheduleData, fetchAssignments]);
 

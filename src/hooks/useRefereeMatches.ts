@@ -1,5 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { fetchAllMatchesForSession } from '@/services/core/matchesSessionFetch';
+import { useOrgQueryScope } from '@/hooks/useOrganization';
+import { withOrgQueryKey } from '@/lib/orgQueryKey';
 
 export interface RefereeMatch {
   match_id: number;
@@ -22,8 +24,10 @@ export interface RefereeMatch {
 }
 
 export const useRefereeMatches = (refereeUsername: string | null, month?: number, year?: number) => {
+  const { organizationId, orgQueryEnabled } = useOrgQueryScope();
+
   return useQuery({
-    queryKey: ['refereeMatches', refereeUsername, month, year],
+    queryKey: withOrgQueryKey(['refereeMatches', refereeUsername, month, year], organizationId),
     queryFn: async () => {
       if (!refereeUsername) return [];
 
@@ -65,9 +69,14 @@ export const useRefereeMatches = (refereeUsername: string | null, month?: number
         away_players: match.away_players as any[],
       } satisfies RefereeMatch));
     },
-    enabled: !!refereeUsername,
+    enabled: !!refereeUsername && orgQueryEnabled,
     staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    retry: 2,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+    networkMode: 'online',
   });
 };

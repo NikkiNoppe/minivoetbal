@@ -129,7 +129,6 @@ export function OrgHubBrandingPanel({
           organizationId={form.organizationId}
           assetType="logo"
           accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          previewClassName="max-h-16"
         />
         <OrgHubAssetUploadField
           label="Logo (tekst naast logo)"
@@ -139,7 +138,6 @@ export function OrgHubBrandingPanel({
           organizationId={form.organizationId}
           assetType="logo"
           accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          previewClassName="max-h-16"
         />
         <OrgHubAssetUploadField
           label="Logo (wit, donkere achtergrond)"
@@ -149,7 +147,7 @@ export function OrgHubBrandingPanel({
           organizationId={form.organizationId}
           assetType="logo"
           accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          previewClassName="max-h-16 bg-brand-600 rounded-md p-1"
+          previewTone="dark"
         />
         <OrgHubAssetUploadField
           label="Logo wit (tekst naast logo)"
@@ -159,7 +157,7 @@ export function OrgHubBrandingPanel({
           organizationId={form.organizationId}
           assetType="logo"
           accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          previewClassName="max-h-16 bg-brand-600 rounded-md p-1"
+          previewTone="dark"
         />
 
         <div className="space-y-2 sm:col-span-2">
@@ -195,21 +193,18 @@ export function OrgHubBrandingPanel({
           organizationId={form.organizationId}
           assetType="logo-icon"
           accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          previewClassName="max-h-16 max-w-[64px]"
+          previewSize="icon"
         />
-
-        <div className="sm:col-span-2">
-          <OrgHubAssetUploadField
-            label="Favicon"
-            description="Browsertab-icoon (.ico of .png)."
-            value={form.faviconPath}
-            onChange={(value) => update('faviconPath', value)}
-            organizationId={form.organizationId}
-            assetType="favicon"
-            accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/webp"
-            previewClassName="max-h-10 max-w-[40px]"
-          />
-        </div>
+        <OrgHubAssetUploadField
+          label="Favicon"
+          description="Browsertab-icoon (.ico of .png)."
+          value={form.faviconPath}
+          onChange={(value) => update('faviconPath', value)}
+          organizationId={form.organizationId}
+          assetType="favicon"
+          accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/webp"
+          previewSize="icon"
+        />
       </div>
     </OrgHubFormSection>
   );

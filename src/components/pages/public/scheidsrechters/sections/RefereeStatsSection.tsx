@@ -33,7 +33,7 @@ export function RefereeStatsSection({ assignments, isLoading, embedded = false }
     return { total, thisMonth, upcoming };
   }, [assignments]);
 
-  if (isLoading) return null;
+  if (isLoading && assignments.length === 0) return null;
 
   const items = [
     {

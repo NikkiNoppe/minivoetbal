@@ -2,7 +2,7 @@
 
 Korte stap-voor-stap uitleg voor nieuwe gebruikers die aan een team zijn gekoppeld.
 
-**Word:** [HANDLEIDING_TEAMMANAGER.docx](./HANDLEIDING_TEAMMANAGER.docx) · **PDF:** [HANDLEIDING_TEAMMANAGER.pdf](./HANDLEIDING_TEAMMANAGER.pdf)
+**Word:** [HANDLEIDING_TEAMVERANTWOORDELIJKE.docx](./HANDLEIDING_TEAMVERANTWOORDELIJKE.docx)
 
 ---
 

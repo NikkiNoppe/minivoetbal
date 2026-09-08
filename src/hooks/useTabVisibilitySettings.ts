@@ -408,73 +408,36 @@ export const useTabVisibilitySettings = () => {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'application_settings', filter: 'setting_category=eq.tab_visibility' },
-          (payload) => {
-            // Skip realtime updates if we have manual updates in progress
-            if (updatingRef.current.size > 0) {
-              console.log('[TabVisibilitySettings] Skipping realtime update - manual update in progress', {
-                updatingKeys: Array.from(updatingRef.current),
-                payloadEvent: payload.eventType,
-              });
+          () => {
+            if (updatingRef.current.size > 0 || fetchingRef.current) {
               return;
             }
-            
-            // Skip if we're currently fetching
-            if (fetchingRef.current) {
-              console.log('[TabVisibilitySettings] Skipping realtime update - fetch in progress');
-              return;
-            }
-            
+
             if (debounceTimer) clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
-              // Double check that no updates are in progress before fetching
               if (updatingRef.current.size === 0 && !fetchingRef.current) {
-                console.log('[TabVisibilitySettings] Realtime update triggered refetch');
                 fetchSettings();
-              } else {
-                console.log('[TabVisibilitySettings] Realtime update skipped - update/fetch in progress');
               }
-            }, 1500); // Increased debounce to prevent conflicts with manual updates
+            }, 1500);
           }
         )
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            console.log('[TabVisibilitySettings] Realtime subscription active');
-            // Clear any reconnect timer on successful subscription
             if (reconnectTimer) {
               clearTimeout(reconnectTimer);
               reconnectTimer = null;
             }
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             console.warn(`[TabVisibilitySettings] Realtime connection issue: ${status}. Continuing without live updates.`);
-            // Don't try to reconnect immediately - let it fail gracefully
-            // Manual updates and periodic fetches will still work
-          } else if (status === 'CHANNEL_ERROR') {
-            console.debug('[TabVisibilitySettings] Realtime connection unavailable, continuing without live updates');
           }
         });
     };
 
-    // Setup initial subscription
     setupRealtimeSubscription();
-
-    // Handle page visibility changes (tab suspension/resume)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Tab is hidden - connection may be suspended, that's okay
-        console.log('[TabVisibilitySettings] Tab hidden - realtime may suspend');
-      } else {
-        // Tab is visible again - check if we need to reconnect
-        console.log('[TabVisibilitySettings] Tab visible - checking realtime connection');
-        // Don't force reconnect - let Supabase handle it automatically
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (channel) {
         try {
           supabase.removeChannel(channel);

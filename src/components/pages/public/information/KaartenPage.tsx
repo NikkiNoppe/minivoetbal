@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Search, AlertTriangle, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchAllCards, CardData } from "@/services/match";
 import { sortDatesDesc } from "@/lib/dateUtils";
 import ResponsiveCardsTable from "@/components/tables/ResponsiveCardsTable";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { withOrgQueryKey } from "@/lib/orgQueryKey";
+import { useMinLoadingGate } from "@/hooks/useMinLoadingGate";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PlayerCardSummary {
   playerId: number;
@@ -30,11 +32,27 @@ const KaartenPage: React.FC = () => {
   const [cardTypeFilter, setCardTypeFilter] = useState("");
   const { organizationId, orgQueryEnabled } = useOrgQueryScope();
 
-  const { data: allCards, isLoading } = useQuery({
+  const { data: allCards, isFetching, error, refetch, isFetched } = useQuery({
     queryKey: withOrgQueryKey(['allCards'], organizationId),
     queryFn: fetchAllCards,
     enabled: orgQueryEnabled,
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    retry: 2,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+    networkMode: "online",
   });
+
+  const hasData = allCards !== undefined;
+  const waitingForData = !hasData && isFetching;
+  const loadingGate = useMinLoadingGate(waitingForData);
+  const isListLoading =
+    !loadingGate.timedOut && !hasData && (waitingForData || !loadingGate.minReady);
+  const isRefreshing = hasData && isFetching;
+  const showError = (!!error || loadingGate.timedOut) && !hasData && !isListLoading;
 
   // Group cards by player and calculate suspensions
   const playerCardSummaries: PlayerCardSummary[] = React.useMemo(() => {
@@ -107,8 +125,9 @@ const KaartenPage: React.FC = () => {
     return true;
   });
 
-  const totalYellowCards = allCards?.filter(card => card.cardType === 'yellow').length || 0;
-  const totalRedCards = allCards?.filter(card => card.cardType === 'red').length || 0;
+  const showEmpty = isFetched && !isListLoading && !showError && (allCards?.length ?? 0) === 0;
+  const totalYellowCards = allCards?.filter(card => card.cardType === 'yellow').length ?? 0;
+  const totalRedCards = allCards?.filter(card => card.cardType === 'red').length ?? 0;
   const suspendedPlayers = playerCardSummaries.filter(p => p.isSuspended).length;
 
   return (
@@ -120,7 +139,7 @@ const KaartenPage: React.FC = () => {
             <div className="flex items-center">
               <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
               <div>
-                <p className="text-2xl font-bold">{totalYellowCards}</p>
+                <p className="text-2xl font-bold">{isListLoading ? "—" : totalYellowCards}</p>
                 <p className="text-sm text-muted-foreground">Gele Kaarten</p>
               </div>
             </div>
@@ -132,7 +151,7 @@ const KaartenPage: React.FC = () => {
             <div className="flex items-center">
               <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
               <div>
-                <p className="text-2xl font-bold">{totalRedCards}</p>
+                <p className="text-2xl font-bold">{isListLoading ? "—" : totalRedCards}</p>
                 <p className="text-sm text-muted-foreground">Rode Kaarten</p>
               </div>
             </div>
@@ -144,7 +163,7 @@ const KaartenPage: React.FC = () => {
             <div className="flex items-center">
               <AlertTriangle className="h-4 w-4 text-orange-500 mr-2" />
               <div>
-                <p className="text-2xl font-bold">{suspendedPlayers}</p>
+                <p className="text-2xl font-bold">{isListLoading ? "—" : suspendedPlayers}</p>
                 <p className="text-sm text-muted-foreground">Geschorst</p>
               </div>
             </div>
@@ -156,7 +175,7 @@ const KaartenPage: React.FC = () => {
             <div className="flex items-center">
               <div className="w-3 h-3 bg-muted-foreground rounded-full mr-2"></div>
               <div>
-                <p className="text-2xl font-bold">{totalYellowCards + totalRedCards}</p>
+                <p className="text-2xl font-bold">{isListLoading ? "—" : totalYellowCards + totalRedCards}</p>
                 <p className="text-sm text-muted-foreground">Totaal Kaarten</p>
               </div>
             </div>
@@ -167,7 +186,15 @@ const KaartenPage: React.FC = () => {
       {/* Cards Overview */}
       <Card>
         <CardHeader>
-          <CardTitle>Kaarten Overzicht</CardTitle>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span>Kaarten Overzicht</span>
+            {isRefreshing ? (
+              <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground" aria-live="polite">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                Vernieuwen…
+              </span>
+            ) : null}
+          </CardTitle>
           <CardDescription>
             Alle gele en rode kaarten uit wedstrijdformulieren
           </CardDescription>
@@ -232,11 +259,22 @@ const KaartenPage: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-32">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2">Kaarten laden...</span>
+          {isListLoading ? (
+            <div className="space-y-3" aria-busy="true">
+              <span className="sr-only">Kaarten laden…</span>
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
             </div>
+          ) : showError ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center" role="alert">
+              <p className="text-sm text-destructive">Kan kaarten niet laden</p>
+              <Button type="button" variant="outline" className="min-h-[44px]" onClick={() => refetch()}>
+                Opnieuw
+              </Button>
+            </div>
+          ) : showEmpty ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Geen kaarten gevonden</p>
           ) : (
             <ResponsiveCardsTable playerSummaries={filteredSummaries} />
           )}

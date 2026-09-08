@@ -569,9 +569,10 @@ const form = useForm<FormSchema>({
 
 ## 📚 Gerelateerde Documentatie
 
-- [README.md](./README.md) - Index van alle documentatie
+- [README.md](../README.md) - Index van alle documentatie
 - [ROUTING.md](./ROUTING.md) - Routing strategie
+- [AUTH_ROADMAP.md](./AUTH_ROADMAP.md) - Auth-besluit
 - [MODAL_SYSTEM_GUIDELINES.md](./MODAL_SYSTEM_GUIDELINES.md) - Modal richtlijnen
 - [DESIGN_TOKENS.md](./DESIGN_TOKENS.md) - Design systeem
-- [SUPABASE_GRANTS_CONVENTION.md](./SUPABASE_GRANTS_CONVENTION.md) - Database grants conventie
-- [EMAIL_DNS_SETUP.md](./EMAIL_DNS_SETUP.md) - E-mail DNS setup
+- [SUPABASE_GRANTS_CONVENTION.md](../infra/SUPABASE_GRANTS_CONVENTION.md) - Database grants conventie
+- [EMAIL_DNS_SETUP.md](../infra/EMAIL_DNS_SETUP.md) - E-mail DNS setup

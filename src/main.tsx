@@ -4,7 +4,6 @@ if (typeof Array.isArray === 'undefined') {
   Array.isArray = function(arg: any): arg is any[] {
     return Object.prototype.toString.call(arg) === '[object Array]';
   };
-  console.log('✅ Array.isArray polyfill loaded');
 }
 
 if (typeof Object.entries === 'undefined') {
@@ -17,7 +16,6 @@ if (typeof Object.entries === 'undefined') {
     }
     return resArray;
   };
-  console.log('✅ Object.entries polyfill loaded');
 }
 
 if (typeof Object.keys === 'undefined') {
@@ -30,10 +28,7 @@ if (typeof Object.keys === 'undefined') {
     }
     return keys;
   };
-  console.log('✅ Object.keys polyfill loaded');
 }
-
-console.log('✅ Simple polyfills loaded successfully');
 
 import React from 'react'
 import ReactDOM from 'react-dom/client'

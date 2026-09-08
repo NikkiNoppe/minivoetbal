@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { fetchTeamScheduleForSuspensions } from '@/services/core/matchesSessionFetch';
 import { useOrgQueryScope } from '@/hooks/useOrganization';
 import { withOrgQueryKey } from '@/lib/orgQueryKey';
@@ -93,7 +93,12 @@ export const useUpcomingMatches = (teamId: number | null, limit: number = 5) => 
     },
     enabled: !!teamId && orgQueryEnabled,
     staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    retry: 2,
     refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+    networkMode: 'online',
   });
 };

@@ -12,6 +12,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import MatchesFormFilter from "./MatchesFormFilter";
 import MatchesFormList from "./MatchesFormList";
 import { WedstrijdformulierModal } from "@/components/modals";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOrgQueryScope } from "@/hooks/useOrganization";
+import { prefetchMatchFormPlayers } from "@/hooks/useTeamPlayersQuery";
 
 // Simple components for loading, error, and empty states
 const TabContentSkeleton = React.memo(() => (
@@ -47,6 +50,8 @@ const AdminPlayoffMatchesPage: React.FC = () => {
     } catch (_) {}
   }, []);
   const { user, authContextReady } = useAuth();
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrgQueryScope();
   const isAdmin =
     user?.role === "admin" ||
     user?.role === "superadmin" ||
@@ -100,9 +105,10 @@ const AdminPlayoffMatchesPage: React.FC = () => {
   }, []);
 
   const handleMatchSelect = useCallback((match: MatchFormData) => {
+    void prefetchMatchFormPlayers(queryClient, match.homeTeamId, match.awayTeamId, organizationId);
     setSelectedMatch(match);
     setIsModalOpen(true);
-  }, []);
+  }, [queryClient, organizationId]);
 
   const handleModalClose = useCallback(() => {
     setIsModalOpen(false);

@@ -15,6 +15,7 @@ Overzicht van projectconfiguratie voor Cursor-agents.
 | `ui-mobile-first.mdc` | altijd | Mobiel als hoofdplatform, touch targets |
 | `ui-frontend-workflow.mdc` | **altijd** | **Skills + uniforme pagina's bij elk UI-werk** |
 | `ui-accessibility.mdc` | altijd | Focus, contrast, semantiek, reduced motion |
+| `ui-logged-in-pages.mdc` | `src/components/pages/user/**`, login | Uniforme UI voor ingelogde pagina's in publieke layout |
 | `data-snel-laden.mdc` | altijd | TanStack Query, skeletons, achtergrond-sync |
 | `ui-design-system.mdc` | `src/**/*.tsx`, thema | Kleuren/branding per org (`application_settings`) |
 | `ui-ux-principles.mdc` | `src/**/*.tsx` | Feedback, formulieren, leeg/fout-states |
@@ -121,6 +122,6 @@ RLS is defense-in-depth; de app gebruikt primair session-RPC's. `npm run test:se
 | Document / rule | Inhoud |
 |-----------------|--------|
 | [`custom-auth-architectuur.mdc`](rules/custom-auth-architectuur.mdc) | Always-apply rule voor agents |
-| [`DOCUMENTATIE/AUTH_ROADMAP.md`](../DOCUMENTATIE/AUTH_ROADMAP.md) | Menselijk leesbaar besluit + tabellen |
+| [`DOCUMENTATIE/architectuur/AUTH_ROADMAP.md`](../DOCUMENTATIE/architectuur/AUTH_ROADMAP.md) | Menselijk leesbaar besluit + tabellen |
 
 Pilot `VITE_USE_SUPABASE_AUTH` — **niet in productie; niet uitbreiden.**

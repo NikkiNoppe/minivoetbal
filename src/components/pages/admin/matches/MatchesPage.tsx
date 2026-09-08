@@ -14,6 +14,9 @@ import { useTeam } from "@/hooks/useTeams";
 import MatchesFormList from "./MatchesFormList";
 import { WedstrijdformulierModal } from "@/components/modals";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOrgQueryScope } from "@/hooks/useOrganization";
+import { prefetchMatchFormPlayers } from "@/hooks/useTeamPlayersQuery";
 
 interface MatchFormTabProps {
   teamId: number;
@@ -227,6 +230,8 @@ TabContent.displayName = 'TabContent';
 
 const MatchFormTab: React.FC<MatchFormTabProps> = ({ teamId, teamName, initialTab }) => {
   const { user, authContextReady } = useAuth();
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrgQueryScope();
   const competitionTab: MatchFormsTabType = initialTab ?? "league";
   const { profileData } = useUserProfile();
   const [selectedMatchForm, setSelectedMatchForm] = useState<MatchFormData | null>(null);
@@ -328,9 +333,10 @@ const MatchFormTab: React.FC<MatchFormTabProps> = ({ teamId, teamName, initialTa
   );
 
   const handleSelectMatch = useCallback((match: MatchFormData) => {
+    void prefetchMatchFormPlayers(queryClient, match.homeTeamId, match.awayTeamId, organizationId);
     setSelectedMatchForm(match);
     setIsDialogOpen(true);
-  }, []);
+  }, [queryClient, organizationId]);
 
   const handleDialogClose = useCallback((shouldRefresh: boolean = false) => {
     setIsDialogOpen(false);

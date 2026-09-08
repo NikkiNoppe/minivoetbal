@@ -1,37 +1,66 @@
 # Documentatie
 
-Overzicht van actieve projectdocumentatie voor Harelbeekse Minivoetbal.
+Levende referentie voor Harelbeekse Minivoetbal (en het multi-tenant platform).  
+Niets in deze boom is weggegooid: oude handleidingen (md/pdf) staan naast de Word-versies.
 
 ## Architectuur & code
 
 | Document | Beschrijving |
 |----------|--------------|
-| [ARCHITECTURE_MAP.md](./ARCHITECTURE_MAP.md) | Overzicht van pagina's, modals, services, edge functions en database |
-| [ROUTING.md](./ROUTING.md) | URL-structuur en route-bescherming |
-| [MODAL_SYSTEM_GUIDELINES.md](./MODAL_SYSTEM_GUIDELINES.md) | Richtlijnen voor het modal-systeem (`AppModal` / `ModalContext`) |
-| [DESIGN_TOKENS.md](./DESIGN_TOKENS.md) | Kleuren, spacing en typografie tokens |
+| [architectuur/ARCHITECTURE_MAP.md](./architectuur/ARCHITECTURE_MAP.md) | Pagina's, modals, services, edge functions en database |
+| [architectuur/ROUTING.md](./architectuur/ROUTING.md) | URL-structuur en route-bescherming |
+| [architectuur/AUTH_ROADMAP.md](./architectuur/AUTH_ROADMAP.md) | Auth-besluit: custom sessies, geen Supabase Auth-migratie |
+| [architectuur/MODAL_SYSTEM_GUIDELINES.md](./architectuur/MODAL_SYSTEM_GUIDELINES.md) | Modal-systeem (`AppModal` / `ModalContext`) |
+| [architectuur/DESIGN_TOKENS.md](./architectuur/DESIGN_TOKENS.md) | Kleuren, spacing en typografie tokens |
 
-## Supabase & infra
+Zie ook `design-system/MASTER.md` (Cursor UI-workflow) en `src/domains/README.md` (domein-facades).
 
-| Document | Beschrijving |
-|----------|--------------|
-| [SUPABASE_GRANTS_CONVENTION.md](./SUPABASE_GRANTS_CONVENTION.md) | Conventie voor GRANT + RLS in nieuwe migraties |
-| [EMAIL_DNS_SETUP.md](./EMAIL_DNS_SETUP.md) | DNS/ImprovMX/Resend setup voor `info@harelbekeminivoetbal.be` |
-
-## Gebruikers
+## Infra
 
 | Document | Beschrijving |
 |----------|--------------|
-| [HANDLEIDING_TEAMMANAGER.md](./HANDLEIDING_TEAMMANAGER.md) | Stap-voor-stap voor teamverantwoordelijken: wachtwoord, inloggen, spelers toevoegen |
-| [HANDLEIDING_TEAMMANAGER.docx](./HANDLEIDING_TEAMMANAGER.docx) | Word-versie van de teamverantwoordelijke-handleiding |
-| [HANDLEIDING_TEAMMANAGER.pdf](./HANDLEIDING_TEAMMANAGER.pdf) | PDF-versie van de teamverantwoordelijke-handleiding |
-| [HANDLEIDING_SCHEIDSRECHTER.md](./HANDLEIDING_SCHEIDSRECHTER.md) | Wedstrijdformulier voor scheidsrechters: controle spelers, score, kaarten, boetes |
-| [HANDLEIDING_SCHEIDSRECHTER.docx](./HANDLEIDING_SCHEIDSRECHTER.docx) | Word-versie scheidsrechter-handleiding |
-| [HANDLEIDING_SCHEIDSRECHTER.pdf](./HANDLEIDING_SCHEIDSRECHTER.pdf) | PDF-versie scheidsrechter-handleiding |
-| [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.md](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.md) | Wedstrijdformulier voor teamverantwoordelijken: spelers invullen vóór wedstrijd |
-| [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.docx](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.docx) | Word-versie wedstrijdformulier teamverantwoordelijke |
-| [HANDLEIDING_TEAMMANAGER_WEDSTRIJD.pdf](./HANDLEIDING_TEAMMANAGER_WEDSTRIJD.pdf) | PDF-versie wedstrijdformulier teamverantwoordelijke |
+| [infra/SUPABASE_GRANTS_CONVENTION.md](./infra/SUPABASE_GRANTS_CONVENTION.md) | GRANT + RLS in nieuwe migraties |
+| [infra/EMAIL_DNS_SETUP.md](./infra/EMAIL_DNS_SETUP.md) | DNS / ImprovMX / Resend voor `info@harelbekeminivoetbal.be` |
 
-## Onderhoud
+## Handleidingen (gebruikers)
 
-Eenmalige audit- en migratierapporten zijn verwijderd zodra de werkzaamheden afgerond waren. Houd deze map beperkt tot levende referentiedocumentatie.
+Bronnen: Markdown + PDF + Word. Screenshots in `handleidingen/assets/`.
+
+| Document | Beschrijving |
+|----------|--------------|
+| [handleidingen/HANDLEIDING_TEAMMANAGER.md](./handleidingen/HANDLEIDING_TEAMMANAGER.md) | Teamverantwoordelijke: wachtwoord, inloggen, spelers |
+| [handleidingen/HANDLEIDING_TEAMVERANTWOORDELIJKE.docx](./handleidingen/HANDLEIDING_TEAMVERANTWOORDELIJKE.docx) | Zelfde gids als Word |
+| [handleidingen/HANDLEIDING_TEAMMANAGER_WEDSTRIJD.md](./handleidingen/HANDLEIDING_TEAMMANAGER_WEDSTRIJD.md) | Wedstrijdformulier (teamverantwoordelijke) |
+| [handleidingen/HANDLEIDING_SCHEIDSRECHTER.md](./handleidingen/HANDLEIDING_SCHEIDSRECHTER.md) | Wedstrijdformulier (scheidsrechter) |
+
+## Audits
+
+| Document | Beschrijving |
+|----------|--------------|
+| [audits/MOBILE_UI_AUDIT.docx](./audits/MOBILE_UI_AUDIT.docx) | Mobiele screenshots + route-overzicht |
+| [audits/mobile-ui-audit/](./audits/mobile-ui-audit/) | PNG's + `build_audit_docx.py` om de Word-file te herbouwen |
+
+## Bronbestanden (niet voor de website)
+
+| Map | Inhoud |
+|-----|--------|
+| [bronnen/harelbeke-logo/](./bronnen/harelbeke-logo/) | Illustrator-bron (`Logo.ai`) en export-slices. Productielogo's staan in `public/images/logos/`. |
+
+---
+
+## Repo-kaart (mappen)
+
+Applicatiecode is **niet** verplaatst: imports en `src/domains/`-facades blijven zoals ze zijn.
+
+| Map | Rol |
+|-----|-----|
+| `src/` | React-app: `pages/` = route-shells, `components/pages/` = schermen, `services/` + `hooks/` = data, `domains/` = barrel re-exports |
+| `public/` | Statische site-assets. `images/logos` + `images/icons` = productie; `images/AppIcons` = bron voor PWA/native iconen |
+| `supabase/` | `migrations/` (niet herordenen) + `functions/` |
+| `scripts/` | npm-scripts in de root van deze map; eenmalige Kuurne-helpers in `scripts/kuurne/` |
+| `design-system/` | UI-tokens voor Cursor-skills |
+| `archief/` | Lokale seizoens-JSON (gitignored, alleen `.gitkeep`) |
+| `.cursor/` | Rules, skills, hooks voor agents |
+| `DOCUMENTATIE/` | Deze map |
+
+Eenmalige audit- en migratierapporten horen hier niet tenzij ze nog als referentie dienen.

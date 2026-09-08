@@ -1,8 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getRpcSessionArgs } from "@/lib/authSession";
+import { useOrgQueryScope } from "@/hooks/useOrganization";
+import { withOrgQueryKey } from "@/lib/orgQueryKey";
+import { MAX_LOADING_TIME } from "@/hooks/useMinLoadingGate";
 
 export interface TeamPlayer {
   player_id: number;
@@ -12,14 +15,14 @@ export interface TeamPlayer {
   is_eligible?: boolean;
 }
 
-// Centralized Query Keys
 export const teamPlayerQueryKeys = {
   all: ['teamPlayers'] as const,
   lists: () => [...teamPlayerQueryKeys.all, 'list'] as const,
   list: (teamId: number) => [...teamPlayerQueryKeys.lists(), teamId] as const,
+  eligibility: (teamId: number, matchDateKey: string) =>
+    [...teamPlayerQueryKeys.all, 'eligibility', teamId, matchDateKey] as const,
 };
 
-// Helper to get user ID from localStorage
 const getUserIdFromStorage = (): number | null => {
   try {
     const authDataString = localStorage.getItem('auth_data');
@@ -31,35 +34,58 @@ const getUserIdFromStorage = (): number | null => {
   }
 };
 
-// Fetch function using SECURITY DEFINER RPC
-const fetchTeamPlayers = async (teamId: number): Promise<TeamPlayer[]> => {
+export const fetchTeamPlayers = async (teamId: number): Promise<TeamPlayer[]> => {
   const userId = getUserIdFromStorage();
-  
+
   if (!userId) {
     console.error('❌ No user ID found for team player fetch');
     return [];
   }
-  
+
   if (process.env.NODE_ENV === 'development') {
     console.log(`🔍 fetchTeamPlayers via RPC for teamId: ${teamId}, userId: ${userId}`);
   }
-  
+
   const { data, error } = await supabase.rpc('get_players_for_session', {
     ...getRpcSessionArgs(),
     p_team_id: teamId
   });
-  
+
   if (error) {
     console.error(`❌ Error fetching team players via RPC for team ${teamId}:`, error);
     throw error;
   }
-  
+
   if (process.env.NODE_ENV === 'development') {
     console.log(`✅ Fetched ${data?.length || 0} players for team ${teamId} via RPC`);
   }
-  
+
   return (data || []) as TeamPlayer[];
 };
+
+export function prefetchTeamPlayers(
+  queryClient: QueryClient,
+  teamId: number,
+  organizationId: number | undefined,
+) {
+  if (!teamId || teamId <= 0) return Promise.resolve();
+  return queryClient.prefetchQuery({
+    queryKey: withOrgQueryKey(teamPlayerQueryKeys.list(teamId), organizationId),
+    queryFn: () => fetchTeamPlayers(teamId),
+  });
+}
+
+export function prefetchMatchFormPlayers(
+  queryClient: QueryClient,
+  homeTeamId: number,
+  awayTeamId: number,
+  organizationId: number | undefined,
+) {
+  return Promise.all([
+    prefetchTeamPlayers(queryClient, homeTeamId, organizationId),
+    prefetchTeamPlayers(queryClient, awayTeamId, organizationId),
+  ]);
+}
 
 /**
  * Hook for fetching team players using React Query
@@ -67,53 +93,45 @@ const fetchTeamPlayers = async (teamId: number): Promise<TeamPlayer[]> => {
  */
 export const useTeamPlayersQuery = (teamId: number | null) => {
   const { user, authContextReady } = useAuth();
-  
-  // Determine if we should fetch
-  const shouldFetch = !!user && authContextReady && teamId !== null && teamId > 0;
-  
-  // Create a stable query key
-  const queryKey = useMemo(() => {
-    return teamPlayerQueryKeys.list(teamId!);
-  }, [teamId]);
-  
+  const { organizationId, orgQueryEnabled } = useOrgQueryScope();
+
+  const shouldFetch =
+    !!user && authContextReady && orgQueryEnabled && teamId !== null && teamId > 0;
+
+  const queryKey = useMemo(
+    () => withOrgQueryKey(teamPlayerQueryKeys.list(teamId ?? 0), organizationId),
+    [teamId, organizationId],
+  );
+
   return useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
       if (teamId === null || teamId <= 0) {
         return [];
       }
-      
-      // Create timeout for slow connections (15 seconds)
+
       const timeoutPromise = new Promise<never>((_, reject) => {
         const timeoutId = setTimeout(() => {
           reject(new Error('Request timeout - slow connection'));
-        }, 15000);
-        
+        }, MAX_LOADING_TIME);
+
         signal?.addEventListener('abort', () => clearTimeout(timeoutId));
       });
-      
-      const result = await Promise.race([
+
+      return Promise.race([
         fetchTeamPlayers(teamId),
         timeoutPromise
       ]);
-      
-      return result;
     },
     enabled: shouldFetch,
     staleTime: 0,
     gcTime: 10 * 60 * 1000,
-    retry: 4,
-    retryDelay: (attemptIndex) => {
-      // Exponential backoff with jitter: 1.5s, 3s, 6s, 10s (max)
-      const baseDelay = Math.min(1500 * Math.pow(2, attemptIndex), 10000);
-      const jitter = Math.random() * 500;
-      return baseDelay + jitter;
-    },
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     refetchInterval: false,
-    placeholderData: (previousData) => previousData,
     networkMode: "online",
   });
 };
@@ -123,7 +141,7 @@ export const useTeamPlayersQuery = (teamId: number | null) => {
  */
 export const useInvalidateTeamPlayers = () => {
   const queryClient = useQueryClient();
-  
+
   return {
     invalidateTeam: (teamId: number) => {
       if (process.env.NODE_ENV === 'development') {

@@ -1,26 +1,51 @@
 
-import React, { memo, useMemo } from "react";
+import React, { Suspense, memo, useMemo, type ComponentType } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTabVisibility, TabName } from "@/context/TabVisibilityContext";
+import { lazyImport } from "@/utils/lazyImport";
 import AlgemeenPage from "./public/information/AlgemeenPage";
-import CompetitiePage from "./public/competition/CompetitiePage";
-import PlayOffPage from "./public/competition/PlayOffPage";
-import PublicBekerPage from "./public/competition/PublicBekerPage";
 
-import KaartenPage from "./public/information/KaartenPage";
-import ReglementPage from "./public/information/ReglementPage";
-import ScheidsrechtersPage from "./admin/scheidsrechter/ScheidsrechtersPage";
-import ArchiefPage from "./public/archive/ArchiefPage";
+const CompetitiePage = lazyImport(() => import("./public/competition/CompetitiePage"));
+const PlayOffPage = lazyImport(() => import("./public/competition/PlayOffPage"));
+const PublicBekerPage = lazyImport(() => import("./public/competition/PublicBekerPage"));
+const KaartenPage = lazyImport(() => import("./public/information/KaartenPage"));
+const ReglementPage = lazyImport(() => import("./public/information/ReglementPage"));
+const ScheidsrechtersPage = lazyImport(() => import("./admin/scheidsrechter/ScheidsrechtersPage"));
+const ArchiefPage = lazyImport(() => import("./public/archive/ArchiefPage"));
 
 interface MainPagesProps {
   activeTab: TabName;
   setActiveTab: (tab: TabName) => void;
 }
 
-// Loading skeleton for tab content
+const MAIN_PAGE_TABS = [
+  "algemeen",
+  "beker",
+  "competitie",
+  "playoff",
+  "kaarten",
+  "reglement",
+  "scheidsrechters",
+  "archief",
+] as const;
+
+type MainPageTab = (typeof MAIN_PAGE_TABS)[number];
+
+const PAGE_BY_TAB: Record<MainPageTab, ComponentType> = {
+  algemeen: AlgemeenPage,
+  beker: PublicBekerPage,
+  competitie: CompetitiePage,
+  playoff: PlayOffPage,
+  kaarten: KaartenPage,
+  reglement: ReglementPage,
+  scheidsrechters: ScheidsrechtersPage,
+  archief: ArchiefPage,
+};
+
 const TabContentSkeleton = memo(() => (
-  <div className="space-y-6">
+  <div className="space-y-6" aria-busy="true">
+    <span className="sr-only">Laden…</span>
     <div className="flex justify-between items-center">
       <Skeleton className="h-8 w-48" />
       <Skeleton className="h-10 w-24" />
@@ -37,130 +62,29 @@ const TabContentSkeleton = memo(() => (
   </div>
 ));
 
-TabContentSkeleton.displayName = 'TabContentSkeleton';
+TabContentSkeleton.displayName = "TabContentSkeleton";
 
-// Memoized tab content components
-const MemoizedAlgemeenPage = memo(AlgemeenPage);
-const MemoizedCompetitiePage = memo(CompetitiePage);
-const MemoizedPlayOffPage = memo(PlayOffPage);
-const MemoizedBekerPage = memo(PublicBekerPage);
-
-const MemoizedKaartenPage = memo(KaartenPage);
-const MemoizedReglementPage = memo(ReglementPage);
-const MemoizedScheidsrechtersPage = memo(ScheidsrechtersPage);
-const MemoizedArchiefPage = memo(ArchiefPage);
-
-MemoizedAlgemeenPage.displayName = 'MemoizedAlgemeenPage';
-MemoizedCompetitiePage.displayName = 'MemoizedCompetitiePage';
-MemoizedPlayOffPage.displayName = 'MemoizedPlayOffPage';
-MemoizedBekerPage.displayName = 'MemoizedBekerPage';
-
-MemoizedKaartenPage.displayName = 'MemoizedKaartenPage';
-MemoizedReglementPage.displayName = 'MemoizedReglementPage';
-MemoizedScheidsrechtersPage.displayName = 'MemoizedScheidsrechtersPage';
-
-// Tab content wrapper with animation
 const TabContentWrapper = memo(({ children }: { children: React.ReactNode }) => (
-  <div className="animate-fade-in">
-    {children}
-  </div>
+  <div className="animate-fade-in">{children}</div>
 ));
 
-TabContentWrapper.displayName = 'TabContentWrapper';
+TabContentWrapper.displayName = "TabContentWrapper";
 
 const MainPages: React.FC<MainPagesProps> = ({ activeTab, setActiveTab }) => {
   const { isTabVisible, loading } = useTabVisibility();
 
-  // Memoize tab content components to prevent unnecessary re-renders
-  const tabContents = useMemo(() => ({
-    algemeen: isTabVisible("algemeen") && (
-      <TabsContent value="algemeen" className="mt-0" key="algemeen">
-        <TabContentWrapper>
-          <MemoizedAlgemeenPage />
-        </TabContentWrapper>
-      </TabsContent>
-    ),
-    
-    beker: isTabVisible("beker") && (
-      <TabsContent value="beker" className="mt-0" key="beker">
-        <TabContentWrapper>
-          <MemoizedBekerPage />
-        </TabContentWrapper>
-      </TabsContent>
-    ),
-    
-    competitie: isTabVisible("competitie") && (
-      <TabsContent value="competitie" className="mt-0" key="competitie">
-        <TabContentWrapper>
-          <MemoizedCompetitiePage />
-        </TabContentWrapper>
-      </TabsContent>
-    ),
-    
-    playoff: isTabVisible("playoff") && (
-      <TabsContent value="playoff" className="mt-0" key="playoff">
-        <TabContentWrapper>
-          <MemoizedPlayOffPage />
-        </TabContentWrapper>
-      </TabsContent>
-    ),
-    
-    reglement: isTabVisible("reglement") && (
-      <TabsContent value="reglement" className="mt-0" key="reglement">
-        <TabContentWrapper>
-          <MemoizedReglementPage />
-        </TabContentWrapper>
-      </TabsContent>
-    ),
-    
-    
-    kaarten: isTabVisible("kaarten") && (
-      <TabsContent value="kaarten" className="mt-0" key="kaarten">
-        <TabContentWrapper>
-          <MemoizedKaartenPage />
-        </TabContentWrapper>
-      </TabsContent>
-    ),
-    
-    scheidsrechters: isTabVisible("scheidsrechters") && (
-      <TabsContent value="scheidsrechters" className="mt-0" key="scheidsrechters">
-        <TabContentWrapper>
-          <MemoizedScheidsrechtersPage />
-        </TabContentWrapper>
-      </TabsContent>
-    ),
+  const visibleKeys = useMemo(
+    () => MAIN_PAGE_TABS.filter((key) => isTabVisible(key)),
+    [isTabVisible],
+  );
 
-    archief: isTabVisible("archief") && (
-      <TabsContent value="archief" className="mt-0" key="archief">
-        <TabContentWrapper>
-          <MemoizedArchiefPage />
-        </TabContentWrapper>
-      </TabsContent>
-    )
-  }), [isTabVisible]);
-
-  // Determine which tabs are available right now
-  const visibleKeys = useMemo(() => {
-    return (
-      [
-        'algemeen',
-        'beker',
-        'competitie',
-        'playoff',
-        'kaarten',
-        'reglement',
-        'scheidsrechters',
-        'archief',
-      ] as const
-    ).filter((key) => Boolean((tabContents as any)[key]));
-  }, [tabContents]);
-
-  // Ensure the active tab is always a visible/available tab to avoid runtime issues
-  const currentValue = useMemo(() => {
-    return visibleKeys.includes(activeTab as any) ? activeTab : (visibleKeys[0] ?? 'algemeen');
+  const currentValue = useMemo((): MainPageTab => {
+    if (visibleKeys.includes(activeTab as MainPageTab)) {
+      return activeTab as MainPageTab;
+    }
+    return visibleKeys[0] ?? "algemeen";
   }, [activeTab, visibleKeys]);
 
-  // Show loading state while fetching settings
   if (loading) {
     return (
       <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
@@ -179,22 +103,23 @@ const MainPages: React.FC<MainPagesProps> = ({ activeTab, setActiveTab }) => {
     );
   }
 
+  const ActivePage = PAGE_BY_TAB[currentValue];
+
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <div className="max-w-7xl mx-auto">
-        <Tabs 
-          value={currentValue} 
-          onValueChange={(value) => setActiveTab(value as TabName)} 
+        <Tabs
+          value={currentValue}
+          onValueChange={(value) => setActiveTab(value as TabName)}
           className="w-full"
         >
-          {tabContents.algemeen}
-          {tabContents.beker}
-          {tabContents.competitie}
-          {tabContents.playoff}
-          {tabContents.kaarten}
-          {tabContents.reglement}
-          {tabContents.scheidsrechters}
-          {tabContents.archief}
+          <TabsContent value={currentValue} className="mt-0">
+            <Suspense fallback={<TabContentSkeleton />}>
+              <TabContentWrapper>
+                <ActivePage />
+              </TabContentWrapper>
+            </Suspense>
+          </TabsContent>
         </Tabs>
       </div>
     </div>

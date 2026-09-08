@@ -150,19 +150,15 @@ export const usePlayersQuery = (teamId: number | null = null) => {
       return [];
     },
     enabled: shouldFetch,
-    staleTime: 2 * 60 * 1000, // 2 minutes - matches blog/competition caching
-    gcTime: 10 * 60 * 1000, // 10 minutes cache
-    retry: 4,
-    retryDelay: (attemptIndex) => {
-      // Exponential backoff with jitter, max 10 seconds
-      const baseDelay = 1500 * Math.pow(2, attemptIndex);
-      const jitter = Math.random() * 500;
-      return Math.min(baseDelay + jitter, 10000);
-    },
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
     refetchInterval: false,
-    networkMode: 'offlineFirst',
+    networkMode: "online",
   });
 };
 

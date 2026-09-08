@@ -36,7 +36,6 @@ import {
 import { parseBrandingSettings } from '@/types/branding';
 import { SuperAdminOrgEditor } from '@/components/pages/superadmin/org-hub/SuperAdminOrgEditor';
 import { OrgHubAvatar } from '@/components/pages/superadmin/org-hub/OrgHubAvatar';
-import { CloseSeasonCard } from '@/components/pages/superadmin/org-hub/CloseSeasonCard';
 import { useSuperAdminOrgHubThemePreview } from '@/hooks/useSuperAdminOrgHubThemePreview';
 import { cn } from '@/lib/utils';
 
@@ -406,15 +405,6 @@ export const SuperAdminOrgHubPage: React.FC<{ embedded?: boolean }> = ({
                 }}
                 onSave={() => handleSave(selectedForm, selectedOrgId === 'new')}
               />
-              {typeof selectedOrgId === 'number' ? (
-                <CloseSeasonCard
-                  organizationId={selectedOrgId}
-                  organizationName={
-                    selectedBranding?.displayName || selectedForm.displayName || 'Organisatie'
-                  }
-                  enabled={actingOrg?.organizationId === selectedOrgId}
-                />
-              ) : null}
             </>
           ) : (
             <Card className={SIDEBAR_CARD_CLASS}>

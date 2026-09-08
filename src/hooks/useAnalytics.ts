@@ -8,18 +8,13 @@ interface AnalyticsEvent {
 }
 
 export const useAnalytics = () => {
-  const trackEvent = useCallback((event: AnalyticsEvent) => {
-    // In production, send to analytics service like Google Analytics
-    if (process.env.NODE_ENV === 'production') {
-      // Example: gtag('event', event.action, {
-      //   event_category: event.category,
-      //   event_label: event.label,
-      //   value: event.value,
-      // });
-      console.log('Analytics Event:', event);
-    } else {
-      console.log('Analytics Event (Development):', event);
-    }
+  const trackEvent = useCallback((_event: AnalyticsEvent) => {
+    // Ready for gtag when analytics is wired:
+    // gtag('event', event.action, {
+    //   event_category: event.category,
+    //   event_label: event.label,
+    //   value: event.value,
+    // });
   }, []);
 
   const trackPageView = useCallback((page: string) => {

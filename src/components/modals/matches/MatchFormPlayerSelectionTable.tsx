@@ -18,6 +18,7 @@ export interface MatchFormPlayerSelectionTableProps {
   isHomeTeam: boolean;
   players: TeamPlayer[] | undefined;
   isLoading: boolean;
+  isRefreshing?: boolean;
   error: unknown;
   retryCount?: number;
   refetch?: () => Promise<void>;
@@ -42,6 +43,7 @@ export function MatchFormPlayerSelectionTable({
   isHomeTeam,
   players,
   isLoading,
+  isRefreshing = false,
   error,
   retryCount,
   refetch,
@@ -233,6 +235,12 @@ export function MatchFormPlayerSelectionTable({
 
   return (
     <div>
+      {isRefreshing && (
+        <div className="mb-2 flex items-center justify-end gap-1 text-xs text-muted-foreground" aria-live="polite">
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+          Vernieuwen…
+        </div>
+      )}
       {refetch && (
         <PlayerDataRefreshModal
           players={memoizedPlayers}

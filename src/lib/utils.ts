@@ -3,7 +3,6 @@ if (typeof Array.isArray === 'undefined') {
   Array.isArray = function(arg: any): arg is any[] {
     return Object.prototype.toString.call(arg) === '[object Array]';
   };
-  console.log('✅ Array.isArray polyfill loaded in utils.ts');
 }
 
 // Safe Array.isArray check - no external imports

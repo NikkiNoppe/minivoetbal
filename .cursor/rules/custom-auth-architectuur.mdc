@@ -22,7 +22,7 @@ Dit project gebruikt **permanent custom session auth**. **Geen migratie naar Sup
 
 **Herzien alleen als** expliciet besloten: verplichte MFA, SSO, of volledige self-service user management via Supabase Dashboard → dan **één** migratieproject tot JWT+RLS klaar is (niet incrementeel bridge-model).
 
-Referentie: [`DOCUMENTATIE/AUTH_ROADMAP.md`](../../DOCUMENTATIE/AUTH_ROADMAP.md)
+Referentie: [`DOCUMENTATIE/architectuur/AUTH_ROADMAP.md`](../../DOCUMENTATIE/architectuur/AUTH_ROADMAP.md)
 
 ---
 

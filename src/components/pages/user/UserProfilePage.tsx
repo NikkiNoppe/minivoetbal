@@ -20,7 +20,8 @@ import {
 import { PageHeader, PublicPage, PublicSectionHeading, PUBLIC_CARD_CLASS, SectionCollapsibleCard, ProfileSectionsAccordion, SECTION_COLLAPSIBLE_NESTED_TRIGGER, useProfileAccordionItem } from "@/components/layout";
 import { FilterSelect } from "@/components/ui/filter-select";
 import { useOrganizationContent } from "@/hooks/useOrganizationContent";
-import { useOrganization } from "@/hooks/useOrganization";
+import { useOrganization, useOrgQueryScope } from "@/hooks/useOrganization";
+import { prefetchMatchFormPlayers } from "@/hooks/useTeamPlayersQuery";
 import { getOrganizationFeatures } from "@/config/organizationFeatures";
 import { useMinLoadingGate } from "@/hooks/useMinLoadingGate";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -1293,7 +1294,7 @@ const RefereeUpcomingMatches: React.FC<{
     />
   );
 
-  const matchesContent = matchesLoading ? (
+  const matchesContent = matchesLoading && !refereeMatches ? (
     <div className="space-y-3" aria-busy="true">
       <Skeleton className="h-32 w-full" />
       <Skeleton className="h-32 w-full" />
@@ -1500,6 +1501,7 @@ ProfileRefereeMatchFormsCard.displayName = 'ProfileRefereeMatchFormsCard';
 const UserProfilePage: React.FC = () => {
   const { user: authUser } = useAuth();
   const { organizationSlug } = useOrganization();
+  const { organizationId } = useOrgQueryScope();
   const { profileFinancial: showProfileFinancial } = getOrganizationFeatures(organizationSlug);
   const { profileData, isLoading, error } = useUserProfile();
   const navigate = useNavigate();
@@ -1562,9 +1564,10 @@ const UserProfilePage: React.FC = () => {
   
   // Handle match selection
   const handleSelectMatch = useCallback((match: MatchFormData) => {
+    void prefetchMatchFormPlayers(queryClient, match.homeTeamId, match.awayTeamId, organizationId);
     setSelectedMatchForm(match);
     setIsDialogOpen(true);
-  }, []);
+  }, [queryClient, organizationId]);
   
   // Handle dialog close
   const handleDialogClose = useCallback((shouldRefresh: boolean = false) => {
@@ -1631,7 +1634,7 @@ const UserProfilePage: React.FC = () => {
               icon={Calendar}
               accordionValue="next-match"
             >
-              {matchesLoading ? (
+              {matchesLoading && !upcomingMatches ? (
                 <div className="space-y-3" aria-busy="true">
                   <Skeleton className="h-24 w-full rounded-lg" />
                   <span className="sr-only">Komende wedstrijd laden…</span>

@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ImageIcon, Loader2, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,10 @@ interface OrgHubAssetUploadFieldProps {
   organizationId: number;
   assetType: OrganizationBrandingAssetType;
   accept: string;
-  previewClassName?: string;
+  /** Donker vlak voor witte logo-varianten (zoals in de header). */
+  previewTone?: 'light' | 'dark';
+  /** Compact vierkant voor icoon/favicon i.p.v. een lege brede balk. */
+  previewSize?: 'wide' | 'icon';
 }
 
 export function OrgHubAssetUploadField({
@@ -29,7 +32,8 @@ export function OrgHubAssetUploadField({
   organizationId,
   assetType,
   accept,
-  previewClassName,
+  previewTone = 'light',
+  previewSize = 'wide',
 }: OrgHubAssetUploadFieldProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +41,14 @@ export function OrgHubAssetUploadField({
   const [uploading, setUploading] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
 
-  const hasPreview = Boolean(value.trim()) && !previewFailed;
+  const trimmed = value.trim();
+  const hasPreview = Boolean(trimmed) && !previewFailed;
+  const isIcon = previewSize === 'icon';
+  const isDark = previewTone === 'dark';
+
+  useEffect(() => {
+    setPreviewFailed(false);
+  }, [trimmed]);
 
   const handleUpload = async (file: File | null | undefined) => {
     if (!file) return;
@@ -80,15 +91,31 @@ export function OrgHubAssetUploadField({
 
       {hasPreview ? (
         <div className="rounded-lg border border-primary/15 bg-background/80 p-3 sm:p-4 space-y-3">
-          <div className="flex min-h-[88px] items-center justify-center rounded-md border border-dashed border-brand-300/50 bg-brand-100 p-3">
+          <div
+            className={cn(
+              'flex items-center justify-center rounded-md border border-dashed p-3',
+              isIcon ? 'h-24 w-24 mx-auto' : 'min-h-[96px] w-full',
+              isDark
+                ? 'border-white/20 bg-brand-600'
+                : 'border-primary/20 bg-white',
+            )}
+          >
             <img
-              src={value}
-              alt=""
-              className={cn('max-h-20 w-auto max-w-full object-contain', previewClassName)}
+              src={trimmed}
+              alt={`Voorbeeld: ${label}`}
+              className={cn(
+                'object-contain',
+                isIcon
+                  ? 'h-16 w-16 [image-rendering:pixelated] sm:[image-rendering:auto]'
+                  : 'max-h-16 w-auto max-w-full',
+              )}
               onError={() => setPreviewFailed(true)}
             />
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <p className="truncate text-center text-[11px] font-mono text-muted-foreground" title={trimmed}>
+            {trimmed}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button
               type="button"
               variant="outline"
@@ -126,21 +153,30 @@ export function OrgHubAssetUploadField({
           disabled={uploading}
           onClick={() => inputRef.current?.click()}
           className={cn(
-            'flex min-h-[120px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-brand-300/50',
-            'bg-brand-100 px-4 py-6 text-center transition-colors',
-            'hover:bg-brand-200/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+            'flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-primary/25',
+            'bg-muted/40 px-4 py-6 text-center transition-colors',
+            isIcon ? 'min-h-[120px]' : 'min-h-[120px]',
+            'hover:bg-muted/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
             uploading && 'opacity-70 cursor-wait',
           )}
         >
           {uploading ? (
             <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           ) : (
-            <ImageIcon className="h-8 w-8 text-primary/70" aria-hidden />
+            <ImageIcon className="h-8 w-8 text-muted-foreground" aria-hidden />
           )}
           <span className="text-sm font-medium text-brand-dark">
             {uploading ? 'Uploaden…' : `${label} uploaden`}
           </span>
-          <span className="text-xs text-muted-foreground">PNG, JPG, WEBP, SVG of ICO · max. 5 MB</span>
+          {trimmed && previewFailed ? (
+            <span className="max-w-full truncate px-2 text-xs text-destructive">
+              Voorbeeld kon niet geladen worden
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              PNG, JPG, WEBP, SVG of ICO · max. 5 MB
+            </span>
+          )}
         </button>
       )}
 

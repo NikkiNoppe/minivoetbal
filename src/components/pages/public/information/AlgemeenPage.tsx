@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, Home} from "lucide-react";
-import { BlogPost } from "@/services";
+import type { BlogPost } from "@/services/blogService";
 import { formatDateShort } from "@/lib/dateUtils";
 import { useBlogPosts } from "@/hooks/useBlogPosts";
 import { useOrganizationContent } from "@/hooks/useOrganizationContent";

@@ -102,7 +102,9 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
   const {
     suspensions,
     playerCards,
-    isLoading,
+    suspensionsLoading,
+    playerCardsLoading,
+    isRefreshing,
     playerCardsError,
     suspensionsError,
     refetchPlayerCards,
@@ -186,7 +188,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
             }
           />
 
-          {isLoading ? (
+          {suspensionsLoading ? (
             <ActiveSuspensionsSkeleton />
           ) : activeSuspensions.length > 0 ? (
             <div className="overflow-hidden rounded-md border border-destructive/30 bg-destructive/5">
@@ -231,7 +233,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
           )}
         </section>
 
-        {(teamPlayerCards.length > 0 || isLoading) && (
+        {(teamPlayerCards.length > 0 || playerCardsLoading) && (
           <section
             aria-labelledby="profile-team-cards-heading"
             className={PROFILE_INSET_SECTION_MUTED}
@@ -240,7 +242,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
               id="profile-team-cards-heading"
               label="Kaarten per speler"
               trailing={
-                !isLoading && teamPlayerCards.length > 0 ? (
+                !playerCardsLoading && teamPlayerCards.length > 0 ? (
                   <span className="text-[11px] tabular-nums text-muted-foreground">
                     {teamPlayerCards.length}
                   </span>
@@ -252,7 +254,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
               playerCards={teamPlayerCards}
               suspensions={teamSuspensions}
               showTeam={false}
-              isLoading={isLoading}
+              isLoading={playerCardsLoading}
               compact
               variant="profile"
             />
@@ -270,9 +272,9 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
       size="sm"
       onClick={handleRefresh}
       className="min-h-[44px] w-full sm:w-auto"
-      disabled={isLoading}
+      disabled={isRefreshing}
     >
-      <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} aria-hidden />
+      <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} aria-hidden />
       Vernieuwen
     </Button>
   );
@@ -301,7 +303,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
               </CardDescription>
             </CardHeader>
             <CardContent className="p-3 bg-transparent">
-              {teamSuspensions.length === 0 && !isLoading ? (
+              {teamSuspensions.length === 0 && !suspensionsLoading ? (
                 <div className="text-center py-12 px-4">
                   <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Shield className="h-8 w-8 text-green-600 dark:text-green-400" aria-hidden />
@@ -316,7 +318,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
                   suspensions={teamSuspensions}
                   showTeam={false}
                   showActions={false}
-                  isLoading={isLoading}
+                  isLoading={suspensionsLoading}
                 />
               )}
             </CardContent>
@@ -335,7 +337,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
               </CardDescription>
             </CardHeader>
             <CardContent className="p-3 bg-transparent">
-              {teamPlayerCards.length === 0 && !isLoading ? (
+              {teamPlayerCards.length === 0 && !playerCardsLoading ? (
                 <div className="text-center py-12 px-4">
                   <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" aria-hidden />
@@ -350,7 +352,7 @@ export const TeamManagerSchorsingenPanel = memo(function TeamManagerSchorsingenP
                   playerCards={teamPlayerCards}
                   suspensions={teamSuspensions}
                   showTeam={false}
-                  isLoading={isLoading}
+                  isLoading={playerCardsLoading}
                   compact
                 />
               )}
