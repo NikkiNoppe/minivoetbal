@@ -83,60 +83,71 @@ function TeamMobileCard({ team, isAdmin, onEdit, onDelete }: TeamMobileCardProps
   const hasContactInfo = team.contact_person || team.contact_phone || team.contact_email;
 
   return (
-    <div className="flex items-start gap-3 px-3 py-3 min-h-[44px]">
-      <TeamTrophyAvatar clubColors={team.club_colors} />
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="truncate text-sm font-semibold text-brand-dark">{team.team_name}</p>
-        {colorName ? (
-          <Badge variant="outline" className="bg-brand-50 text-xs">
-            {colorName}
-          </Badge>
-        ) : null}
-        {hasContactInfo ? (
-          <div className="space-y-0.5 pt-0.5">
-            {team.contact_person ? (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-                <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                {team.contact_person}
-              </p>
-            ) : null}
-            {team.contact_phone ? (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-                <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                {team.contact_phone}
-              </p>
-            ) : null}
-            {team.contact_email ? (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground truncate">
-                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                {team.contact_email}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Geen contactgegevens</p>
-        )}
-      </div>
-      {isAdmin ? (
-        <div className="flex shrink-0 items-center gap-0.5">
-          <Button
-            type="button"
-            onClick={() => onEdit(team)}
-            className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
-            aria-label={`Bewerk ${team.team_name}`}
-          >
-            <Edit className="h-4 w-4" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            onClick={() => onDelete(team)}
-            className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
-            aria-label={`Verwijder ${team.team_name}`}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden />
-          </Button>
+    <div className="flex flex-col gap-2 px-3 py-3">
+      <div className="flex items-start gap-3">
+        <TeamTrophyAvatar clubColors={team.club_colors} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground break-words leading-tight">
+            {team.team_name}
+          </p>
+          {colorName ? (
+            <Badge variant="outline" className="mt-1.5 bg-secondary text-xs">
+              {colorName}
+            </Badge>
+          ) : null}
         </div>
-      ) : null}
+        {isAdmin ? (
+          <div className="flex shrink-0 items-center gap-0.5 -mt-1 -mr-1">
+            <Button
+              type="button"
+              onClick={() => onEdit(team)}
+              className="btn btn--icon btn--edit min-h-[44px] min-w-[44px]"
+              aria-label={`Bewerk ${team.team_name}`}
+            >
+              <Edit className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              onClick={() => onDelete(team)}
+              className="btn btn--icon btn--danger min-h-[44px] min-w-[44px]"
+              aria-label={`Verwijder ${team.team_name}`}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
+      {hasContactInfo ? (
+        <div className="space-y-1.5 rounded-md border border-border/50 bg-secondary p-2.5">
+          {team.contact_person ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <User className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+              <span className="break-words font-medium text-foreground">{team.contact_person}</span>
+            </div>
+          ) : null}
+          {team.contact_phone ? (
+            <a
+              href={`tel:${team.contact_phone}`}
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Phone className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+              <span className="break-words font-medium text-foreground">{team.contact_phone}</span>
+            </a>
+          ) : null}
+          {team.contact_email ? (
+            <a
+              href={`mailto:${team.contact_email}`}
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Mail className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+              <span className="break-all font-medium text-foreground">{team.contact_email}</span>
+            </a>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">Geen contactgegevens</p>
+      )}
     </div>
   );
 }
