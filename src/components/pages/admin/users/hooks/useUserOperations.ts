@@ -14,7 +14,7 @@ export const useUserOperations = (teams: Team[], refreshData: () => Promise<void
 
   const addUser = async (newUser: {
     username: string;
-    email: string | undefined;
+    email?: string;
     password: string; // Add password parameter
     role: "admin" | "referee" | "player_manager";
     teamId: number | null;
@@ -184,7 +184,7 @@ export const useUserOperations = (teams: Team[], refreshData: () => Promise<void
 
   const updateUser = async (userId: number, formData: {
     username: string;
-    email: string | undefined;
+    email?: string;
     password?: string;
     role: "admin" | "referee" | "player_manager";
     teamId?: number;
