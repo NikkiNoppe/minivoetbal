@@ -236,6 +236,7 @@ interface MatchFormWedstrijdinfoSectionProps {
   isReferee?: boolean;
   isTeamManager: boolean;
   canEdit: boolean;
+  canEditReferee?: boolean;
   /** Toon hint alleen als andere scheids (niet toegewezen) wijzigingen wil doen */
   showRefereeClaimHint?: boolean;
   refereeSelectValue: string;

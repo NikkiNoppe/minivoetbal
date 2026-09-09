@@ -21,14 +21,10 @@ export async function fetchAdminUsers(): Promise<DbUser[]> {
     throw new Error(`Fout bij het ophalen van gebruikers: ${usersError.message}`);
   }
 
-  return (usersData || []).map((user: {
-    user_id: number;
-    username: string;
-    email?: string | null;
-    role: string;
-    team_users?: Array<{ team_id: number; team_name: string }>;
-  }) => {
-    const teams = user.team_users || [];
+  return (usersData || []).map((user) => {
+    const teams =
+      (user.team_users as Array<{ team_id: number; team_name: string }> | null | undefined) ||
+      [];
 
     return {
       user_id: user.user_id,
