@@ -110,7 +110,13 @@ export const useRouteMeta = () => {
     branding.meta?.defaultTitle ??
     `${publicContent.algemeen.title} | ${branding.displayName}`;
   const siteBaseUrl = branding.siteUrl.replace(/\/$/, "");
-  const canonicalUrl = `${siteBaseUrl}${location.pathname}`;
+  // Homepage: "/" en "/algemeen" tonen dezelfde inhoud → altijd "/" als canonical
+  // (Google koos zelf al "/", dus dit voorkomt "duplicate, Google chose different canonical").
+  const isHomePath =
+    location.pathname === "/" || location.pathname === PUBLIC_ROUTES.algemeen;
+  const canonicalUrl = isHomePath
+    ? `${siteBaseUrl}/`
+    : `${siteBaseUrl}${location.pathname}`;
 
   useEffect(() => {
     applyTenantPwaHead(organizationSlug);

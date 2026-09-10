@@ -13,7 +13,7 @@ const SITE_URL = (process.env.VITE_SITE_URL || 'https://harelbekeminivoetbal.be'
 const today = new Date().toISOString().slice(0, 10);
 
 const routes = [
-  { path: '/algemeen', priority: '1.0', changefreq: 'daily' },
+  { path: '/', priority: '1.0', changefreq: 'daily' },
   { path: '/competitie', priority: '0.9', changefreq: 'daily' },
   { path: '/beker', priority: '0.8', changefreq: 'weekly' },
   { path: '/playoff', priority: '0.8', changefreq: 'weekly' },

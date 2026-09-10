@@ -14,7 +14,7 @@
     <meta name="geo.region" content="BE-VLG" />
     <meta name="geo.placename" content="Harelbeke, België" />
     <meta name="geo.position" content="50.853;3.312" />
-    <link rel="canonical" href="https://harelbekeminivoetbal.be/algemeen" />
+    <link rel="canonical" href="https://harelbekeminivoetbal.be/" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; connect-src 'self' https: wss: wss://*.supabase.co; font-src 'self' data: https:; object-src 'none'; base-uri 'self';">
     <meta name="theme-color" content="#0072b9">
     <!-- Schakel iOS Safari "data detectors" uit (geen gele highlights op datums/telefoonnummers/adressen) -->
@@ -60,6 +60,10 @@
         setMeta("apple-mobile-web-app-title", "MVV Kuurne");
         setMeta("apple-mobile-web-app-status-bar-style", "black");
         document.title = "Minivoetbal Vereniging Kuurne";
+        setHref('link[rel="canonical"]', "https://mvvkuurne.be/");
+        var ogUrl = document.querySelector('meta[property="og:url"]');
+        if (ogUrl) ogUrl.setAttribute("content", "https://mvvkuurne.be/");
+        setMeta("twitter:url", "https://mvvkuurne.be/");
         setHref('link[rel="manifest"]', "/kuurne.webmanifest");
         setHref('link[rel="apple-touch-icon"]', "/images/icons/kuurne/apple-touch-icon.png");
         setHref('link[rel="icon"][sizes="48x48"]', "/images/icons/kuurne/favicon.ico");
@@ -76,13 +80,13 @@
     
     
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://harelbekeminivoetbal.be/algemeen" />
+    <meta property="og:url" content="https://harelbekeminivoetbal.be/" />
     <meta property="og:image" content="https://harelbekeminivoetbal.be/images/icons/android-chrome-512x512.png">
     <meta property="og:image:alt" content="Logo Minivoetbal Harelbeke">
     <meta property="og:locale" content="nl_BE" />
     <meta property="og:site_name" content="KRC Harelbeke Minivoetbal" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://harelbekeminivoetbal.be/algemeen" />
+    <meta name="twitter:url" content="https://harelbekeminivoetbal.be/" />
     <meta name="twitter:image" content="https://harelbekeminivoetbal.be/images/icons/android-chrome-512x512.png">
     <meta name="twitter:site" content="@KRCHarelbeke" />
     <!-- Vite injects CSS and JS automatically -->
