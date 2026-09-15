@@ -7,6 +7,8 @@ import { SectionCollapsibleCard } from "@/components/layout";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionHeaders } from "@/lib/authSession";
 import { fetchTeamRecipientsForSession } from "@/services/core/userProfileSessionFetch";
+import { fetchRefereesForSession } from "@/services/scheidsrechter/scheidsSessionFetch";
+
 import { fetchTeamsForSession } from "@/services/core/teamsSessionFetch";
 import { parseContactEmails } from "@/lib/contactEmails";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +55,8 @@ export interface ForfaitEmailModalProps {
   matchDate?: string | null;
   matchTime?: string | null;
   location?: string | null;
+  /** Scheidsrechter die aan de wedstrijd was toegewezen (voor forfait de toewijzing werd opgeheven). */
+  refereeUsername?: string | null;
 }
 
 export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
@@ -66,13 +70,45 @@ export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
   matchDate,
   matchTime,
   location,
+  refereeUsername,
 }) => {
   const { toast } = useToast();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
   const [managers, setManagers] = useState<TeamManager[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
+  const [referee, setReferee] = useState<{ email: string; username: string } | null>(null);
   const [waOpen, setWaOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setReferee(null);
+      return;
+    }
+    const name = refereeUsername?.trim();
+    if (!name) {
+      setReferee(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const referees = await fetchRefereesForSession();
+        const match = referees.find(
+          (r) => r.username?.trim().toLowerCase() === name.toLowerCase(),
+        );
+        if (!cancelled && match?.email?.trim()) {
+          setReferee({ email: match.email.trim(), username: match.username });
+        }
+      } catch (e) {
+        console.warn("[forfait-email] kon scheidsrechter e-mail niet ophalen", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, refereeUsername]);
+
 
   useEffect(() => {
     if (!open) return;
