@@ -694,9 +694,13 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
       if (ok) {
         const forfaitTeamName =
           suggestedTeamId === match.homeTeamId ? match.homeTeamName : match.awayTeamName;
-        setForfaitEmailContext({ forfaitTeamName });
+        setForfaitEmailContext({
+          forfaitTeamName,
+          refereeUsername: (selectedReferee || match.referee || "").trim() || null,
+        });
         setForfaitEmailModalOpen(true);
       }
+
       return;
     }
 
@@ -2026,6 +2030,8 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
             matchDate={match.date}
             matchTime={match.time}
             location={match.location}
+            refereeUsername={forfaitEmailContext.refereeUsername}
+
           />
         )}
       </div>
