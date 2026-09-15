@@ -394,6 +394,33 @@ export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
           </div>
         </div>
 
+        {(referee || refereeUsername) && (
+          <div>
+            <Label className="text-sm font-medium">Scheidsrechter</Label>
+            <div className="mt-2 space-y-1 rounded-md border p-3">
+              {referee ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded p-2 hover:bg-muted">
+                  <Checkbox
+                    checked={!!selected[referee.email]}
+                    onCheckedChange={() => toggle(referee.email)}
+                    disabled={sending}
+                    className="mt-0.5"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm">{referee.email}</span>
+                    <span className="text-xs text-muted-foreground">{referee.username}</span>
+                  </div>
+                </label>
+              ) : (
+                <p className="p-2 text-sm text-muted-foreground">
+                  Geen e-mailadres gevonden voor scheidsrechter {refereeUsername}.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+
         {(() => {
           const dateStr = matchDate
             ? new Date(matchDate + "T00:00:00").toLocaleDateString("nl-BE", {
