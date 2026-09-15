@@ -338,10 +338,15 @@ export const costSettingsService = {
       return { success: true, message: 'Transactie succesvol toegevoegd' };
     } catch (error) {
       console.error('❌ [FINANCIAL-CRUD] ADD failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Onbekende fout';
+      const raw = error as { message?: string; details?: string; hint?: string; code?: string } | null;
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : raw?.message || raw?.details || raw?.hint || raw?.code || 'Onbekende fout';
       return { success: false, message: `Fout bij toevoegen transactie: ${errorMessage}` };
     }
   },
+
 
   async deleteTransaction(transactionId: number): Promise<{ success: boolean; message: string }> {
     const { userId, role } = this._getUserContext();
