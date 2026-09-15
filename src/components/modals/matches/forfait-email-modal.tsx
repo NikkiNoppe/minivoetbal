@@ -7,6 +7,8 @@ import { SectionCollapsibleCard } from "@/components/layout";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionHeaders } from "@/lib/authSession";
 import { fetchTeamRecipientsForSession } from "@/services/core/userProfileSessionFetch";
+import { fetchRefereesForSession } from "@/services/scheidsrechter/scheidsSessionFetch";
+
 import { fetchTeamsForSession } from "@/services/core/teamsSessionFetch";
 import { parseContactEmails } from "@/lib/contactEmails";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +55,8 @@ export interface ForfaitEmailModalProps {
   matchDate?: string | null;
   matchTime?: string | null;
   location?: string | null;
+  /** Scheidsrechter die aan de wedstrijd was toegewezen (voor forfait de toewijzing werd opgeheven). */
+  refereeUsername?: string | null;
 }
 
 export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
@@ -66,13 +70,45 @@ export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
   matchDate,
   matchTime,
   location,
+  refereeUsername,
 }) => {
   const { toast } = useToast();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
   const [managers, setManagers] = useState<TeamManager[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
+  const [referee, setReferee] = useState<{ email: string; username: string } | null>(null);
   const [waOpen, setWaOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setReferee(null);
+      return;
+    }
+    const name = refereeUsername?.trim();
+    if (!name) {
+      setReferee(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const referees = await fetchRefereesForSession();
+        const match = referees.find(
+          (r) => r.username?.trim().toLowerCase() === name.toLowerCase(),
+        );
+        if (!cancelled && match?.email?.trim()) {
+          setReferee({ email: match.email.trim(), username: match.username });
+        }
+      } catch (e) {
+        console.warn("[forfait-email] kon scheidsrechter e-mail niet ophalen", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, refereeUsername]);
+
 
   useEffect(() => {
     if (!open) return;
@@ -151,8 +187,30 @@ export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
   const allRecipients = useMemo(() => {
     const set = new Set<string>(DEFAULT_RECIPIENTS);
     managers.forEach((m) => set.add(m.email));
+    if (referee?.email) set.add(referee.email);
     return Array.from(set);
-  }, [managers]);
+  }, [managers, referee]);
+
+  /** Standaard aangevinkt: sportdienst, de tegenstander en de scheidsrechter. */
+  useEffect(() => {
+    if (!open) {
+      setSelected({});
+      return;
+    }
+    const opponentEmails = managers
+      .filter((m) => m.teamName.trim().toLowerCase() !== forfaitTeamName.trim().toLowerCase())
+      .map((m) => m.email);
+    const preselect = new Set<string>([...DEFAULT_RECIPIENTS, ...opponentEmails]);
+    if (referee?.email) preselect.add(referee.email);
+    setSelected((prev) => {
+      const next = { ...prev };
+      preselect.forEach((email) => {
+        if (next[email] === undefined) next[email] = true;
+      });
+      return next;
+    });
+  }, [open, managers, referee, forfaitTeamName]);
+
 
   const selectedEmails = useMemo(
     () => allRecipients.filter((e) => selected[e]),
@@ -335,6 +393,33 @@ export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
             )}
           </div>
         </div>
+
+        {(referee || refereeUsername) && (
+          <div>
+            <Label className="text-sm font-medium">Scheidsrechter</Label>
+            <div className="mt-2 space-y-1 rounded-md border p-3">
+              {referee ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded p-2 hover:bg-muted">
+                  <Checkbox
+                    checked={!!selected[referee.email]}
+                    onCheckedChange={() => toggle(referee.email)}
+                    disabled={sending}
+                    className="mt-0.5"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm">{referee.email}</span>
+                    <span className="text-xs text-muted-foreground">{referee.username}</span>
+                  </div>
+                </label>
+              ) : (
+                <p className="p-2 text-sm text-muted-foreground">
+                  Geen e-mailadres gevonden voor scheidsrechter {refereeUsername}.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
 
         {(() => {
           const dateStr = matchDate
