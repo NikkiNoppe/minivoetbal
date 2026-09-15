@@ -187,8 +187,30 @@ export const ForfaitEmailModal: React.FC<ForfaitEmailModalProps> = ({
   const allRecipients = useMemo(() => {
     const set = new Set<string>(DEFAULT_RECIPIENTS);
     managers.forEach((m) => set.add(m.email));
+    if (referee?.email) set.add(referee.email);
     return Array.from(set);
-  }, [managers]);
+  }, [managers, referee]);
+
+  /** Standaard aangevinkt: sportdienst, de tegenstander en de scheidsrechter. */
+  useEffect(() => {
+    if (!open) {
+      setSelected({});
+      return;
+    }
+    const opponentEmails = managers
+      .filter((m) => m.teamName.trim().toLowerCase() !== forfaitTeamName.trim().toLowerCase())
+      .map((m) => m.email);
+    const preselect = new Set<string>([...DEFAULT_RECIPIENTS, ...opponentEmails]);
+    if (referee?.email) preselect.add(referee.email);
+    setSelected((prev) => {
+      const next = { ...prev };
+      preselect.forEach((email) => {
+        if (next[email] === undefined) next[email] = true;
+      });
+      return next;
+    });
+  }, [open, managers, referee, forfaitTeamName]);
+
 
   const selectedEmails = useMemo(
     () => allRecipients.filter((e) => selected[e]),
