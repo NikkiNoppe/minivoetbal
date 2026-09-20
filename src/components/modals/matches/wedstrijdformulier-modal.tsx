@@ -173,7 +173,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
   const [hasForfaitPenalty, setHasForfaitPenalty] = useState(false);
   const [restoringAutoMatchCosts, setRestoringAutoMatchCosts] = useState(false);
   const [forfaitEmailModalOpen, setForfaitEmailModalOpen] = useState(false);
-  const [forfaitEmailContext, setForfaitEmailContext] = useState<{ forfaitTeamName: string } | null>(null);
+  const [forfaitEmailContext, setForfaitEmailContext] = useState<{ forfaitTeamName: string; refereeUsername?: string | null } | null>(null);
 
   const { organizationId, orgQueryEnabled } = useOrgQueryScope();
 
@@ -589,6 +589,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
       });
 
       if (hadForfaitVerwittigd) {
+        const refereeBeforeClear = (selectedReferee || match.referee || "").trim();
         setSelectedReferee("");
         const forfaitItem = validItems.find((p) => {
           const cs = availablePenalties.find((x) => Number(x.id) === Number(p.costSettingId));
@@ -599,10 +600,11 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
             Number(forfaitItem.teamId) === Number(match.homeTeamId)
               ? match.homeTeamName
               : match.awayTeamName;
-          setForfaitEmailContext({ forfaitTeamName });
+          setForfaitEmailContext({ forfaitTeamName, refereeUsername: refereeBeforeClear || null });
           setForfaitEmailModalOpen(true);
         }
       }
+
 
       const savedKeys = new Set(
         validItems.map((p) => `${p.teamId}:${p.costSettingId}`)
@@ -692,9 +694,13 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
       if (ok) {
         const forfaitTeamName =
           suggestedTeamId === match.homeTeamId ? match.homeTeamName : match.awayTeamName;
-        setForfaitEmailContext({ forfaitTeamName });
+        setForfaitEmailContext({
+          forfaitTeamName,
+          refereeUsername: (selectedReferee || match.referee || "").trim() || null,
+        });
         setForfaitEmailModalOpen(true);
       }
+
       return;
     }
 
@@ -2024,6 +2030,8 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
             matchDate={match.date}
             matchTime={match.time}
             location={match.location}
+            refereeUsername={forfaitEmailContext.refereeUsername}
+
           />
         )}
       </div>
