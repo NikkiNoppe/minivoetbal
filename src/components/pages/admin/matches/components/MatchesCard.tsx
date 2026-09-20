@@ -18,6 +18,8 @@ interface MatchCardProps {
   status?: MatchCardStatus;
   nextMatch?: string;
   badgeSlot?: React.ReactNode;
+  homeClassName?: string;
+  awayClassName?: string;
 }
 
 const getStatusBadge = (status: MatchCardStatus, nextMatch?: string) => {
@@ -60,7 +62,9 @@ const MatchCard: React.FC<MatchCardProps> = ({
   location,
   status = "pending",
   nextMatch,
-  badgeSlot
+  badgeSlot,
+  homeClassName,
+  awayClassName,
 }) => {
   const badge = getStatusBadge(status, nextMatch);
   const StatusIcon = badge.icon;
@@ -80,7 +84,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
             text={home}
             maxFontSize={16}
             minFontSize={7}
-            className="text-responsive-team font-medium text-right"
+            className={`text-responsive-team font-medium text-right${homeClassName ? ` ${homeClassName}` : ""}`}
           />
         </div>
         <span className="text-xs mx-1 min-w-[20px] text-center">vs</span>
@@ -89,7 +93,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
             text={away}
             maxFontSize={16}
             minFontSize={7}
-            className="text-responsive-team font-medium text-left"
+            className={`text-responsive-team font-medium text-left${awayClassName ? ` ${awayClassName}` : ""}`}
           />
         </div>
       </div>

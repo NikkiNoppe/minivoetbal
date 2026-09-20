@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildCupTeamRankMap,
   buildNextRoundPrefill,
+  buildVrWinnerSlotMap,
+  cupRoundBadgeFromUnique,
+  cupVrWinnerLabel,
   divisionRankBySortOrder,
   nextRoundSlotRoles,
   nextSlotAfterVoorrondeSpread,
@@ -91,6 +94,22 @@ describe("buildNextRoundPrefill / spread", () => {
     expect(prefill.filter((x) => x == null)).toHaveLength(6);
     // VR1 → slot 5
     expect(nextSlotAfterVoorrondeSpread(1, 6, 8).slotIndex).toBe(5);
+  });
+});
+
+describe("buildVrWinnerSlotMap / badges", () => {
+  it("mapt VR-1..6 naar 1/8 away-slots (Kuurne-spreiding)", () => {
+    const map = buildVrWinnerSlotMap(6, 8, "1/8");
+    expect(map.get("1/8-3:away")).toBe(1);
+    expect(map.get("1/8-4:away")).toBe(2);
+    expect(map.get("1/8-5:away")).toBe(3);
+    expect(map.get("1/8-6:away")).toBe(4);
+    expect(map.get("1/8-7:away")).toBe(5);
+    expect(map.get("1/8-8:away")).toBe(6);
+    expect(map.has("1/8-1:away")).toBe(false);
+    expect(cupVrWinnerLabel(1)).toBe("Winnaar VR-1");
+    expect(cupRoundBadgeFromUnique("VR-4")).toBe("Voorronde 4");
+    expect(cupRoundBadgeFromUnique("1/8-3")).toBe("1/8 · 3");
   });
 });
 

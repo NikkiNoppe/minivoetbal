@@ -89,6 +89,61 @@ export function nextSlotAfterVoorrondeSpread(
   };
 }
 
+/** Laatste cijfer in unique_number (`VR-1` → 1, `1/8-3` → 3). */
+export function extractCupMatchNumber(uniqueNumber: string | null | undefined): number {
+  if (!uniqueNumber) return 0;
+  const parts = uniqueNumber.split("-");
+  const lastPart = parts[parts.length - 1];
+  const parsed = parseInt(lastPart, 10);
+  if (!Number.isNaN(parsed)) return parsed;
+  const allNumbers = uniqueNumber.match(/\d+/g);
+  if (allNumbers?.length) {
+    const fallback = parseInt(allNumbers[allNumbers.length - 1], 10);
+    if (!Number.isNaN(fallback)) return fallback;
+  }
+  return 0;
+}
+
+/**
+ * Key = `${nextPrefix}-${matchNumber}:home|away` → VR-nummer.
+ * Zelfde spreiding als advanceWinner / nextSlotAfterVoorrondeSpread.
+ */
+export function buildVrWinnerSlotMap(
+  vrCount: number,
+  nextMatchCount: number,
+  nextPrefix: string,
+): Map<string, number> {
+  const prefix = nextPrefix.replace(/-$/, "");
+  const map = new Map<string, number>();
+  for (let vr = 1; vr <= vrCount; vr++) {
+    const slot = nextSlotAfterVoorrondeSpread(vr, vrCount, nextMatchCount);
+    map.set(`${prefix}-${slot.matchNumber}:${slot.isHome ? "home" : "away"}`, vr);
+  }
+  return map;
+}
+
+export function cupVrWinnerLabel(vrNumber: number): string {
+  return `Winnaar VR-${vrNumber}`;
+}
+
+/** Badge-tekst per wedstrijd (Voorronde 1, 1/8 · 3, …). */
+export function cupRoundBadgeFromUnique(uniqueNumber: string | null | undefined): string | null {
+  if (!uniqueNumber) return null;
+  const n = extractCupMatchNumber(uniqueNumber);
+  if (uniqueNumber.startsWith("VR-")) return n > 0 ? `Voorronde ${n}` : "Voorronde";
+  if (uniqueNumber.startsWith("1/16-")) return n > 0 ? `1/16 · ${n}` : "1/16 finale";
+  if (uniqueNumber.startsWith("1/8-")) return n > 0 ? `1/8 · ${n}` : "Achtste finale";
+  if (uniqueNumber.startsWith("QF-")) return n > 0 ? `Kwart · ${n}` : "Kwartfinale";
+  if (uniqueNumber.startsWith("SF-")) return n > 0 ? `Halve · ${n}` : "Halve finale";
+  if (uniqueNumber === "FINAL") return "Finale";
+  return null;
+}
+
+export function isCupWinnerPlaceholderName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return /^Winnaar VR-\d+/i.test(name) || name === "Te spelen" || name === "TBD";
+}
+
 /**
  * Zet forcedPlaying hard in de speelgroep (na de byes), ongeacht eerdere shuffle.
  * Zo blijven nieuwe ploegen altijd in de voorronde, ook na preference-retries.

@@ -260,7 +260,7 @@ const TournamentRound = memo(({
                 time={match.time} 
                 location={match.location} 
                 nextMatch={match.nextMatch} 
-                tournamentRound={roundName} 
+                tournamentRound={match.roundBadge || roundName} 
               />
             ))}
           </div>

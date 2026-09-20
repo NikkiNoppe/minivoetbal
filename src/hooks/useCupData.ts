@@ -14,6 +14,8 @@ export interface CupMatchDisplay {
   time?: string;
   location?: string;
   nextMatch?: string;
+  /** Per-wedstrijd badge, bv. "Voorronde 1" of "1/8 · 3". */
+  roundBadge?: string;
 }
 
 export interface TournamentData {
@@ -36,7 +38,9 @@ const formatMatchForDisplay = (match: any): CupMatchDisplay => {
     awayScore: match.away_score,
     date: match.match_date, // Keep ISO string for date formatting
     time: time, // Extracted time string
-    location: match.location
+    location: match.location,
+    nextMatch: match.next_match_hint || undefined,
+    roundBadge: match.round_badge || undefined,
   };
 };
 
@@ -79,4 +83,4 @@ export const useCupData = () => {
     bracketData,
     hasData
   };
-}; 
+};

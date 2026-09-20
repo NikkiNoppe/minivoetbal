@@ -33,7 +33,8 @@ import {
   divisionFromSpeeldag,
   divisionSortKey,
   formatDivisionDisplayName,
-  speeldagNumberFromLabel,
+  mondayIsoFromMatchDate,
+  sundayIsoFromMonday,
 } from "@/lib/competitionDivision";
 
 const DataErrorState = memo(({
@@ -94,6 +95,12 @@ function formatMatchDateSpan(dates: string[]): string {
   const last = sorted[sorted.length - 1];
   if (first === last) return formatDayMonth(first);
   return `${formatDayMonth(first)} – ${formatDayMonth(last)}`;
+}
+
+/** Volledige speelweek ma–zo, ongeacht op welke dagen er gespeeld wordt. */
+function formatCalendarWeekLabel(mondayIso: string): string {
+  const sunday = sundayIsoFromMonday(mondayIso);
+  return `ma ${formatDayMonth(mondayIso)} – zo ${formatDayMonth(sunday)}`;
 }
 
 type ScheduleMatchdayGroup = {
@@ -309,7 +316,9 @@ const CompetitiePage: React.FC = () => {
     () => searchParams.get("team") ?? "all",
   );
   const [selectedReeks, setSelectedReeks] = useState("all");
-  const [openSpeeldag, setOpenSpeeldag] = useState("");
+  const [openSpeeldagByReeks, setOpenSpeeldagByReeks] = useState<
+    Record<string, string>
+  >({});
 
   const handleTeamChange = useCallback(
     (value: string) => {
@@ -461,34 +470,39 @@ const CompetitiePage: React.FC = () => {
         divisionSortKey(a || null).localeCompare(divisionSortKey(b || null), "nl"),
       )
       .map(([reeksKey, reeksMatches]) => {
-        const bySpeeldag = new Map<string, MatchData[]>();
+        // Groepeer op kalenderweek (ma–zo); speeldag = chronologische week met wedstrijden
+        const byWeek = new Map<string, MatchData[]>();
         reeksMatches.forEach((match) => {
-          const number = speeldagNumberFromLabel(match.matchday);
-          const speeldagKey = number != null ? String(number) : (match.matchday || "Overige");
-          const list = bySpeeldag.get(speeldagKey);
+          const monday = mondayIsoFromMatchDate(match.date) ?? "overige";
+          const list = byWeek.get(monday);
           if (list) list.push(match);
-          else bySpeeldag.set(speeldagKey, [match]);
+          else byWeek.set(monday, [match]);
         });
 
-        const matchdays = Array.from(bySpeeldag.entries())
-          .sort(([a], [b]) => {
-            const na = Number(a);
-            const nb = Number(b);
-            if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-            return a.localeCompare(b, "nl");
-          })
-          .map(([speeldagKey, dayMatches]) => {
-            const number = Number(speeldagKey);
-            const title = Number.isFinite(number)
-              ? `Speeldag ${number}`
-              : speeldagKey;
-            return {
-              value: `${reeksKey || "all"}::${speeldagKey}`,
-              title,
-              dateLabel: formatMatchDateSpan(dayMatches.map((m) => m.date)),
-              matches: dayMatches,
-            };
+        const sortedMondays = Array.from(byWeek.keys()).sort((a, b) => {
+          if (a === "overige") return 1;
+          if (b === "overige") return -1;
+          return a.localeCompare(b);
+        });
+
+        const matchdays = sortedMondays.map((monday, index) => {
+          const dayMatches = (byWeek.get(monday) ?? []).sort((a, b) => {
+            const aKey = `${a.date}T${a.time}`;
+            const bKey = `${b.date}T${b.time}`;
+            return aKey.localeCompare(bKey);
           });
+          const speeldagNr = index + 1;
+          const dateLabel =
+            monday === "overige"
+              ? formatMatchDateSpan(dayMatches.map((m) => m.date))
+              : formatCalendarWeekLabel(monday);
+          return {
+            value: `${reeksKey || "all"}::week:${monday}`,
+            title: `Speeldag ${speeldagNr}`,
+            dateLabel,
+            matches: dayMatches,
+          };
+        });
 
         return {
           name: reeksKey || null,
@@ -503,8 +517,11 @@ const CompetitiePage: React.FC = () => {
     [groupedMatches],
   );
 
-  const defaultOpenSpeeldag = useMemo(() => {
+  const defaultOpenByReeks = useMemo(() => {
+    const result: Record<string, string> = {};
     for (const reeks of groupedMatches) {
+      const key = reeks.name ?? "all";
+      let open = "";
       for (const day of reeks.matchdays) {
         const isCompleted = day.matches.every(
           (match) =>
@@ -514,14 +531,17 @@ const CompetitiePage: React.FC = () => {
             match.awayScore !== null,
         );
         if (!isCompleted && day.matches.length > 0) {
-          return day.value;
+          open = day.value;
+          break;
         }
       }
+      if (!open && reeks.matchdays.length > 0) {
+        open = reeks.matchdays[reeks.matchdays.length - 1].value;
+      }
+      result[key] = open;
     }
-    return allMatchdayKeys.length > 0
-      ? allMatchdayKeys[allMatchdayKeys.length - 1]
-      : undefined;
-  }, [groupedMatches, allMatchdayKeys]);
+    return result;
+  }, [groupedMatches]);
 
   const allRegularMatchesComplete = useMemo(() => {
     if (allMatches.length === 0) return false;
@@ -538,18 +558,20 @@ const CompetitiePage: React.FC = () => {
     allRegularMatchesComplete && isTabVisible("playoff");
 
   const matchdayKeysSignature = allMatchdayKeys.join("|");
+  const defaultOpenSignature = Object.entries(defaultOpenByReeks)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("|");
 
   useEffect(() => {
-    setOpenSpeeldag(defaultOpenSpeeldag ?? "");
-  }, [selectedTeam, selectedReeks, matchdayKeysSignature, defaultOpenSpeeldag]);
+    setOpenSpeeldagByReeks(defaultOpenByReeks);
+  }, [selectedTeam, selectedReeks, matchdayKeysSignature, defaultOpenSignature, defaultOpenByReeks]);
 
-  const handleAccordionChange = useCallback((reeksValues: string[]) => {
+  const handleAccordionChange = useCallback((reeksKey: string) => {
     return (value: string) => {
-      if (value) {
-        setOpenSpeeldag(value);
-        return;
-      }
-      setOpenSpeeldag((prev) => (reeksValues.includes(prev) ? "" : prev));
+      setOpenSpeeldagByReeks((prev) => ({
+        ...prev,
+        [reeksKey]: value || "",
+      }));
     };
   }, []);
 
@@ -712,9 +734,11 @@ const CompetitiePage: React.FC = () => {
         ) : groupedMatches.length > 0 ? (
           <div className="space-y-6">
             {groupedMatches.map((reeks) => {
+              const reeksKey = reeks.name ?? "all";
               const reeksValues = reeks.matchdays.map((day) => day.value);
+              const openValue = openSpeeldagByReeks[reeksKey] ?? "";
               return (
-                <div key={reeks.name ?? "all"} className="space-y-2">
+                <div key={reeksKey} className="space-y-2">
                   {reeks.displayName && selectedReeks === "all" ? (
                     <h3 className="text-base font-semibold text-brand-dark">
                       {reeks.displayName}
@@ -723,8 +747,8 @@ const CompetitiePage: React.FC = () => {
                   <Accordion
                     type="single"
                     collapsible
-                    value={reeksValues.includes(openSpeeldag) ? openSpeeldag : ""}
-                    onValueChange={handleAccordionChange(reeksValues)}
+                    value={reeksValues.includes(openValue) ? openValue : ""}
+                    onValueChange={handleAccordionChange(reeksKey)}
                     className="space-y-3"
                   >
                     {reeks.matchdays.map((day) => (

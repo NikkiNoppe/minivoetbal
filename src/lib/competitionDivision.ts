@@ -33,3 +33,23 @@ export function speeldagNumberFromLabel(
   const n = Number(match[1]);
   return Number.isFinite(n) ? n : null;
 }
+
+/** Maandag (ISO) van de kalenderweek van een YYYY-MM-DD datum. */
+export function mondayIsoFromMatchDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const day = dateStr.split("T")[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const d = new Date(`${day}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const dow = d.getDay();
+  const delta = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Zondag van dezelfde week als de maandag. */
+export function sundayIsoFromMonday(mondayIso: string): string {
+  const d = new Date(`${mondayIso}T12:00:00`);
+  d.setDate(d.getDate() + 6);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}

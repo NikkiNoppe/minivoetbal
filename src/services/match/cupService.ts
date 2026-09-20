@@ -25,6 +25,12 @@ import {
 } from "@/lib/cupBracketPlan";
 import {
   buildNextRoundPrefill,
+  buildVrWinnerSlotMap,
+  cupRoundBadgeFromUnique,
+  cupVrWinnerLabel,
+  extractCupMatchNumber,
+  isCupWinnerPlaceholderName,
+  nextSlotAfterVoorrondeSpread,
   pinForcedVoorrondeOrder,
   seedCupTeamOrder,
   type CupTeamRankMap,
@@ -1143,9 +1149,97 @@ export const bekerService = {
       is_submitted: match.is_submitted,
       is_locked: match.is_locked,
       referee: match.referee,
+      round_badge: cupRoundBadgeFromUnique(match.unique_number) ?? undefined,
+      next_match_hint: undefined as string | undefined,
     }));
 
-    return bekerService.groupMatchesByRound(matches);
+    return bekerService.groupMatchesByRound(
+      bekerService.enrichCupBracketPlaceholders(matches),
+    );
+  },
+
+  /**
+   * Vervangt lege 1/8-slots door "Winnaar VR-n" en vult VR-hints (→ vs tegenstander).
+   */
+  enrichCupBracketPlaceholders<
+    T extends {
+      unique_number?: string | null;
+      home_team_id?: number | null;
+      away_team_id?: number | null;
+      home_team_name: string;
+      away_team_name: string;
+      round_badge?: string;
+      next_match_hint?: string;
+    },
+  >(matches: T[]): T[] {
+    const vrCount = matches.filter((m) =>
+      String(m.unique_number || "").startsWith("VR-"),
+    ).length;
+    if (vrCount <= 0) return matches;
+
+    const nextPrefixWithDash = ["1/16-", "1/8-", "QF-", "SF-"].find((p) =>
+      matches.some((m) => String(m.unique_number || "").startsWith(p)),
+    );
+    if (!nextPrefixWithDash) return matches;
+
+    const nextPrefix = nextPrefixWithDash.replace(/-$/, "");
+    const nextMatchCount = matches.filter((m) =>
+      String(m.unique_number || "").startsWith(nextPrefixWithDash),
+    ).length;
+    if (nextMatchCount <= 0) return matches;
+
+    const feedMap = buildVrWinnerSlotMap(vrCount, nextMatchCount, nextPrefix);
+    const byUnique = new Map(matches.map((m) => [String(m.unique_number || ""), m]));
+
+    const withPlaceholders = matches.map((m) => {
+      const unique = String(m.unique_number || "");
+      let home = m.home_team_name;
+      let away = m.away_team_name;
+
+      if (!m.home_team_id || isCupWinnerPlaceholderName(home)) {
+        const vr = feedMap.get(`${unique}:home`);
+        if (vr) home = cupVrWinnerLabel(vr);
+      }
+      if (!m.away_team_id || isCupWinnerPlaceholderName(away)) {
+        const vr = feedMap.get(`${unique}:away`);
+        if (vr) away = cupVrWinnerLabel(vr);
+      }
+
+      return {
+        ...m,
+        home_team_name: home,
+        away_team_name: away,
+        round_badge: m.round_badge ?? cupRoundBadgeFromUnique(unique) ?? undefined,
+      };
+    });
+
+    return withPlaceholders.map((m) => {
+      const unique = String(m.unique_number || "");
+      if (!unique.startsWith("VR-")) return m;
+
+      const vrNum = extractCupMatchNumber(unique);
+      if (vrNum <= 0) return m;
+
+      const slot = nextSlotAfterVoorrondeSpread(vrNum, vrCount, nextMatchCount);
+      const nextUnique = `${nextPrefix}-${slot.matchNumber}`;
+      const nextMatch = byUnique.get(nextUnique);
+      // Gebruik verrijkte namen uit withPlaceholders
+      const enrichedNext = withPlaceholders.find(
+        (x) => String(x.unique_number || "") === nextUnique,
+      );
+      const target = enrichedNext ?? nextMatch;
+      if (!target) {
+        return { ...m, next_match_hint: `→ ${nextUnique}` };
+      }
+
+      const opponentName = slot.isHome
+        ? target.away_team_name
+        : target.home_team_name;
+      if (opponentName && !isCupWinnerPlaceholderName(opponentName)) {
+        return { ...m, next_match_hint: `→ vs ${opponentName}` };
+      }
+      return { ...m, next_match_hint: `→ ${nextUnique}` };
+    });
   },
 
   groupMatchesByRound(matches: any[]): TournamentBracket {

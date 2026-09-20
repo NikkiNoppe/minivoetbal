@@ -3,7 +3,9 @@ import {
   divisionFromSpeeldag,
   divisionSortKey,
   formatDivisionDisplayName,
+  mondayIsoFromMatchDate,
   speeldagNumberFromLabel,
+  sundayIsoFromMonday,
 } from "./competitionDivision";
 
 describe("divisionFromSpeeldag", () => {
@@ -42,5 +44,17 @@ describe("speeldagNumberFromLabel", () => {
     expect(speeldagNumberFromLabel("Eerste klasse – Speeldag 3")).toBe(3);
     expect(speeldagNumberFromLabel("Speeldag 11")).toBe(11);
     expect(speeldagNumberFromLabel("Overige")).toBeNull();
+  });
+});
+
+describe("mondayIsoFromMatchDate", () => {
+  it("zet donderdag en zondag op dezelfde maandag", () => {
+    expect(mondayIsoFromMatchDate("2026-09-28")).toBe("2026-09-28"); // maandag
+    expect(mondayIsoFromMatchDate("2026-10-01")).toBe("2026-09-28"); // donderdag
+    expect(mondayIsoFromMatchDate("2026-10-04")).toBe("2026-09-28"); // zondag
+  });
+
+  it("geeft sundayIsoFromMonday de zondag van die week", () => {
+    expect(sundayIsoFromMonday("2026-09-28")).toBe("2026-10-04");
   });
 });
