@@ -137,6 +137,7 @@ export const usePlayersUpdatedWithQuery = () => {
     refreshPlayers,
     setEditDialogOpen,
     playersQuery.data?.length ?? 0,
+    isAdmin,
   );
 
   const handleTeamChangeWrapper = useCallback(
