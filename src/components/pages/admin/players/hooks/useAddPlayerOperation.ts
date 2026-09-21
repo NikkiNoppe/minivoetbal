@@ -12,6 +12,7 @@ export const useAddPlayerOperation = (
   newPlayer: NewPlayerData,
   setNewPlayer: (player: NewPlayerData) => void,
   rosterSize?: number,
+  isAdmin?: boolean,
 ) => {
   const { toast } = useToast();
   const { addPlayer } = usePlayerCRUD(refreshPlayers);

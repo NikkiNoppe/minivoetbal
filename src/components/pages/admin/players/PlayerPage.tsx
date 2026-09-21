@@ -57,8 +57,8 @@ const PlayerPage: React.FC = () => {
   const hasTeams = useMemo(() => teams.length > 0, [teams.length]);
   const showLockMessage = useMemo(() => isLocked && !isAdmin, [isLocked, isAdmin]);
   const showAddButton = useMemo(
-    () => canEdit && !isTeamRosterFull(players.length),
-    [canEdit, players.length],
+    () => canEdit && (isAdmin || !isTeamRosterFull(players.length)),
+    [canEdit, isAdmin, players.length],
   );
   const modalOpen = useMemo(() => dialogOpen || editDialogOpen, [dialogOpen, editDialogOpen]);
 
