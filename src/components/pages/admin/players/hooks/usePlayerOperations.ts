@@ -13,6 +13,7 @@ export const usePlayerOperations = (
   refreshPlayers: () => Promise<void>,
   setEditDialogOpen?: (open: boolean) => void,
   rosterSize?: number,
+  isAdmin?: boolean,
 ) => {
   const { canEdit, isLocked, lockMessage } = usePlayerListLock();
   const [newPlayer, setNewPlayer] = useState<NewPlayerData>({

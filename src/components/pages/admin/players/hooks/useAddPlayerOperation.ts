@@ -23,7 +23,7 @@ export const useAddPlayerOperation = (
       return false;
     }
 
-    if (rosterSize !== undefined && isTeamRosterFull(rosterSize)) {
+    if (!isAdmin && rosterSize !== undefined && isTeamRosterFull(rosterSize)) {
       toast({
         title: "Limiet bereikt",
         description: `Een team mag maximaal ${MAX_TEAM_PLAYERS} spelers hebben.`,
