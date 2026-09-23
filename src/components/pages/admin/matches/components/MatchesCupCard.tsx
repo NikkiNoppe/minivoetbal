@@ -50,7 +50,15 @@ const CupMatchCard: React.FC<CupMatchCardProps> = ({
         nextMatch={nextMatch}
         homeClassName={homePlaceholder ? "text-muted-foreground italic font-normal" : undefined}
         awayClassName={awayPlaceholder ? "text-muted-foreground italic font-normal" : undefined}
-        badgeSlot={<div></div>}
+        badgeSlot={
+          tournamentRound ? (
+            <span className="text-xs px-2 py-0.5 rounded font-semibold bg-secondary text-secondary-foreground">
+              {tournamentRound}
+            </span>
+          ) : (
+            <div></div>
+          )
+        }
       />
       
       {canEdit && id && onEditMatch && (
