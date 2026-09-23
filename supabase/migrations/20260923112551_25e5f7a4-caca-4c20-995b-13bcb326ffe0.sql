@@ -1,0 +1,1 @@
+UPDATE public.matches SET match_date = timestamptz '2027-01-18 18:00:00+00' WHERE match_id = 2343 AND organization_id = 2;
