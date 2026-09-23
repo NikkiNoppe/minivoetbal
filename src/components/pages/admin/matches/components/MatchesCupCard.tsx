@@ -29,8 +29,7 @@ const CupMatchCard: React.FC<CupMatchCardProps> = ({
   location,
   nextMatch,
   onEditMatch,
-  canEdit = false,
-  tournamentRound
+  canEdit = false
 }) => {
   const homePlaceholder = isCupWinnerPlaceholderName(home);
   const awayPlaceholder = isCupWinnerPlaceholderName(away);
