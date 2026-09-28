@@ -236,7 +236,8 @@ function formatSessionMatchPairing(session: Session): string {
 function formatSessionCopyLine(session: Session): string {
   const start = new Date(session.date);
   const dateText = format(
-    new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())),
+    // Lokale datum met UTC-componenten: voorkomt verschuiving van een dag door tijdzone
+    new Date(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate(), 12),
     'EEEE d MMMM yyyy',
     { locale: nl },
   );
