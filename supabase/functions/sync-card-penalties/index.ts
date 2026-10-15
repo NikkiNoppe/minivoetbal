@@ -197,10 +197,11 @@ Deno.serve(async (req) => {
 
       console.log(`Processing cost setting "${costSetting.name}" (ID: ${costSettingId}) for team ${teamId}: desired=${desiredCount}`);
 
-      // Fetch existing rows for this match/team/cost
+      // DB allows only ONE row per (match, team, cost) → store count × price in one row
+      const desiredAmount = Number(costSetting.amount ?? 0) * desiredCount;
       const { data: existingRows, error: existErr } = await supabaseServiceRole
         .from('team_costs')
-        .select('id')
+        .select('id, amount, is_auto_card_penalty')
         .eq('team_id', teamId)
         .eq('match_id', matchId)
         .eq('cost_setting_id', costSettingId);
@@ -209,43 +210,30 @@ Deno.serve(async (req) => {
         throw new Error(`Failed to fetch existing penalty records: ${existErr.message}`);
       }
 
-      const existingCount = (existingRows || []).length;
-      console.log(`Existing penalties for cost setting ${costSettingId} team ${teamId}: ${existingCount}`);
-
-      if (existingCount < desiredCount) {
-        // Insert the difference
-        const toInsert = desiredCount - existingCount;
+      const existing = (existingRows || [])[0];
+      if (!existing) {
         const transactionDate = matchDateISO ? (matchDateISO.slice(0, 10)) : new Date().toISOString().slice(0, 10);
-        const rows = Array.from({ length: toInsert }).map(() => ({
+        const { error: insertErr } = await supabaseServiceRole.from('team_costs').insert({
           team_id: teamId,
           cost_setting_id: costSettingId,
-          amount: costSetting.amount ?? 0,
+          amount: desiredAmount,
           transaction_date: transactionDate,
           match_id: matchId,
           organization_id: orgId,
           season_label: seasonLabel,
           // mark as auto-generated so manual items are never affected by cleanup
           is_auto_card_penalty: true
-        }));
-
-        console.log(`Inserting ${toInsert} penalty records:`, rows);
-        const { error: insertErr } = await supabaseServiceRole.from('team_costs').insert(rows);
+        });
         if (insertErr) {
           throw new Error(`Failed to insert penalty records: ${insertErr.message}`);
         }
-      } else if (existingCount > desiredCount) {
-        // Delete the surplus rows
-        const toDelete = existingCount - desiredCount;
-        const idsToDelete = (existingRows || []).slice(0, toDelete).map(r => r.id);
-        if (idsToDelete.length > 0) {
-          console.log(`Deleting ${toDelete} surplus penalty records:`, idsToDelete);
-          const { error: delErr } = await supabaseServiceRole
-            .from('team_costs')
-            .delete()
-            .in('id', idsToDelete);
-          if (delErr) {
-            throw new Error(`Failed to delete surplus penalty records: ${delErr.message}`);
-          }
+      } else if (existing.is_auto_card_penalty && Number(existing.amount) !== desiredAmount) {
+        const { error: updErr } = await supabaseServiceRole
+          .from('team_costs')
+          .update({ amount: desiredAmount })
+          .eq('id', existing.id);
+        if (updErr) {
+          throw new Error(`Failed to update penalty record: ${updErr.message}`);
         }
       }
     }
