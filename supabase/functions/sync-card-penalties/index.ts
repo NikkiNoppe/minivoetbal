@@ -71,10 +71,23 @@ Deno.serve(async (req) => {
 
     console.log('Syncing card penalties for match:', { matchId, homeTeamId, awayTeamId });
 
-    // Load penalty cost settings (active) for inserts
+    // Load organization + season of this match (team_costs.organization_id is required)
+    const { data: matchRow, error: matchErr } = await supabaseServiceRole
+      .from('matches')
+      .select('organization_id, season_label')
+      .eq('match_id', matchId)
+      .single();
+    if (matchErr || !matchRow) {
+      throw new Error(`Failed to load match: ${matchErr?.message ?? 'not found'}`);
+    }
+    const orgId: number = matchRow.organization_id;
+    const seasonLabel: string | null = matchRow.season_label ?? null;
+
+    // Load penalty cost settings (active) for inserts — only this organization
     const { data: penalties, error: penErr } = await supabaseServiceRole
       .from('costs')
       .select('id, name, amount')
+      .eq('organization_id', orgId)
       .eq('category', 'penalty');
 
     if (penErr) {
@@ -87,6 +100,7 @@ Deno.serve(async (req) => {
     const { data: allPenaltyCosts, error: allPenErr } = await supabaseServiceRole
       .from('costs')
       .select('id')
+      .eq('organization_id', orgId)
       .eq('category', 'penalty');
     if (allPenErr) {
       throw new Error(`Failed to load all penalty cost ids: ${allPenErr.message}`);
