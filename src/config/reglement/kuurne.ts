@@ -706,6 +706,12 @@ export const KUURNE_REGLEMENT: ReglementCopy = {
       ),
     ]),
 
+    section("boetenlijst", "Boetenlijst", [
+      para(
+        "Niet verwittigd forfait: € 25,00\nVerwittigd forfait: € 20,00\nRode kaart: € 7,50\nGele kaart: € 2,50\nTe laat bevestigd wedstrijdblad of manueel blad (deadline 5 min voor de match): € 5,00\nGeen kapiteinsband: € 1,00\nGebruik hesjes: € 2,50",
+      ),
+    ]),
+
     section("7", "VII. Procedure bij ongeval / kwetsuur", [
       para(
         "De tijdens het minivoetbal gekwetste spelers van ploegen die niet verzekerd zijn via de Minivoetbal Vereniging Kuurne, dienen zich tot hun ploegverantwoordelijke te wenden voor de verdere afhandeling met hun eigen verzekeringsmaatschappij.",
