@@ -23,7 +23,6 @@ import { useFinancialData } from "@/hooks/useFinancialData";
 import { prefetchTeamFinancialDetail } from "@/components/modals/financial/useTeamFinancialDetailModal";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import type { TeamFinancesSummary } from "@/services/financial/teamCostCategories";
-import { amountToTopUp } from "@/services/financial/teamCostCategories";
 
 interface Team {
   team_id: number;
@@ -351,11 +350,6 @@ const AdminFinancialPage: React.FC = () => {
                                     {formatCurrency(finances.currentBalance)}
                                   </span>
                                 </div>
-                                {amountToTopUp(finances.currentBalance) > 0 ? (
-                                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                                    Nog te storten: {formatCurrency(amountToTopUp(finances.currentBalance))}
-                                  </p>
-                                ) : null}
                               </div>
                             )}
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
