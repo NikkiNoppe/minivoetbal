@@ -16,7 +16,7 @@ const DEFAULT_FEATURES: OrganizationFeatures = {
 
 const ORGANIZATION_FEATURES: Record<string, Partial<OrganizationFeatures>> = {
   harelbeke: { playoffs: true, teamSlotPreferences: true, profileFinancial: true },
-  kuurne: { playoffs: false, teamSlotPreferences: false, profileFinancial: false },
+  kuurne: { playoffs: false, teamSlotPreferences: false, profileFinancial: true },
 };
 
 export function getOrganizationFeatures(
