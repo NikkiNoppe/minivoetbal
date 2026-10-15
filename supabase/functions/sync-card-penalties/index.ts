@@ -222,6 +222,8 @@ Deno.serve(async (req) => {
           amount: costSetting.amount ?? 0,
           transaction_date: transactionDate,
           match_id: matchId,
+          organization_id: orgId,
+          season_label: seasonLabel,
           // mark as auto-generated so manual items are never affected by cleanup
           is_auto_card_penalty: true
         }));
