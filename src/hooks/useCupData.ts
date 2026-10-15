@@ -64,10 +64,10 @@ export const useCupData = () => {
 
   // Transform data to structured format
   const bracketData = query.data ? {
-    prelims: sortMatchesByDateAndTime(query.data.voorronde?.map(formatMatchForDisplay) || []),
-    eighthfinals: sortMatchesByDateAndTime(query.data.achtste_finales?.map(formatMatchForDisplay) || []),
-    quarterfinals: sortMatchesByDateAndTime(query.data.kwartfinales?.map(formatMatchForDisplay) || []),
-    semifinals: sortMatchesByDateAndTime(query.data.halve_finales?.map(formatMatchForDisplay) || []),
+    prelims: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.voorronde?.map(formatMatchForDisplay) || []),
+    eighthfinals: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.achtste_finales?.map(formatMatchForDisplay) || []),
+    quarterfinals: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.kwartfinales?.map(formatMatchForDisplay) || []),
+    semifinals: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.halve_finales?.map(formatMatchForDisplay) || []),
     final: query.data.finale ? formatMatchForDisplay(query.data.finale) : null
   } : null;
 
