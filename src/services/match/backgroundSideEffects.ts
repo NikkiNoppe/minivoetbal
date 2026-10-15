@@ -20,6 +20,7 @@ import { fetchMatchForSession } from "@/services/core/matchesSessionFetch";
 import { fetchCostsForSession } from "@/services/financial/costsSessionFetch";
 import { fetchTeamCostsForMatch } from "@/services/financial/matchCostService";
 import {
+  matchHasForfaitPenalty,
   matchSkipAutoMatchCosts,
   shouldSyncMatchCostsAfterMatchUpdate,
 } from "@/services/financial/matchCostService";
@@ -349,6 +350,12 @@ const syncFormCompletionPenalties = async (
   matchInfo: MatchInfo,
   updateData: UpdateData
 ): Promise<void> => {
+  // Bij forfait vervallen formulierboetes (enkel forfaitboete + administratiekost blijven).
+  if (await matchHasForfaitPenalty(matchId)) {
+    logSideEffect(ctx, 'form_completion', 'info', 'Forfait match, skipping form completion penalties');
+    return;
+  }
+
   const penaltySettings = await fetchCostsForSession('penalty');
   const notFilledCost = penaltySettings.find((c) => c.name === 'Wedstrijdformulier niet ingevuld');
   const incorrectCost = penaltySettings.find((c) => c.name === 'Wedstrijdformulier niet correct ingevuld');
