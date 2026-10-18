@@ -18,6 +18,7 @@ export interface BlogPostData {
     published_at?: string;
     visible_from?: string | null;
     visible_until?: string | null;
+    imageUrl?: string | null;
   };
 }
 
@@ -32,6 +33,7 @@ export interface BlogPost {
     published_at?: string;
     visible_from?: string | null;
     visible_until?: string | null;
+    imageUrl?: string | null;
   };
 }
 
