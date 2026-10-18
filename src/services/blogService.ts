@@ -61,6 +61,7 @@ const transformBlogPostData = (data: any[]): BlogPost[] => {
         published_at: settingValue?.published_at,
         visible_from: settingValue?.visible_from ?? null,
         visible_until: settingValue?.visible_until ?? null,
+        imageUrl: settingValue?.imageUrl ?? null,
       },
     };
   });
