@@ -18,6 +18,7 @@ export interface BlogPostData {
     published_at?: string;
     visible_from?: string | null;
     visible_until?: string | null;
+    imageUrl?: string | null;
   };
 }
 
@@ -32,6 +33,7 @@ export interface BlogPost {
     published_at?: string;
     visible_from?: string | null;
     visible_until?: string | null;
+    imageUrl?: string | null;
   };
 }
 
@@ -61,6 +63,7 @@ const transformBlogPostData = (data: any[]): BlogPost[] => {
         published_at: settingValue?.published_at,
         visible_from: settingValue?.visible_from ?? null,
         visible_until: settingValue?.visible_until ?? null,
+        imageUrl: settingValue?.imageUrl ?? null,
       },
     };
   });
