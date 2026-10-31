@@ -11,6 +11,7 @@ import {
   Wand2,
   Copy,
   Mail,
+  ChevronDown,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
