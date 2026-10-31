@@ -942,6 +942,44 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
     );
   };
 
+  /** Zelfde keuzemenu als een cel, maar past de keuze toe op alle sessies van de dag. */
+  const renderRefereeDayMenuContent = (day: SessionDayGroup, refereeId: number) => {
+    const applyDayChoice = (choice: CellStatusChoice) => () => {
+      void (async () => {
+        for (const session of day.sessions) {
+          const assignment = getSessionAssignment(session, refereeId);
+          const assignedRefId = getSessionAssignedReferee(session);
+          await applyRefereeCellChoice(session, refereeId, choice, {
+            isAssigned: !!assignment,
+            isOtherAssigned: assignedRefId !== null && assignedRefId !== refereeId,
+            assignment,
+          });
+        }
+      })();
+    };
+
+    return (
+      <>
+        <DropdownMenuItem onSelect={applyDayChoice('assigned')}>
+          <Star className="mr-2 h-3.5 w-3.5 text-success" />
+          Toegewezen
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={applyDayChoice('available')}>
+          <Check className="mr-2 h-3.5 w-3.5 text-success" />
+          Beschikbaar
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={applyDayChoice('unavailable')}>
+          <X className="mr-2 h-3.5 w-3.5 text-destructive/80" />
+          Niet beschikbaar
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={applyDayChoice('none')}>
+          <Minus className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+          Geen reactie
+        </DropdownMenuItem>
+      </>
+    );
+  };
+
   // Suggest: top kandidaat voor één sessie
   const getSuggestionForSession = useCallback(
     (session: Session): SuggestionCandidate | null => {
@@ -1433,18 +1471,52 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
                             ) : null}
                           </div>
                         </th>
-                        {referees.map((ref) => (
-                          <td
-                            key={ref.user_id}
-                            aria-hidden
-                            className="border-t-2 border-r border-[hsl(var(--color-200))] bg-muted last:border-r-0"
-                            style={{
-                              width: REFEREE_COLUMN_WIDTH,
-                              minWidth: REFEREE_COLUMN_WIDTH,
-                              height: DAY_HEADER_HEIGHT,
-                            }}
-                          />
-                        ))}
+                        {referees.map((ref) => {
+                          const dayCellKey = `day-${day.dateOnly}-${ref.user_id}`;
+                          const dayTooltip = `${ref.username} – ${formatDateWithDay(day.date)} · Klik om status voor de hele dag te kiezen`;
+                          return (
+                            <td
+                              key={ref.user_id}
+                              className="border-t-2 border-r border-[hsl(var(--color-200))] bg-muted last:border-r-0 p-0"
+                              style={{
+                                width: REFEREE_COLUMN_WIDTH,
+                                minWidth: REFEREE_COLUMN_WIDTH,
+                                height: DAY_HEADER_HEIGHT,
+                              }}
+                            >
+                              <DropdownMenu
+                                open={menuCellKey === dayCellKey}
+                                onOpenChange={(open) => {
+                                  if (open) openCellMenu(dayCellKey);
+                                  else closeCellMenu();
+                                }}
+                              >
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    title={dayTooltip}
+                                    aria-label={dayTooltip}
+                                    aria-haspopup="menu"
+                                    className="flex h-full w-full items-center justify-center transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                                    style={{ height: DAY_HEADER_HEIGHT }}
+                                  >
+                                    <ChevronDown className="h-3 w-3 text-muted-foreground/50" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  side="bottom"
+                                  align="center"
+                                  sideOffset={4}
+                                  collisionPadding={12}
+                                  onCloseAutoFocus={(event) => event.preventDefault()}
+                                  className="z-[80] w-48 border border-[hsl(var(--color-200))] shadow-sm"
+                                >
+                                  {renderRefereeDayMenuContent(day, ref.user_id)}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          );
+                        })}
                       </tr>
                       {day.sessions.map((session, sessionIdx) => {
                     const assignedRefId = getSessionAssignedReferee(session);
