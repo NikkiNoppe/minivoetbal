@@ -912,9 +912,8 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
       hasResponded: boolean;
     },
   ) => {
-    const keepOpenAndApply = (choice: CellStatusChoice) => (event: Event) => {
-      // Blijf open tot buiten de menu of opnieuw op de cel wordt geklikt.
-      event.preventDefault();
+    const applyChoice = (choice: CellStatusChoice) => () => {
+      // Menu sluit automatisch na een keuze (geen preventDefault).
       void applyRefereeCellChoice(session, refereeId, choice, context);
     };
 
@@ -922,20 +921,20 @@ const AvailabilityMatrix: React.FC<AvailabilityMatrixProps> = ({
       <>
         <DropdownMenuItem
           disabled={context.isAssigned}
-          onSelect={keepOpenAndApply('assigned')}
+          onSelect={applyChoice('assigned')}
         >
           <Star className="mr-2 h-3.5 w-3.5 text-success" />
           Toegewezen
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={keepOpenAndApply('available')}>
+        <DropdownMenuItem onSelect={applyChoice('available')}>
           <Check className="mr-2 h-3.5 w-3.5 text-success" />
           Beschikbaar
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={keepOpenAndApply('unavailable')}>
+        <DropdownMenuItem onSelect={applyChoice('unavailable')}>
           <X className="mr-2 h-3.5 w-3.5 text-destructive/80" />
           Niet beschikbaar
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={keepOpenAndApply('none')}>
+        <DropdownMenuItem onSelect={applyChoice('none')}>
           <Minus className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
           Geen reactie
         </DropdownMenuItem>
