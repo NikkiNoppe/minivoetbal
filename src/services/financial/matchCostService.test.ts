@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   costNameImpliesMatchCostSuppression,
+  forfaitConflictsWithScores,
+  isForfaitScore,
+  scoresForForfaitLoser,
+  FORFAIT_WIN_SCORE,
+  FORFAIT_LOSE_SCORE,
   findForfaitVerwittigdPenaltyCost,
   costNameIsForfaitVerwittigd,
   shouldSyncMatchCostsAfterMatchUpdate,
@@ -111,6 +116,36 @@ describe("costNameIsForfaitVerwittigd", () => {
 
   it("herkent forfait tijdens de wedstrijd niet als verwittigd", () => {
     expect(costNameIsForfaitVerwittigd("Forfait tijdens de wedstrijd")).toBe(false);
+  });
+});
+
+describe("isForfaitScore / scoresForForfaitLoser", () => {
+  it("herkent reglementaire 10-0 en 0-10", () => {
+    expect(isForfaitScore(FORFAIT_WIN_SCORE, FORFAIT_LOSE_SCORE)).toBe(true);
+    expect(isForfaitScore(FORFAIT_LOSE_SCORE, FORFAIT_WIN_SCORE)).toBe(true);
+    expect(isForfaitScore(3, 1)).toBe(false);
+    expect(isForfaitScore(null, 0)).toBe(false);
+  });
+
+  it("zet uitslag t.o.v. verliezend team", () => {
+    expect(scoresForForfaitLoser(1, 1, 2)).toEqual({ homeScore: 0, awayScore: 10 });
+    expect(scoresForForfaitLoser(2, 1, 2)).toEqual({ homeScore: 10, awayScore: 0 });
+    expect(scoresForForfaitLoser(9, 1, 2)).toBeNull();
+  });
+
+  it("conflicteert alleen bij niet-forfait uitslag", () => {
+    expect(forfaitConflictsWithScores(10, 0)).toBe(false);
+    expect(forfaitConflictsWithScores(0, 10)).toBe(false);
+    expect(forfaitConflictsWithScores(2, 1)).toBe(true);
+    expect(forfaitConflictsWithScores(null, null)).toBe(false);
+  });
+
+  it("10-0 patroon alleen ≠ forfait: forfait vereist boete, niet de score", () => {
+    // isForfaitScore herkent het reglementaire patroon; zonder forfait-boete
+    // mag niets automatisch een forfait aanmaken of kosten onderdrukken.
+    expect(isForfaitScore(10, 0)).toBe(true);
+    expect(costNameImpliesMatchCostSuppression("Veldkosten")).toBe(false);
+    expect(costNameIsForfaitVerwittigd("")).toBe(false);
   });
 });
 

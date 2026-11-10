@@ -57,11 +57,14 @@ import {
   findForfaitVerwittigdPenaltyCost,
   costNameIsForfaitVerwittigd,
   fetchTeamCostsForMatch,
+  forfaitConflictsWithScores,
   invokeSyncMatchCostsForMatch,
   matchHasForfaitPenalty,
   matchSkipAutoMatchCosts,
+  scoresForForfaitLoser,
 } from "@/services/financial/matchCostService";
 import { isAdminMatchCostName } from "@/services/financial/teamCostCategories";
+import { updateMatchData } from "@/components/pages/admin/matches/services/matchUpdateService";
 
 interface WedstrijdformulierModalProps {
   open: boolean;
@@ -513,11 +516,20 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
     return NaN;
   }, []);
 
-  /** Ingediende wedstrijd met uitslag: forfait verwittigd hoort hier niet (wedstrijd is wel gespeeld). */
+  /**
+   * Echte (niet-forfait) uitslag: forfait-boete botst hiermee.
+   * Reglementaire forfait-uitslag 10-0 / 0-10 telt niet als "gespeeld".
+   */
   const matchAppearsPlayed = useMemo(() => {
     const h = parseFormOrMatchScore(homeScore, match.homeScore);
     const a = parseFormOrMatchScore(awayScore, match.awayScore);
-    return match.isCompleted || (!Number.isNaN(h) && !Number.isNaN(a));
+    if (!Number.isNaN(h) && !Number.isNaN(a)) {
+      return forfaitConflictsWithScores(h, a);
+    }
+    if (match.isCompleted) {
+      return forfaitConflictsWithScores(match.homeScore, match.awayScore);
+    }
+    return false;
   }, [homeScore, awayScore, match.homeScore, match.awayScore, match.isCompleted, parseFormOrMatchScore]);
 
   const persistPenaltyItems = useCallback(async (
@@ -535,7 +547,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
       toast({
         title: "Forfait verwittigd niet van toepassing",
         description:
-          "Deze wedstrijd heeft een uitslag en is (of wordt) ingediend. Forfait verwittigd geldt alleen als de wedstrijd niet is gespeeld.",
+          "Deze wedstrijd heeft een echte uitslag (geen 10-0/0-10). Forfait verwittigd hoort alleen bij een niet-gespeelde wedstrijd; de reglementaire forfait-uitslag is 10-0.",
         variant: "destructive",
       });
       return false;
@@ -588,6 +600,53 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
         return cs != null && costNameImpliesMatchCostSuppression(cs.name);
       });
 
+      let forfaitScoreNote = "";
+      if (hadForfait) {
+        const forfaitItem = validItems.find((p) => {
+          const cs = availablePenalties.find((x) => Number(x.id) === Number(p.costSettingId));
+          return cs != null && costNameImpliesMatchCostSuppression(cs.name);
+        });
+        if (forfaitItem?.teamId != null) {
+          const scores = scoresForForfaitLoser(
+            Number(forfaitItem.teamId),
+            Number(match.homeTeamId),
+            Number(match.awayTeamId),
+          );
+          if (scores) {
+            const currentH = parseFormOrMatchScore(homeScore, match.homeScore);
+            const currentA = parseFormOrMatchScore(awayScore, match.awayScore);
+            const needsScoreUpdate =
+              Number.isNaN(currentH) ||
+              Number.isNaN(currentA) ||
+              currentH !== scores.homeScore ||
+              currentA !== scores.awayScore;
+            if (needsScoreUpdate) {
+              setHomeScore(String(scores.homeScore));
+              setAwayScore(String(scores.awayScore));
+              const scoreResult = await updateMatchData({
+                match_id: Number(match.matchId),
+                home_score: scores.homeScore,
+                away_score: scores.awayScore,
+                is_submitted: true,
+              });
+              if (scoreResult.success) {
+                forfaitScoreNote = ` Uitslag automatisch gezet op ${scores.homeScore}-${scores.awayScore}.`;
+              } else {
+                toast({
+                  title: "Forfait opgeslagen, uitslag niet",
+                  description:
+                    scoreResult.message ||
+                    "Zet de reglementaire forfait-uitslag (10-0) handmatig in het formulier.",
+                  variant: "destructive",
+                });
+              }
+            } else {
+              forfaitScoreNote = ` Uitslag ${scores.homeScore}-${scores.awayScore} (forfait) behouden.`;
+            }
+          }
+        }
+      }
+
       if (hadForfaitVerwittigd) {
         const refereeBeforeClear = (selectedReferee || match.referee || "").trim();
         setSelectedReferee("");
@@ -623,7 +682,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
         description:
           options?.successDescription ??
           (hadForfait
-            ? `${savedCount} boete(s) toegevoegd. Forfait: wedstrijdkosten (veld/scheids/admin) voor deze wedstrijd zijn verwijderd.${forfaitVerwittigdNote}`
+            ? `${savedCount} boete(s) toegevoegd. Forfait: wedstrijdkosten (veld/scheids) voor deze wedstrijd zijn verwijderd; administratie blijft.${forfaitScoreNote}${forfaitVerwittigdNote}`
             : `${savedCount} boete(s) succesvol toegevoegd aan de teamtransacties.`),
       });
       return true;
@@ -638,7 +697,27 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
     } finally {
       setIsLoadingPenalties(false);
     }
-  }, [availablePenalties, match.matchId, match.homeTeamId, match.homeTeamName, match.awayTeamName, matchAppearsPlayed, toast, refreshFinancialState, setSelectedReferee]);
+  }, [
+    availablePenalties,
+    match.matchId,
+    match.homeTeamId,
+    match.awayTeamId,
+    match.homeTeamName,
+    match.awayTeamName,
+    match.homeScore,
+    match.awayScore,
+    match.referee,
+    homeScore,
+    awayScore,
+    matchAppearsPlayed,
+    parseFormOrMatchScore,
+    setHomeScore,
+    setAwayScore,
+    toast,
+    refreshFinancialState,
+    setSelectedReferee,
+    selectedReferee,
+  ]);
 
   /** Standaard forfait-regel: vult boetype + verliezend team in en slaat direct op wanneer het team bekend is. */
   const addForfaitPenaltyPreset = useCallback(async () => {
@@ -646,7 +725,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
       toast({
         title: "Forfait verwittigd niet van toepassing",
         description:
-          "Deze wedstrijd heeft een uitslag. Verwijder een verkeerde forfait-boete via het prullenbak-icoon bij opgeslagen boetes.",
+          "Deze wedstrijd heeft een echte uitslag (geen 10-0/0-10). Verwijder een verkeerde forfait-boete via het prullenbak-icoon bij opgeslagen boetes.",
         variant: "destructive",
       });
       return;
@@ -689,7 +768,7 @@ export const WedstrijdformulierModal: React.FC<WedstrijdformulierModalProps> = (
       const ok = await persistPenaltyItems([draft], {
         successTitle: "Forfait verwittigd opgeslagen",
         successDescription:
-          "De boete Forfait verwittigd is bewaard. Standaard wedstrijdkosten zijn verwijderd en de scheidsrechter-toewijzing is opgeheven.",
+          "De boete Forfait verwittigd is bewaard. Reglementaire uitslag 10-0 is gezet, wedstrijdkosten (veld/scheids) zijn verwijderd en de scheidsrechter-toewijzing is opgeheven.",
       });
       if (ok) {
         const forfaitTeamName =

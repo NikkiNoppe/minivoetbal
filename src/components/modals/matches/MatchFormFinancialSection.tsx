@@ -325,8 +325,8 @@ export function MatchFormFinancialSection({
                             </div>
                             {forfaitOnPlayedMatch && (
                               <p className="mt-1 text-xs text-amber-900">
-                                Waarschijnlijk fout: wedstrijd heeft uitslag — forfait verwittigd hoort
-                                hier niet.
+                                Waarschijnlijk fout: wedstrijd heeft een echte uitslag (geen 10-0/0-10) —
+                                forfait verwittigd hoort hier niet.
                               </p>
                             )}
                           </div>
@@ -367,14 +367,15 @@ export function MatchFormFinancialSection({
                 >
                   {matchAppearsPlayed ? (
                     <p>
-                      Er staat een forfait-boete op een wedstrijd met uitslag. Dat hoort normaal niet —
-                      verwijder de boete bij Financieel als die per ongeluk is toegevoegd. Wedstrijdkosten
-                      blijven gelden zolang de wedstrijd gespeeld is.
+                      Er staat een forfait-boete op een wedstrijd met een echte uitslag (geen
+                      reglementaire 10-0/0-10). Verwijder de boete bij Financieel als die per ongeluk is
+                      toegevoegd, of pas de uitslag aan naar 10-0. Wedstrijdkosten blijven gelden zolang
+                      de wedstrijd echt gespeeld is.
                     </p>
                   ) : (
                     <p>
-                      Forfait actief — veld- en scheidskosten vervallen. Administratiekosten blijven
-                      voor beide teams doorlopen.
+                      Forfait actief — reglementaire uitslag is 10-0. Veld- en scheidskosten vervallen;
+                      administratiekosten blijven voor beide teams doorlopen.
                     </p>
                   )}
                 </div>

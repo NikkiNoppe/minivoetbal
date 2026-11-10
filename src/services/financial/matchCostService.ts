@@ -66,6 +66,51 @@ export function costNameIsForfaitVerwittigd(name: string | null | undefined): bo
   return n.includes("forfait") && n.includes("verwittigd");
 }
 
+/** Reglement: forfait-uitslag is 10-0 voor de winnaar. */
+export const FORFAIT_WIN_SCORE = 10;
+export const FORFAIT_LOSE_SCORE = 0;
+
+/** True bij reglementaire forfait-uitslag 10-0 of 0-10. */
+export function isForfaitScore(
+  homeScore: number | null | undefined,
+  awayScore: number | null | undefined,
+): boolean {
+  if (homeScore == null || awayScore == null) return false;
+  if (Number.isNaN(homeScore) || Number.isNaN(awayScore)) return false;
+  return (
+    (homeScore === FORFAIT_WIN_SCORE && awayScore === FORFAIT_LOSE_SCORE) ||
+    (homeScore === FORFAIT_LOSE_SCORE && awayScore === FORFAIT_WIN_SCORE)
+  );
+}
+
+/**
+ * Uitslag bij forfait: verliezend team (boete) krijgt 0, tegenstander 10.
+ * Thuis forfait → 0-10; uit forfait → 10-0.
+ */
+export function scoresForForfaitLoser(
+  losingTeamId: number,
+  homeTeamId: number,
+  awayTeamId: number,
+): { homeScore: number; awayScore: number } | null {
+  if (losingTeamId === homeTeamId) {
+    return { homeScore: FORFAIT_LOSE_SCORE, awayScore: FORFAIT_WIN_SCORE };
+  }
+  if (losingTeamId === awayTeamId) {
+    return { homeScore: FORFAIT_WIN_SCORE, awayScore: FORFAIT_LOSE_SCORE };
+  }
+  return null;
+}
+
+/** Forfait-boete + uitslag botst alleen als de score géén reglementaire forfait-uitslag is. */
+export function forfaitConflictsWithScores(
+  homeScore: number | null | undefined,
+  awayScore: number | null | undefined,
+): boolean {
+  if (homeScore == null || awayScore == null) return false;
+  if (Number.isNaN(homeScore) || Number.isNaN(awayScore)) return false;
+  return !isForfaitScore(homeScore, awayScore);
+}
+
 /** Matches DB public.match_has_forfait_penalty (via RPC + fallback). */
 export async function matchHasForfaitPenalty(matchId: number): Promise<boolean> {
   if (!matchId) return false;
