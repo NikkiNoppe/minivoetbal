@@ -1,3 +1,4 @@
+import { readCachedTheme, writeCachedTheme } from "@/lib/bootTheme";
 import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   ThemeColors,
@@ -124,7 +125,9 @@ export function useThemeColorsInit() {
   );
 
   const slugFallback = useMemo(
-    () => resolveOrganizationTheme(organizationSlug, { brandingTheme }),
+    () =>
+      (!brandingTheme ? readCachedTheme(organizationSlug) : null) ??
+      resolveOrganizationTheme(organizationSlug, { brandingTheme }),
     [organizationSlug, brandingTheme],
   );
 
@@ -158,7 +161,11 @@ export function useThemeColorsInit() {
       : slugFallback;
     applyThemeToCSS(activeTheme);
     void applyThemeToDocument(activeTheme);
+    if (orgQueryEnabled && theme && !(isSuperAdmin && actingOrg)) {
+      writeCachedTheme(organizationSlug, theme);
+    }
   }, [
+    organizationSlug,
     theme,
     slugFallback,
     organizationId,

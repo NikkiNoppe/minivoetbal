@@ -28,7 +28,7 @@ import { useThemeColorsInit } from "@/hooks/useThemeColors";
 import { useRouteMeta } from "@/hooks/useRouteMeta";
 
 // Lazy load main components (retry + reload bij gefaalde HMR dynamic import)
-const Index = lazyImport(() => import("./pages/Index"));
+import Index from "./pages/Index";
 const NotFound = lazyImport(() => import("./pages/NotFound"));
 const ResetPassword = lazyImport(() => import("./pages/ResetPassword"));
 const Unsubscribe = lazyImport(() => import("./pages/Unsubscribe"));
