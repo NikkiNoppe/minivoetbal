@@ -10,7 +10,6 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const SITE_URL = (process.env.VITE_SITE_URL || 'https://harelbekeminivoetbal.be').replace(/\/$/, '');
-const today = new Date().toISOString().slice(0, 10);
 
 const routes = [
   { path: '/', priority: '1.0', changefreq: 'daily' },
@@ -25,7 +24,6 @@ const urlEntries = routes
   .map(
     ({ path, priority, changefreq }) => `  <url>
     <loc>${SITE_URL}${path}</loc>
-    <lastmod>${today}</lastmod>
     <changefreq>${changefreq}</changefreq>
     <priority>${priority}</priority>
   </url>`,
