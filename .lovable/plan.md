@@ -24,3 +24,8 @@ Visueel verandert verder niets aan de pagina's zelf.
 - `RoutePageSkeleton`/AlgemeenPage: vaste afmetingen voor logo (width/height) en kaartcontainers; korte opacity-transitie.
 - Controleren dat auth-wacht (`authContextReady`) geen volledige leeg-render veroorzaakt.
 - Verificatie met Playwright: screenshots op 0/200/500/1000 ms vóór en na.
+
+## Meerdere websites (Harelbeke en Kuurne)
+- Onthouden kleuren en logo worden per website apart bewaard (op basis van het webadres), zodat Kuurne nooit even Harelbeke-blauw toont en omgekeerd.
+- Bij een eerste bezoek wordt de juiste website herkend vóór de pagina verschijnt (bestaande domeinherkenning).
+- Testen op beide websites: harelbekeminivoetbal.be en mvvkuurne.be (ook www).
