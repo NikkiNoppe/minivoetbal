@@ -25,6 +25,8 @@ export interface ProfileFinancialCopy {
   accountHolder: string;
   iban: string;
   seasonDepositNotice: string;
+  /** Einde-seizoen stortingsbanner op profiel. Uit buiten de stortingsperiode. */
+  showSeasonDepositNotice: boolean;
 }
 
 export interface OrganizationPublicContent {
@@ -67,6 +69,7 @@ export const ORGANIZATION_PUBLIC_CONTENT: Record<string, OrganizationPublicConte
       accountHolder: 'Nikki Noppe',
       iban: 'BE48 6504 6890 7727',
       seasonDepositNotice: '',
+      showSeasonDepositNotice: false,
     },
     reglement: resolveReglementCopy('harelbeke'),
   },
@@ -86,6 +89,7 @@ export const ORGANIZATION_PUBLIC_CONTENT: Record<string, OrganizationPublicConte
       iban: '',
       seasonDepositNotice:
         'Neem contact op met de organisatie voor stortingsgegevens.',
+      showSeasonDepositNotice: false,
     },
     reglement: resolveReglementCopy('kuurne'),
   },
@@ -115,6 +119,8 @@ function mergeProfileFinancialCopy(
     iban: override?.iban?.trim() || base.iban,
     seasonDepositNotice:
       override?.seasonDepositNotice?.trim() || base.seasonDepositNotice,
+    showSeasonDepositNotice:
+      override?.showSeasonDepositNotice ?? base.showSeasonDepositNotice,
   };
 }
 

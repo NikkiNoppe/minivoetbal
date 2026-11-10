@@ -839,6 +839,7 @@ const FinancialOverviewCard: React.FC<{ teamId: number; teamName?: string }> = m
     accountHolder,
     iban,
     seasonDepositNotice,
+    showSeasonDepositNotice,
   } = profileFinancial;
   
   // Fetch balance
@@ -1000,7 +1001,8 @@ const FinancialOverviewCard: React.FC<{ teamId: number; teamName?: string }> = m
             </div>
           )}
 
-          {/* Season deposit notice */}
+          {/* Season deposit notice — alleen tijdens stortingsperiode */}
+          {showSeasonDepositNotice && (
           <div className="rounded-md bg-primary/10 border border-primary/20 p-4 space-y-3">
             <div className="text-center">
               <p className="text-sm font-semibold text-foreground">
@@ -1047,6 +1049,7 @@ const FinancialOverviewCard: React.FC<{ teamId: number; teamName?: string }> = m
               </div>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
