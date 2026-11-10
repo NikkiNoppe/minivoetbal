@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { bekerService as cupService } from "@/services/match/cupService";
 import { isoToLocalDateTime } from "@/lib/dateUtils";
+import { sortMatchesByDateAndTime } from "@/lib/matchSortingUtils";
 import { useOrgQueryScope } from "@/hooks/useOrganization";
 import { withOrgQueryKey } from "@/lib/orgQueryKey";
 
@@ -63,10 +64,10 @@ export const useCupData = () => {
 
   // Transform data to structured format
   const bracketData = query.data ? {
-    prelims: query.data.voorronde?.map(formatMatchForDisplay) || [],
-    eighthfinals: query.data.achtste_finales?.map(formatMatchForDisplay) || [],
-    quarterfinals: query.data.kwartfinales?.map(formatMatchForDisplay) || [],
-    semifinals: query.data.halve_finales?.map(formatMatchForDisplay) || [],
+    prelims: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.voorronde?.map(formatMatchForDisplay) || []),
+    eighthfinals: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.achtste_finales?.map(formatMatchForDisplay) || []),
+    quarterfinals: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.kwartfinales?.map(formatMatchForDisplay) || []),
+    semifinals: sortMatchesByDateAndTime<CupMatchDisplay>(query.data.halve_finales?.map(formatMatchForDisplay) || []),
     final: query.data.finale ? formatMatchForDisplay(query.data.finale) : null
   } : null;
 

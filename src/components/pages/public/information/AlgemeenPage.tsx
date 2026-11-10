@@ -79,6 +79,14 @@ const BlogPostItem = memo(({ post }: { post: BlogPost }) => {
               />
             )}
           </div>
+          {post.setting_value.imageUrl && (
+            <img
+              src={post.setting_value.imageUrl}
+              alt={post.setting_value.title || "Afbeelding bij het nieuwsbericht"}
+              className="mt-3 w-full max-w-md rounded-lg border"
+              loading="lazy"
+            />
+          )}
           {needsTruncate && (
             <Button
               type="button"

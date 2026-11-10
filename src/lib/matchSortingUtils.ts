@@ -17,12 +17,18 @@ export const getLocationOrder = (location: string): number => {
  * @param matches Array of matches to sort
  * @returns Sorted matches array
  */
-export const sortMatchesByDateAndTime = <T extends { date: string; time: string; location?: string }>(
+export const sortMatchesByDateAndTime = <T extends { date?: string; time?: string; location?: string }>(
   matches: T[]
 ): T[] => {
+  const timestampOf = (match: T): number => {
+    if (!match.date) return Number.MAX_SAFE_INTEGER;
+    const ms = new Date(match.date).getTime();
+    return Number.isNaN(ms) ? Number.MAX_SAFE_INTEGER : ms;
+  };
+
   return matches.sort((a, b) => {
     // 1. Sort by date
-    const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+    const dateCompare = timestampOf(a) - timestampOf(b);
     if (dateCompare !== 0) return dateCompare;
 
     // 2. Sort by location (Harelbeke first)
@@ -32,7 +38,7 @@ export const sortMatchesByDateAndTime = <T extends { date: string; time: string;
     }
 
     // 3. Sort by time
-    return a.time.localeCompare(b.time);
+    return (a.time ?? '').localeCompare(b.time ?? '');
   });
 };
 
