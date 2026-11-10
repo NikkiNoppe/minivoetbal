@@ -330,7 +330,7 @@ export const ROUTE_META: Record<string, RouteMeta> = {
   [PUBLIC_ROUTES.reglement]: {
     title: 'Reglement',
     description:
-      'Volledig reglement en spelregels van de Harelbeekse Minivoetbal Competitie: inschrijving, wedstrijdregels, schorsingen en financiële bepalingen.',
+      'Hoe lang duurt minivoetbal? Een wedstrijd telt 4 periodes van 12 minuten (48 min). Volledig reglement van de Harelbeekse Minivoetbal Competitie.',
     requiresAuth: false,
     requiresAdmin: false,
   },

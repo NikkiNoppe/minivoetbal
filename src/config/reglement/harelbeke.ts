@@ -3,7 +3,7 @@ import type { ReglementCopy } from "./types";
 export const HARELBEKE_REGLEMENT: ReglementCopy = {
   pageTitle: "Reglement",
   metaDescription:
-    "Volledig reglement en spelregels van de Harelbeekse Minivoetbal Competitie: inschrijving, wedstrijdregels, schorsingen en financiële bepalingen.",
+    "Hoe lang duurt minivoetbal? Een wedstrijd telt 4 periodes van 12 minuten (48 min). Volledig reglement van de Harelbeekse Minivoetbal Competitie.",
   playerHighlights: {
     maxPlayers: "Elk team mag maximaal 20 spelers hebben per seizoen.",
     transfers: "Spelers kunnen niet van team wisselen tijdens het lopende seizoen.",
