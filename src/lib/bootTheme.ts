@@ -18,7 +18,7 @@ export function applyBootOrganizationTheme(options?: {
       hostname: options?.hostname,
       isSuperAdmin: options?.isSuperAdmin,
     });
-  const theme = resolveOrganizationTheme(slug);
+  const theme = readCachedTheme(slug) ?? resolveOrganizationTheme(slug);
   applyThemeToCSS(theme);
   if (typeof document !== 'undefined') {
     document.documentElement.dataset.org = slug;
@@ -26,4 +26,24 @@ export function applyBootOrganizationTheme(options?: {
   applyTenantPwaHead(slug);
   void applyThemeToDocument(theme);
   return slug;
+}
+
+const THEME_CACHE_PREFIX = 'boot-theme:';
+
+/** Laatst geladen DB-thema per organisatie (slug) — voorkomt kleurflits bij opstart. */
+export function readCachedTheme(slug: string): ReturnType<typeof resolveOrganizationTheme> | null {
+  try {
+    const raw = window.localStorage.getItem(THEME_CACHE_PREFIX + slug);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeCachedTheme(slug: string, theme: unknown): void {
+  try {
+    window.localStorage.setItem(THEME_CACHE_PREFIX + slug, JSON.stringify(theme));
+  } catch {
+    /* ignore */
+  }
 }
