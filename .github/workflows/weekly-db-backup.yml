@@ -1,16 +1,23 @@
-# Wekelijkse volledige Postgres-dump (gratis Supabase heeft geen platform-backups).
+# Wekelijkse versleutelde Postgres-dump (gratis Supabase heeft geen platform-backups).
 #
 # Schema: zondag 06:00 Europe/Brussels (CEST = 04:00 UTC; in wintertijd ≈ 05:00 lokale tijd).
 # Handmatig: Actions → "Weekly database backup" → Run workflow.
 #
-# Secret (repo Settings → Secrets and variables → Actions):
-#   SUPABASE_DB_URL
-# Direct connection string uit Dashboard → Project Settings → Database → URI
-# Voorbeeld: postgresql://postgres.[PASSWORD]@db.kuyviionmstyvkvglizh.supabase.co:5432/postgres
-# (wachtwoord percent-encoden als het speciale tekens bevat)
+# Secrets (repo Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL         — Session pooler URI (IPv4), Dashboard → Connect → Session mode
+#                             Voorbeeld: postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
+#                             (wachtwoord percent-encoden als het speciale tekens bevat)
+#   BACKUP_ENCRYPTION_KEY   — sterk wachtwoord/passphrase voor AES-256 encryptie van het artifact
 #
-# Artifacts: Actions-run → Artifacts → weekly-db-backup-YYYY-MM-DD (90 dagen retentie).
-# Restore: zie Supabase docs — roles.sql + schema.sql + data.sql via psql.
+# Artifacts: Actions-run → weekly-db-backup-YYYY-MM-DD.tar.gz.enc (90 dagen). Alleen encrypted.
+# Lokale kopie: artifact downloaden na geslaagde run en privé bewaren.
+#
+# Decrypt + restore:
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+#     -in weekly-db-backup-YYYY-MM-DD.tar.gz.enc -out backup.tar.gz \
+#     -pass pass:'YOUR_BACKUP_ENCRYPTION_KEY'
+#   tar -xzf backup.tar.gz
+#   psql "$DB_URL" -f roles.sql && psql "$DB_URL" -f schema.sql && psql "$DB_URL" -f data.sql
 
 name: Weekly database backup
 
@@ -34,20 +41,48 @@ jobs:
     timeout-minutes: 30
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+      # Gepinde CLI-versie (vermijd verrassingen van floating latest)
+      SUPABASE_CLI_VERSION: "2.58.5"
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1.3.0
+        id: setup_cli
+        continue-on-error: true
+        uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      - name: Verify secret
+      - name: Retry Setup Supabase CLI via npm
+        if: steps.setup_cli.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          echo "setup-cli action failed; retrying install via npm..."
+          for attempt in 1 2 3 4 5; do
+            if npm install -g "supabase@${SUPABASE_CLI_VERSION}"; then
+              supabase --version
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed; waiting before retry..."
+            sleep $((attempt * 12))
+          done
+          echo "::error::Supabase CLI install mislukt na retries (mogelijk tijdelijke 502)."
+          exit 1
+
+      - name: Verify CLI
+        run: supabase --version
+
+      - name: Verify secrets
         run: |
           if [ -z "$SUPABASE_DB_URL" ]; then
             echo "::error::Secret SUPABASE_DB_URL ontbreekt. Voeg die toe onder Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          if [ -z "$BACKUP_ENCRYPTION_KEY" ]; then
+            echo "::error::Secret BACKUP_ENCRYPTION_KEY ontbreekt. Voeg een sterk wachtwoord toe onder Settings → Secrets and variables → Actions."
             exit 1
           fi
 
@@ -70,15 +105,24 @@ jobs:
             -x "storage.buckets_vectors" \
             -x "storage.vector_indexes"
 
-      - name: Summarize dump sizes
+      - name: Encrypt backup archive
         run: |
+          set -euo pipefail
           ls -lh "backups/${BACKUP_DATE}/"
+          tar -C "backups/${BACKUP_DATE}" -czf "backups/${BACKUP_DATE}.tar.gz" .
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in "backups/${BACKUP_DATE}.tar.gz" \
+            -out "backups/${BACKUP_DATE}.tar.gz.enc" \
+            -pass env:BACKUP_ENCRYPTION_KEY
+          # Geen plaintext SQL of tar in artifact
+          rm -rf "backups/${BACKUP_DATE}" "backups/${BACKUP_DATE}.tar.gz"
+          ls -lh "backups/${BACKUP_DATE}.tar.gz.enc"
           echo "Backup date (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4.6.2
+      - name: Upload encrypted artifact
+        uses: actions/upload-artifact@v4
         with:
           name: weekly-db-backup-${{ env.BACKUP_DATE }}
-          path: backups/${{ env.BACKUP_DATE }}/
+          path: backups/${{ env.BACKUP_DATE }}.tar.gz.enc
           retention-days: 90
           if-no-files-found: error
