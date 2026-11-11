@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { AppModal } from "@/components/modals/base/app-modal";
+import { WedstrijdformulierModal } from "@/components/modals/matches/wedstrijdformulier-modal";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,7 +13,15 @@ import {
   SECTION_COLLAPSIBLE_SURFACE,
   SECTION_COLLAPSIBLE_TRIGGER,
 } from "@/components/layout/section-collapsible-styles";
-import { Download, Euro, ChevronDown, ChevronRight, Users, Loader2, Ban, Wallet } from "lucide-react";
+import { Download, Euro, ChevronDown, ChevronRight, Users, Loader2, Ban } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { useOrgQueryScope } from "@/hooks/useOrganization";
+import { prefetchMatchFormPlayers } from "@/hooks/useTeamPlayersQuery";
+import { isoToLocalDateTime } from "@/lib/dateUtils";
+import { MatchFormData } from "@/components/pages/admin/matches/types";
+import { fetchMatchForSession } from "@/services/core/matchesSessionFetch";
+import type { MatchFormsRow } from "@/services/core/matchesSessionFetch";
 import { useFinancialSeasonReportModal } from "./useFinancialSeasonReportModal";
 
 interface FinancialMonthlyReportsModalProps {
@@ -19,8 +29,62 @@ interface FinancialMonthlyReportsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function mapMatchRowToFormData(row: MatchFormsRow): MatchFormData {
+  const { date, time } = isoToLocalDateTime(row.match_date);
+  let matchdayDisplay = row.speeldag || "Te bepalen";
+  const isPlayoff = (row as { is_playoff_match?: boolean }).is_playoff_match === true;
+  const isCup = row.is_cup_match === true;
+
+  if (isPlayoff || matchdayDisplay.toLowerCase().includes("playoff")) {
+    const num = matchdayDisplay.match(/(\d+)/);
+    matchdayDisplay = num ? `Playoff ${num[1]}` : "Playoff";
+  }
+  if (isCup && !matchdayDisplay.startsWith("🏆")) {
+    matchdayDisplay = `🏆 ${matchdayDisplay}`;
+  }
+
+  return {
+    matchId: row.match_id,
+    uniqueNumber: row.unique_number || "",
+    date,
+    time,
+    homeTeamId: row.home_team_id ?? 0,
+    homeTeamName: row.home_team_name ?? "Nog te bepalen",
+    awayTeamId: row.away_team_id ?? 0,
+    awayTeamName: row.away_team_name ?? "Nog te bepalen",
+    location: row.location || "Te bepalen",
+    matchday: matchdayDisplay,
+    isCompleted: !!row.is_submitted,
+    isLocked: !!row.is_locked,
+    homeScore: row.home_score ?? undefined,
+    awayScore: row.away_score ?? undefined,
+    referee: row.referee ?? undefined,
+    refereeNotes: row.referee_notes || "",
+    homePlayers: Array.isArray(row.home_players) ? (row.home_players as MatchFormData["homePlayers"]) : [],
+    awayPlayers: Array.isArray(row.away_players) ? (row.away_players as MatchFormData["awayPlayers"]) : [],
+    assignedRefereeId: row.assigned_referee_id,
+    pollGroupId: row.poll_group_id,
+    pollMonth: row.poll_month,
+  };
+}
+
 export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModalProps> = ({ open, onOpenChange }) => {
   const [expandedReferees, setExpandedReferees] = useState<Set<string>>(new Set());
+  const [selectedMatchForm, setSelectedMatchForm] = useState<MatchFormData | null>(null);
+  const [matchFormOpen, setMatchFormOpen] = useState(false);
+  const [openingMatchId, setOpeningMatchId] = useState<number | null>(null);
+
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrgQueryScope();
+
+  const isAdmin =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.isSuperAdmin === true;
+  const isReferee = user?.role === "referee";
+  const effectiveTeamId = user?.teamId && user.teamId > 0 ? user.teamId : 0;
 
   const {
     availableSeasons,
@@ -36,6 +100,84 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
     isSeasonsLoading,
     isSeasonsFetched,
   } = useFinancialSeasonReportModal(open);
+
+  const openMatchForm = useCallback(
+    async (matchId: number | null | undefined) => {
+      if (!matchId || matchId <= 0 || openingMatchId != null) return;
+      setOpeningMatchId(matchId);
+      try {
+        const row = await fetchMatchForSession(matchId);
+        if (!row) {
+          toast({
+            title: "Wedstrijd niet gevonden",
+            description: "Kon dit wedstrijdformulier niet laden.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const match = mapMatchRowToFormData(row);
+        void prefetchMatchFormPlayers(
+          queryClient,
+          match.homeTeamId,
+          match.awayTeamId,
+          organizationId,
+        );
+        setSelectedMatchForm(match);
+        setMatchFormOpen(true);
+      } catch (err) {
+        toast({
+          title: "Laden mislukt",
+          description: err instanceof Error ? err.message : "Kon wedstrijdformulier niet openen.",
+          variant: "destructive",
+        });
+      } finally {
+        setOpeningMatchId(null);
+      }
+    },
+    [openingMatchId, organizationId, queryClient, toast],
+  );
+
+  const handleMatchFormOpenChange = useCallback((nextOpen: boolean) => {
+    setMatchFormOpen(nextOpen);
+    if (!nextOpen) {
+      setSelectedMatchForm(null);
+    }
+  }, []);
+
+  const handleMatchFormComplete = useCallback(() => {
+    setMatchFormOpen(false);
+    setSelectedMatchForm(null);
+    void queryClient.invalidateQueries({ queryKey: ["season-report"] });
+    void queryClient.invalidateQueries({ queryKey: ["all-team-transactions"] });
+  }, [queryClient]);
+
+  const matchRowProps = useCallback(
+    (matchId: number | null | undefined, label: string) => {
+      const canOpen = typeof matchId === "number" && matchId > 0;
+      if (!canOpen) return {};
+      return {
+        role: "button" as const,
+        tabIndex: 0,
+        "aria-label": `Open wedstrijdformulier: ${label}`,
+        "aria-busy": openingMatchId === matchId || undefined,
+        className: cn(
+          "border-b border-border/50 last:border-0 cursor-pointer hover:bg-muted/50",
+          "focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          openingMatchId === matchId && "opacity-70",
+        ),
+        onClick: () => {
+          void openMatchForm(matchId);
+        },
+        onKeyDown: (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            void openMatchForm(matchId);
+          }
+        },
+      };
+    },
+    [openMatchForm, openingMatchId],
+  );
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -102,9 +244,9 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
   };
   
   const seasonMonths = getSeasonMonths(selectedSeasonYear);
-  const balanceIncludesTopUps = report?.balanceIncludesTopUps === true;
 
   return (
+    <>
     <AppModal
       open={open}
       onOpenChange={onOpenChange}
@@ -112,6 +254,7 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
       subtitle="Overzicht van kosten en saldi per seizoen."
       size="lg"
       className="max-w-6xl max-h-[80vh] overflow-y-auto"
+      persistent={matchFormOpen}
     >
 
         <div className="space-y-6">
@@ -320,25 +463,6 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                   </div>
                 </CardContent>
               </Card>
-
-              <Card className="border-primary/20 shadow-lg card-hover col-span-2 sm:col-span-1">
-                <CardHeader className="bg-brand-100 p-3">
-                  <CardTitle className="text-xs flex items-center justify-center gap-2 text-brand-dark">
-                    <Wallet className="h-3 w-3" aria-hidden />
-                    Eindsaldo ploegen
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="bg-card p-3 space-y-1">
-                  <div className="text-lg font-bold text-brand-dark text-center">
-                    {formatCurrency(report.totalRemainingBalance)}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground text-center leading-snug">
-                    {balanceIncludesTopUps
-                      ? "Incl. bijstortingen naar €600"
-                      : "Excl. bijstortingen naar €600"}
-                  </p>
-                </CardContent>
-              </Card>
             </div>
           )}
 
@@ -527,7 +651,6 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                           <thead>
                             <tr className="border-b border-border/80 bg-muted/40 text-left text-muted-foreground">
                               <th className="px-2 py-1.5 font-medium">Datum</th>
-                              <th className="px-2 py-1.5 font-medium">Nr.</th>
                               <th className="px-2 py-1.5 font-medium">Wedstrijd</th>
                               <th className="px-2 py-1.5 font-medium">Ploeg</th>
                               <th className="px-2 py-1.5 font-medium">Soort</th>
@@ -535,15 +658,21 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                             </tr>
                           </thead>
                           <tbody className="text-brand-dark">
-                            {bucket.lines.map((line, li) => (
-                              <tr key={li} className="border-b border-border/50 last:border-0">
+                            {bucket.lines.map((line, li) => {
+                              const matchLabel = `${line.homeTeam} – ${line.awayTeam}`;
+                              const rowProps = matchRowProps(line.matchId, matchLabel);
+                              return (
+                              <tr
+                                key={li}
+                                {...rowProps}
+                                className={rowProps.className ?? "border-b border-border/50 last:border-0"}
+                              >
                                 <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
                                   {line.matchDate ? formatDate(line.matchDate) : "—"}
                                 </td>
-                                <td className="px-2 py-1.5 font-mono text-[10px] sm:text-xs">{line.uniqueNumber}</td>
-                                <td className="max-w-[200px] px-2 py-1.5" title={`${line.homeTeam} – ${line.awayTeam}`}>
+                                <td className="max-w-[200px] px-2 py-1.5" title={matchLabel}>
                                   <span className="line-clamp-2 leading-tight">
-                                    {line.homeTeam} – {line.awayTeam}
+                                    {matchLabel}
                                   </span>
                                 </td>
                                 <td className="max-w-[120px] truncate px-2 py-1.5" title={line.teamName}>
@@ -556,7 +685,8 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                                   {formatCurrency(line.amount)}
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -592,22 +722,27 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                           <thead>
                             <tr className="border-b border-border/80 bg-muted/40 text-left text-muted-foreground">
                               <th className="px-2 py-1.5 font-medium">Datum</th>
-                              <th className="px-2 py-1.5 font-medium">Nr.</th>
                               <th className="px-2 py-1.5 font-medium">Wedstrijd</th>
                               <th className="px-2 py-1.5 font-medium">Ploeg</th>
                               <th className="px-2 py-1.5 text-right font-medium">€</th>
                             </tr>
                           </thead>
                           <tbody className="text-brand-dark">
-                            {bucket.lines.map((line, li) => (
-                              <tr key={li} className="border-b border-border/50 last:border-0">
+                            {bucket.lines.map((line, li) => {
+                              const matchLabel = `${line.homeTeam} – ${line.awayTeam}`;
+                              const rowProps = matchRowProps(line.matchId, matchLabel);
+                              return (
+                              <tr
+                                key={li}
+                                {...rowProps}
+                                className={rowProps.className ?? "border-b border-border/50 last:border-0"}
+                              >
                                 <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
                                   {line.matchDate ? formatDate(line.matchDate) : "—"}
                                 </td>
-                                <td className="px-2 py-1.5 font-mono text-[10px] sm:text-xs">{line.uniqueNumber}</td>
-                                <td className="max-w-[220px] px-2 py-1.5" title={`${line.homeTeam} – ${line.awayTeam}`}>
+                                <td className="max-w-[220px] px-2 py-1.5" title={matchLabel}>
                                   <span className="line-clamp-2 leading-tight">
-                                    {line.homeTeam} – {line.awayTeam}
+                                    {matchLabel}
                                   </span>
                                 </td>
                                 <td className="max-w-[120px] truncate px-2 py-1.5" title={line.billedTeam}>
@@ -617,7 +752,8 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
                                   {formatCurrency(line.amount)}
                                 </td>
                               </tr>
-                            ))}
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -650,6 +786,19 @@ export const FinancialMonthlyReportsModal: React.FC<FinancialMonthlyReportsModal
           )}
         </div>
     </AppModal>
+
+    {selectedMatchForm && (
+      <WedstrijdformulierModal
+        open={matchFormOpen}
+        onOpenChange={handleMatchFormOpenChange}
+        match={selectedMatchForm}
+        isAdmin={isAdmin}
+        isReferee={isReferee}
+        teamId={effectiveTeamId}
+        onComplete={handleMatchFormComplete}
+      />
+    )}
+    </>
   );
 };
 

@@ -178,6 +178,22 @@ function expenseAmount(transaction: {
   );
 }
 
+/** Bijv. €10 met eenheid €5 → "2× Gele kaart" (één rij voor meerdere kaarten). */
+function fineCostLabel(
+  costName: string | null | undefined,
+  bookedAmount: number,
+  unitAmount: number | string | null | undefined,
+): string {
+  const name = (costName || "Boete").trim() || "Boete";
+  const unit = typeof unitAmount === "number" ? Math.abs(unitAmount) : Math.abs(Number(unitAmount));
+  if (!Number.isFinite(unit) || unit <= 0) return name;
+  const qty = Math.round(bookedAmount / unit);
+  if (qty >= 2 && Math.abs(bookedAmount - qty * unit) < 0.01) {
+    return `${qty}× ${name}`;
+  }
+  return name;
+}
+
 function toTeamCostTransaction(transaction: FinancialTeamTransaction): TeamCostTransaction {
   return {
     team_id: transaction.team_id,
@@ -557,8 +573,9 @@ export const monthlyReportsService = {
           const billedTeam =
             teamRow?.team_name ||
             (typeof transaction.team_id === "number" ? `Team ${transaction.team_id}` : "—");
+          const fineAmount = expenseAmount(transaction);
           finesByMonth[key].lines!.push({
-            amount: expenseAmount(transaction),
+            amount: fineAmount,
             teamId: typeof transaction.team_id === "number" ? transaction.team_id : null,
             teamName: billedTeam,
             matchId: typeof transaction.match_id === "number" ? transaction.match_id : null,
@@ -566,7 +583,7 @@ export const monthlyReportsService = {
             matchDate: meta.matchDate,
             homeTeam: meta.homeTeam,
             awayTeam: meta.awayTeam,
-            costLabel: costNameRaw || "Boete",
+            costLabel: fineCostLabel(costNameRaw, fineAmount, transaction.costs?.amount),
           });
         }
       });
